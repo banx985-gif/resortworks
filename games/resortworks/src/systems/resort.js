@@ -1,6 +1,15 @@
 // A new resort's campaign save and its slot summary (Milestone 0, bible §5 / §33). The campaign is empty for now — the
 // resort's identity and the date; the simulation's state joins it milestone by milestone (with SAVE_MIGRATIONS).
 import { founderById, paletteById, ROLES, FOUNDER_FLAG } from '../../data/setup.js';
+import { CALENDAR } from '../../data/calendar.js';
+
+// A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
+// before the calendar existed (Milestone 2).
+export function calendarFromDate(date = { year: 1, month: 1, day: 1 }) {
+  const perYear = CALENDAR.daysPerMonth * CALENDAR.monthsPerYear;
+  const totalDays = (date.year - 1) * perYear + (date.month - 1) * CALENDAR.daysPerMonth + (date.day - 1);
+  return { year: date.year, month: date.month, day: date.day, totalDays, dayProgress: CALENDAR.startProgress, speed: 1, lastSpeed: 1, band: 'morning' };
+}
 
 export const managerLine = (name) => `General Manager ${name || '…'}`;
 
@@ -19,6 +28,7 @@ export function newCampaign(setup, now = Date.now()) {
     },
     seed: `resortworks-${now}`, // the run's seed, fixed at creation (a reload never rerolls it)
     date: { year: 1, month: 1, day: 1 },
+    calendar: calendarFromDate(), // (Milestone 2) the clock exactly as it stands: day, progress, band, speed
     playSec: 0,
     ngPlus: 0,
   };
@@ -54,5 +64,7 @@ export function playTime(sec) {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
 }
 
-// Save version → upgrade (none yet: version 1 is Milestone 0).
-export const SAVE_MIGRATIONS = {};
+// Save version → upgrade. 1 → 2 (Milestone 2): a save from before the calendar gets one at its date, start of Morning.
+export const SAVE_MIGRATIONS = {
+  1: (record) => ({ ...record, data: { ...record.data, calendar: record.data.calendar ?? calendarFromDate(record.data.date) } }),
+};

@@ -47,20 +47,25 @@ export const ART_TWEAK = {
 // People: drawn height at zoom 1 (logical px); feet = where the feet sit in the picture (share of its height).
 export const PERSON = { height: 200, feet: 0.985, guestSpeed: 260, staffSpeed: 280 };
 
-// The one guest (Milestone 1): a Road Trip Couple who loops the stay. going = while walking there, doing = while there.
+// The one guest: a Road Trip Couple whose day follows the bands (Milestone 2, replacing M1's fixed loop). Each band lists
+// where they go; a band with two stops splits at `until` (a share of the band). going = while walking there, doing =
+// while there (their sheet's "Now" line).
+export const GUEST_ROOM = 'RM01';
 export const GUEST = {
   art: 'world_guest_adult_a',
   sheetArt: 'guest_gt01',
   title: 'Guest',
   type: 'Road Trip Couple',
-  route: [
-    { at: 'F07', dwell: 2.5, going: 'Heading back to the car', doing: 'At the car' },
-    { at: 'F01', dwell: 3, going: 'Walking to Reception', doing: 'Checking in' },
-    { at: 'RM01', dwell: 3, going: 'Walking to their room', doing: 'Dropping off the bags' },
-    { at: 'F03', dwell: 4, going: 'Walking to the pool', doing: 'Swimming in the pool' },
-    { at: 'F06', dwell: 3.5, going: 'Walking to the Snack Café', doing: 'Having a snack' },
-    { at: 'RM01', dwell: 3, going: 'Walking back to their room', doing: 'Packing up' },
-  ],
+  plan: {
+    night: [{ at: GUEST_ROOM, going: 'Heading to bed', doing: 'Sleeping' }],
+    morning: [{ at: 'F06', going: 'Walking to the café for breakfast', doing: 'Having breakfast at the café' }],
+    midday: [{ at: 'F01', going: 'Walking to Reception', doing: 'At Reception' }],
+    afternoon: [{ at: 'F03', going: 'Walking to the pool', doing: 'At the pool' }],
+    evening: [
+      { at: 'F06', until: 0.55, going: 'Walking to the café for dinner', doing: 'Having dinner at the café' },
+      { at: GUEST_ROOM, going: 'Walking back to their room', doing: 'Back in their room' },
+    ],
+  },
 };
 
 // The one staff member is the run's Founder: their role's station and walking picture (bible §8 roles).
@@ -71,14 +76,13 @@ export const STAFF_ROLES = {
   AE: { station: 'F03', art: 'world_staff_activities_base' },
   MG: { station: 'F05', art: 'world_staff_maintenance_base' },
 };
-// Their loop: their station → the guest's room door → the Motel Service Block (rest) → back. 'station' and 'guestRoom'
-// are filled in per run.
-export const STAFF_ROUTE = [
-  { at: 'station', dwell: 4, going: 'Walking to the {name}', doing: 'Working at the {name}' },
-  { at: 'guestRoom', dwell: 3, going: 'Walking to {name}', doing: 'Checking {name}' },
-  { at: 'F02', dwell: 4, going: 'Walking to the {name}', doing: 'Resting' },
-];
-export const GUEST_ROOM = 'RM01';
+// Their day: at their role's station Morning to Evening, resting at the Motel Service Block at Night. 'station' is filled
+// in per run; {name} is the place's name.
+export const REST_POINT = 'F02';
+export const STAFF_PLAN = {
+  night: [{ at: REST_POINT, going: 'Walking to the {name}', doing: 'Resting' }],
+  work: [{ at: 'station', going: 'Walking to the {name}', doing: 'Working at the {name}' }],
+};
 
 // The ground's colours (bright, sunny; the lot's kerb and path edging take the slot's accent colour).
 export const LOOK = {

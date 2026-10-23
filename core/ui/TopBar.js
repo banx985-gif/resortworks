@@ -16,6 +16,10 @@
 //   note()       → a short note under the date's right end (e.g. "Saved ✓"), or null
 //   canControl() → false ignores Pause / speed taps (e.g. the company has closed)
 //   onLockedSpeed(speed, rect) — a padlocked speed was tapped (show why)
+//   Optional (RESORTWORKS M2; a game that passes none of them sees no change):
+//   showInbox / showHelp  false leaves that button out (inboxRect() / helpRect() → null) and gives the date its room —
+//                for a game whose Inbox / Help arrive in a later milestone
+//   dateLabel(date, { home }) → the date text instead of the built-in one (date: { year, month, day })
 import { THEME, font } from '../Theme.js';
 import { drawButton, hitRect } from './Button.js';
 import { text } from './Kit.js';
@@ -60,18 +64,25 @@ export function createTopBar({
   note = () => null,
   canControl = () => true,
   onLockedSpeed = null,
+  showInbox = true,
+  showHelp = true,
+  dateLabel = null,
 }) {
   const rect = () => topBarRect(layout);
   const chipRect = () => statsRect(layout, clock.speeds, (s) => !clock.canUseSpeed(s));
 
   const helpRect = () => {
+    if (!showHelp) return null;
     const r = rect();
     return { x: r.x + r.w - 16 - 150, y: r.y + ROW1.y, w: 150, h: ROW1.h };
   };
   const inboxRect = () => {
+    if (!showInbox) return null;
     const r = rect();
-    return { x: r.x + r.w - 16 - 150 - 12 - 180, y: r.y + ROW1.y, w: 180, h: ROW1.h };
+    return { x: r.x + r.w - 16 - (showHelp ? 150 + 12 : 0) - 180, y: r.y + ROW1.y, w: 180, h: ROW1.h };
   };
+  // Where the date may run to: the first button on the right of row 1 (or the bar's end).
+  const dateEnd = () => (inboxRect() ?? helpRect())?.x ?? rect().x + rect().w - 12;
   const backRect = () => {
     if (home) return null;
     const r = rect();
@@ -176,7 +187,7 @@ export function createTopBar({
       }
       const br = backRect();
       const dateX = br ? br.x + br.w + 20 : r.x + 28;
-      const dateW = inboxRect().x - 16 - dateX;
+      const dateW = dateEnd() - 16 - dateX;
       const d = clock.dateOf(clock.totalDays);
       const tag = dateTag();
       let tx = dateX;
@@ -193,14 +204,14 @@ export function createTopBar({
         tx += tw + 14;
       }
       const long = home && !tag;
-      const label = long ? `Year ${d.year} · Month ${d.month} · Day ${d.day}` : home ? `Year ${d.year} · M${d.month} · D${d.day}` : `Y${d.year} · M${d.month} · D${d.day}`;
+      const label = dateLabel?.(d, { home }) ?? (long ? `Year ${d.year} · Month ${d.month} · Day ${d.day}` : home ? `Year ${d.year} · M${d.month} · D${d.day}` : `Y${d.year} · M${d.month} · D${d.day}`);
       text(ctx, label, tx, r.y + ROW1.y + ROW1.h / 2, { size: home ? S.heading : S.body, bold: true, baseline: 'middle', maxWidth: dateX + dateW - tx });
       const n = note();
       if (n) text(ctx, n, dateX + dateW, r.y + ROW1.y + ROW1.h - 6, { size: S.small, bold: true, align: 'right', baseline: 'bottom', color: COL.good });
       const unread = inboxCount() ?? 0;
-      drawButton(ctx, inboxRect(), 'Inbox', { accent: COL.progress, badge: unread ? (unread > 99 ? '99+' : unread) : null });
+      if (showInbox) drawButton(ctx, inboxRect(), 'Inbox', { accent: COL.progress, badge: unread ? (unread > 99 ? '99+' : unread) : null });
       const helpN = helpCount() ?? 0;
-      drawButton(ctx, helpRect(), 'Help', { accent: COL.progress, badge: helpN ? (helpN > 99 ? '99+' : helpN) : null });
+      if (showHelp) drawButton(ctx, helpRect(), 'Help', { accent: COL.progress, badge: helpN ? (helpN > 99 ? '99+' : helpN) : null });
       drawStats(ctx);
       for (const b of buttons()) {
         drawButton(ctx, b.rect, b.label, { active: b.active, locked: b.locked, accent: b.id === 'pause' ? COL.warn : b.id === 'home' ? COL.progress : COL.action, font: font(S.button, true) });

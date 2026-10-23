@@ -11,6 +11,8 @@
 //   A section may also hold bars (CAREWORKS Milestone 2; optional, drawn after its lines):
 //     bars: [{ label, value, max = 100, color?, text? }]   one row each: label · a filled bar · text (default the value)
 //       tick? (CAREWORKS Milestone 16, optional): a target mark across the bar at that value; bars without one draw as before
+//       star? (GOALWORKS Milestone 20, optional): a higher cap (e.g. 140) — past max the full bar gets a gold band showing how
+//         far towards it the value goes; bars without one draw as before
 //   Header extras (CAREWORKS Milestone 3; optional): badge (image key) — a small round badge on the picture's corner
 //   (e.g. a role badge); tag: { text, color? } — a chip beside the title (e.g. FOUNDER)
 //   Button extra (CAREWORKS Milestone 5; optional): iconBadge (image key) — a small round badge on the button's icon
@@ -587,6 +589,17 @@ export class BottomSheet {
     if (ctx.roundRect) ctx.roundRect(x, by, bw, bh, bh / 2);
     else ctx.rect(x, by, bw, bh);
     ctx.stroke();
+    if (bar.star != null && (bar.value ?? 0) > (bar.max ?? 100)) {
+      // (GOALWORKS Milestone 20, optional) a star section: the bar is full at max; past it, a gold band from the left shows how
+      // far towards `star` (the star cap, e.g. 140) the value goes, so a normal player's full bar still means "the top"
+      const over = Math.max(0, Math.min(1, ((bar.value ?? 0) - (bar.max ?? 100)) / Math.max(1, bar.star - (bar.max ?? 100))));
+      const sh = bh * 0.5;
+      ctx.fillStyle = C.gold ?? '#F2B705';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x + 3, by + (bh - sh) / 2, Math.max(sh, (bw - 6) * over), sh, sh / 2);
+      else ctx.rect(x + 3, by + (bh - sh) / 2, (bw - 6) * over, sh);
+      ctx.fill();
+    }
     if (bar.tick != null) {
       // (CAREWORKS Milestone 16: an optional target tick — a short upright mark across the bar at tick / max)
       const tx = x + bw * Math.max(0, Math.min(1, bar.tick / (bar.max ?? 100)));

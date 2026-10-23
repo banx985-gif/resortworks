@@ -10,6 +10,10 @@
 // 3/4 view with the eight starting facilities and two rooms, the guest and the Founder walking their loops
 // (src/systems/resortWorld.js), pan / pinch / wheel zoom, sheets on tap (and from the Reception shortcut), and the
 // placeholder Build Mode on a long press. A reload while the hub is open comes back to it (positions start fresh).
+// Milestone 2: each open resort has its calendar (src/systems/calendar.js on core/Clock: 5 s a day at 1×, the five daily
+// bands, the speed unlocks), stepped here while the hub is on screen. It is saved in the slot's campaign save (core/
+// Autosave: each new month, on Pause, leaving the hub, the app going to the background), the slot card's Year / Month
+// with it; loading puts the clock back exactly (at a speed the rules still allow). ?debug=1: skip a day / month / year.
 // Add ?debug=1 for the FPS/state overlay and the setup-data check, ?screen=test for the scaling / tap / asset-loader test
 // screen. With ?debug=1, &safe=phone|tablet stands in a notch and home bar (safe-area insets) on any screen, and
 // &reset=1 empties all four slots.
@@ -32,6 +36,8 @@ import { BottomSheet } from '../../../core/ui/BottomSheet.js';
 import { Dialog } from '../../../core/ui/Modal.js';
 import { drawButton, hitRect, setPressPoint, clearPress } from '../../../core/ui/Button.js';
 import { Settings } from '../../../core/Settings.js';
+import { Autosave } from '../../../core/Autosave.js';
+import { createCalendar } from './systems/calendar.js';
 import { FrameGovernor } from '../../../core/FrameGovernor.js';
 import { Haptics } from '../../../core/Haptics.js';
 import { settingsSheet } from '../../../core/ui/SettingsSheet.js';
@@ -92,6 +98,7 @@ const loop = new FixedStepLoop({
   stepHz: 60,
   bus,
   update: (dt) => {
+    if (open && router.currentName === 'resort') open.calendar.update(dt); // the calendar runs only while the hub is on screen
     if ((pruneT += dt) >= 5) {
       assets.sprites.prune(pruneT, 60); // let go of copies not drawn for a minute
       pruneT = 0;
@@ -203,8 +210,43 @@ bus.on('input:up', () => systemBack.rearm()); // re-arm after any tap, in case a
 // ---------------------------------------------------------------------------
 // The four campaign slots.
 let campaigns = null;
-let open = null; // { n, data } — the resort on screen
+let open = null; // { n, data, calendar } — the resort on screen
 let account = {}; // the account store (core/CampaignSlots): empty until achievements / tokens / NG+ exist
+
+// A campaign on screen: its save plus its calendar, put back exactly where the save left it (Milestone 2).
+function openRun(n, data) {
+  const run = { n, data, calendar: null };
+  run.calendar = createCalendar({ bus, saved: data.calendar ?? null, run: () => run.data });
+  open = run;
+  return run;
+}
+// The campaign save: the calendar as it stands, the date the slot card shows, then the slot (save + summary record).
+async function saveRun() {
+  if (!open) return;
+  const { n, data, calendar } = open;
+  data.calendar = calendar.serialize();
+  const c = calendar.clock;
+  data.date = { year: c.year, month: c.month, day: c.day };
+  await campaigns.save(n, data);
+}
+const autosave = new Autosave({
+  bus,
+  triggers: ['clock:month'],
+  save: () => saveRun(),
+  stamp: () => (open ? JSON.stringify(open.calendar.serialize()) : null),
+  enabled: () => !!open,
+});
+autosave.installBackground(); // the app going to the background (or the page closing) saves at once
+bus.on('clock:speed', ({ speed }) => speed === 0 && autosave.request('pause'));
+bus.on('autosave:done', ({ reason }) => debug.log(`saved (${reason}): ${open?.calendar.dateText() ?? ''}`));
+bus.on('autosave:failed', ({ error }) => debug.log(`save failed: ${error?.message ?? error}`));
+bus.on('band:change', ({ band }) => debug.log(`band: ${band}`));
+// ?debug=1: skip whole days (the speed unlocks follow the year); a new month on the way saves as usual.
+function skipDays(days) {
+  if (!open) return;
+  open.calendar.skipDays(days);
+  debug.log(`skipped ${days} day(s): ${open.calendar.dateText()}`);
+}
 
 async function prepareSaves() {
   const adapter = await createStorageAdapter({ dbName: SAVE.dbName, prefix: SAVE.localPrefix });
@@ -253,8 +295,8 @@ async function playSlot(n) {
     router.go('slots', { mode: 'browse' });
     return;
   }
-  open = { n, data };
-  debug.log(`slot ${n} opened: ${data.resort.name}`);
+  openRun(n, data);
+  debug.log(`slot ${n} opened: ${data.resort.name} · ${open.calendar.dateText()} · ${open.calendar.band.name}`);
   rememberResort(n);
   router.go('resort');
 }
@@ -264,7 +306,7 @@ async function startResort(n, setup) {
   const old = campaigns.card(n);
   const write = async () => {
     const data = await campaigns.start(n, setup);
-    open = { n, data };
+    openRun(n, data);
     debug.log(`new resort in slot ${n}: ${setup.resort}, founder ${setup.founder}`);
     rememberResort(n);
     router.go('resort');
@@ -335,12 +377,16 @@ function leaveSetup() {
 }
 const setupScreen = createSetupScreen({ layout, assets, textPrompt, onBack: () => leaveSetup(), onStart: (n, setup) => startResort(n, setup) });
 async function leaveResort() {
+  if (open) {
+    autosave.request('leave');
+    await autosave.flush().catch(() => {}); // leaving the hub saves the calendar exactly where it is
+  }
   rememberResort(null);
   router.go('menu');
   await campaigns.refresh();
   open = null;
 }
-const resortScreen = createResortScreen({ renderer, layout, assets, bus, sheet, run: () => open, onMenu: () => leaveResort(), debug });
+const resortScreen = createResortScreen({ renderer, layout, assets, bus, sheet, run: () => open, onMenu: () => leaveResort(), debug, reducedFlashes: () => settings.get('reducedFlashes') === true, onSkip: (days) => skipDays(days) });
 
 // Settings: the series list in bible §36 order and names, then Help / Privacy / Credits, then the display test.
 // Reachable from the Main Menu (always).
@@ -415,7 +461,7 @@ const testSheet = () => ({
 
 // ?debug=1: a test hook for automated checks.
 if (debug.enabled) {
-  window.__rw = { bus, renderer, layout, input, loop, router, assets, sheet, dialog, systemBack, textPrompt, settings, governor, haptics, splashScreen, menuScreen, slotsScreen, setupScreen, resortScreen, playSlot, startResort, deleteSlot, newGame, openSettings, booting, taps: [], get booted() { return booted; }, get account() { return account; }, get campaigns() { return campaigns; }, get open() { return open; } };
+  window.__rw = { bus, renderer, layout, input, loop, router, assets, sheet, dialog, systemBack, textPrompt, settings, governor, haptics, splashScreen, menuScreen, slotsScreen, setupScreen, resortScreen, playSlot, startResort, deleteSlot, newGame, openSettings, booting, autosave, saveRun, skipDays, taps: [], get booted() { return booted; }, get account() { return account; }, get campaigns() { return campaigns; }, get open() { return open; } };
 }
 
 router.go('boot');

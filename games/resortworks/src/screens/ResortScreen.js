@@ -5,8 +5,13 @@
 // is never a tap. Tapping the guest, the Founder, a facility or a room opens its sheet (src/screens/resortSheets.js); the
 // temporary bottom-row shortcut opens the Reception sheet through the same code. A long press on empty land enters the
 // placeholder Build Mode (a banner with Done; Back leaves it too). ‹ Menu (or Back) returns to the Main Menu.
-//   createResortScreen({ renderer, layout, assets, bus, sheet, run, onMenu, debug })
-//     run() → the open campaign { n, data } or null
+// Milestone 2: the minimal top bar (core/ui/TopBar: ‹ Menu, the date "Y1 · Month 3 · Day 14", the band's name in its chip,
+// Pause / 1× / 2× / 4× — a locked speed shows a padlock and its tap one plain line under the bar); the resort's name plate
+// sits under the bar. People keep the calendar's pace (still while paused) and go where the band sends them; a soft light
+// tint over the map follows the band, fading between bands (slower and softer with Reduced flashes). With ?debug=1, a row
+// of skip buttons (+1 day / +1 month / +1 year) sits above the Reception shortcut.
+//   createResortScreen({ renderer, layout, assets, bus, sheet, run, onMenu, debug, reducedFlashes, onSkip })
+//     run() → the open campaign { n, data, calendar } or null    onSkip(days) → the debug skip
 import { THEME, font } from '../../../../core/Theme.js';
 import { IsoProjection } from '../../../../core/IsoProjection.js';
 import { Camera } from '../../../../core/Camera.js';
@@ -19,6 +24,8 @@ import { findPath } from '../../../../core/Pathing.js';
 import { drawCharacter } from '../../../../core/CharacterMotion.js';
 import { drawButton, hitRect } from '../../../../core/ui/Button.js';
 import { card, text, para } from '../../../../core/ui/Kit.js';
+import { createTopBar, topBarRect } from '../../../../core/ui/TopBar.js';
+import { BANDS, TINT_FADE } from '../../data/calendar.js';
 import { founderById, paletteById } from '../../data/setup.js';
 import { LOT, ART_LOOK, ART_TWEAK, PERSON, LOOK } from '../../data/lot.js';
 import { createResortWorld } from '../systems/resortWorld.js';
@@ -36,7 +43,7 @@ const DETAIL_STEPS = [0.35, 0.5, 0.7, 1.0, 1.4];
 const detailFor = (zoom) => DETAIL_STEPS.find((d) => d >= zoom - 1e-3) ?? DETAIL_STEPS[DETAIL_STEPS.length - 1];
 const PEOPLE_FIRST = 1e6; // people are picked over the building behind them
 
-export function createResortScreen({ renderer, layout, assets, bus, sheet, run, onMenu, debug = null }) {
+export function createResortScreen({ renderer, layout, assets, bus, sheet, run, onMenu, debug = null, reducedFlashes = () => false, onSkip = () => {} }) {
   const W = renderer.width;
   const iso = new IsoProjection({ tileSize: CELL, halfW: HW, halfH: HH, originX: LOT.margin + ROWS_DRAWN * HW, originY: LOT.margin + LOT.topOverhang });
   const worldW = (LOT.cols + ROWS_DRAWN) * HW + LOT.margin * 2;
@@ -114,16 +121,69 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
       });
   }
 
+  // --- the top bar (Milestone 2) ------------------------------------------------------------------------------------
+  // The open campaign's calendar, seen through one steady object (the bar is made once; the calendar changes per slot).
+  const calendar = () => run()?.calendar ?? null;
+  const clockView = {
+    get paused() {
+      return calendar()?.paused ?? true;
+    },
+    get speed() {
+      return calendar()?.speed ?? 0;
+    },
+    get speeds() {
+      return calendar()?.clock.speeds ?? [1, 2, 4];
+    },
+    get totalDays() {
+      return calendar()?.clock.totalDays ?? 0;
+    },
+    canUseSpeed: (s) => calendar()?.clock.canUseSpeed(s) ?? s <= 1,
+    togglePause: () => calendar()?.togglePause(),
+    setSpeed: (s) => calendar()?.setSpeed(s),
+    dateOf: (d) => calendar()?.clock.dateOf(d) ?? { year: 1, month: 1, day: 1 },
+  };
+  let note = null; // { text, t } — why a locked speed was refused, under the bar for a moment
+  const topBar = createTopBar({
+    layout,
+    assets,
+    clock: clockView,
+    home: false,
+    back: { label: '‹ Menu', onTap: () => onMenu() },
+    showInbox: false,
+    showHelp: false,
+    dateLabel: (d) => `Y${d.year} · Month ${d.month} · Day ${d.day}`,
+    stats: () => [{ text: calendar()?.band.label ?? '' }],
+    accent: () => palette.hex,
+    onLockedSpeed: (s) => {
+      note = { text: calendar()?.lockedLine(s) ?? '', t: 3 };
+      debug?.log(`speed ${s}× locked`);
+    },
+  });
+
   // --- screen rects ------------------------------------------------------------------------------------------------
-  const menuRect = () => {
-    const sr = layout.safeRect;
-    return { x: sr.x + 24, y: sr.y + 24, w: 220, h: 110 };
-  };
+  const menuRect = () => topBar.backRect();
   const plateRect = () => {
-    const m = menuRect();
     const sr = layout.safeRect;
-    return { x: m.x + m.w + 20, y: m.y, w: sr.x + sr.w - 24 - (m.x + m.w + 20), h: m.h };
+    const bar = topBarRect(layout);
+    return { x: sr.x + 24, y: bar.y + bar.h + 12, w: sr.w - 48, h: 96 };
   };
+  const noteRect = () => {
+    const p = plateRect();
+    return { x: p.x, y: p.y + p.h + 10, w: p.w, h: 70 };
+  };
+  // ?debug=1: skip a day / month / year (so the speed unlocks can be tested).
+  const SKIPS = [
+    { id: 'skipDay', label: '+1 day', days: 1 },
+    { id: 'skipMonth', label: '+1 month', days: 28 },
+    { id: 'skipYear', label: '+1 year', days: 336 },
+  ];
+  const skipRect = (i) => {
+    const s = shortcutRect();
+    const sr = layout.safeRect;
+    const w = (sr.w - 48 - 2 * 16) / 3;
+    return { x: sr.x + 24 + i * (w + 16), y: s.y - 16 - 100, w, h: 100 };
+  };
+  const debugSkips = () => !!debug?.enabled;
   // The temporary bottom-row shortcut (the five-button bar and the Menu button come later).
   const shortcutRect = () => {
     const sr = layout.safeRect;
@@ -138,13 +198,14 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     const b = bannerRect();
     return { x: b.x + b.w - 300 - 24, y: b.y + b.h - 24 - 110, w: 300, h: 110 };
   };
-  const onUi = (p) => (buildMode ? hitRect(p, bannerRect()) : hitRect(p, menuRect()) || hitRect(p, plateRect()) || hitRect(p, shortcutRect()));
+  const onSkipRow = (p) => debugSkips() && SKIPS.some((_, i) => hitRect(p, skipRect(i)));
+  const onUi = (p) => (buildMode ? hitRect(p, bannerRect()) : topBar.contains(p) || hitRect(p, plateRect()) || hitRect(p, shortcutRect()) || onSkipRow(p) || (note && hitRect(p, noteRect())));
   const overSheet = (p) => sheet.active && p.y >= sheet.rect().y;
 
-  // The camera sees the lot between the header and the bottom row.
+  // The camera sees the lot between the name plate and the bottom row.
   function fitView() {
-    const top = menuRect();
-    const bottom = shortcutRect();
+    const top = plateRect();
+    const bottom = debugSkips() ? skipRect(0) : shortcutRect();
     camera.viewX = 0;
     camera.viewY = top.y + top.h + 12;
     camera.setView(W, bottom.y - 12 - camera.viewY);
@@ -203,13 +264,51 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     palette = paletteById(o.data.resort.palette);
     if (!world || slotN !== o.n || world.founder !== founder) {
       if (slotN !== o.n) viewSet = false;
-      world = createResortWorld({ founder });
+      const cal = o.calendar;
+      world = createResortWorld({ founder, band: cal?.band.id ?? 'morning', bandFrac: cal?.bandFrac ?? 0 });
       slotN = o.n;
       paths = null;
       syncSelection();
     }
     groundLayer.invalidate(); // (the accent colour may differ)
+    tint.cur = tintOf(o.calendar?.band.id); // the light starts right for the time of day (no fade on opening)
+    tint.from = tint.cur;
+    tint.to = tint.cur;
+    tint.band = o.calendar?.band.id ?? null;
+    tint.t = 1;
     return true;
+  }
+
+  // --- the light over the map: the band's tint, faded in real time from one band to the next --------------------------
+  const tintOf = (id) => [...(BANDS.find((b) => b.id === id)?.tint ?? [255, 255, 255, 0])];
+  const tint = { band: null, from: [255, 255, 255, 0], to: [255, 255, 255, 0], cur: [255, 255, 255, 0], t: 1 };
+  function updateTint(dt) {
+    const id = calendar()?.band.id ?? null;
+    if (id !== tint.band) {
+      tint.band = id;
+      tint.from = [...tint.cur];
+      tint.to = tintOf(id);
+      tint.t = 0;
+    }
+    if (tint.t < 1) {
+      const cal = calendar();
+      const bandReal = cal ? cal.bandSeconds / Math.max(1, cal.clock.lastSpeed || 1) : 1; // the band's real length now
+      const fade = reducedFlashes() ? Math.max(TINT_FADE.reducedMin, TINT_FADE.reducedShare * bandReal) : Math.min(TINT_FADE.max, Math.max(TINT_FADE.min, TINT_FADE.share * bandReal));
+      tint.t = Math.min(1, tint.t + dt / fade);
+      const k = tint.t * tint.t * (3 - 2 * tint.t); // smooth start and end
+      tint.cur = tint.from.map((v, i) => v + (tint.to[i] - v) * k);
+    }
+  }
+  // The tint as drawn: softer with Reduced flashes and at 2× / 4× (paused: the speed it will resume at).
+  function shownTint() {
+    const speed = calendar()?.clock.lastSpeed ?? 1;
+    return [...tint.cur.slice(0, 3), tint.cur[3] * (reducedFlashes() ? TINT_FADE.reducedAlpha : 1) * (TINT_FADE.speedAlpha[speed] ?? 1)];
+  }
+  function drawTint(ctx) {
+    const [r, g, b, alpha] = shownTint();
+    if (alpha <= 0.002) return;
+    ctx.fillStyle = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${alpha.toFixed(3)})`;
+    ctx.fillRect(0, 0, W, renderer.height);
   }
 
   const pose = { bob: 0, tilt: 0, flip: 1 }; // no bob or sway yet (Milestone 1 card)
@@ -245,8 +344,15 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
       setBuildMode(false);
       selection.clear();
     },
+    // dt: real seconds. The calendar has already stepped (main); people follow its band at its pace.
     update(dt) {
-      world?.update(dt);
+      const cal = calendar();
+      if (world && cal) {
+        world.setTime(cal.band.id, cal.bandFrac, cal.bandSeconds);
+        world.update(cal.paused ? 0 : dt * cal.speed);
+      }
+      updateTint(dt);
+      if (note && (note.t -= dt) <= 0) note = null;
     },
     onBack() {
       if (buildMode) setBuildMode(false);
@@ -282,9 +388,15 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
         if (hitRect(p, doneRect())) setBuildMode(false);
         return log(hitRect(p, doneRect()) ? 'done' : null);
       }
-      if (hitRect(p, menuRect())) {
-        onMenu();
-        return log('menu');
+      if (topBar.contains(p)) {
+        const b = topBar.buttons().find((x) => hitRect(p, x.rect));
+        topBar.handleTap(p); // ‹ Menu, Pause, the speeds (a locked one explains itself)
+        return log(b?.id ?? 'bar');
+      }
+      const sk = debugSkips() ? SKIPS.findIndex((_, i) => hitRect(p, skipRect(i))) : -1;
+      if (sk >= 0) {
+        onSkip(SKIPS[sk].days);
+        return log(SKIPS[sk].id);
       }
       if (hitRect(p, shortcutRect())) {
         openSheet('F01', 'shortcut');
@@ -330,10 +442,13 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
       }
       assets.detail = 1;
       camera.restore(ctx);
+      drawTint(ctx);
       if (buildMode) drawBanner(ctx);
       else {
-        drawButton(ctx, menuRect(), '‹ Menu', { accent: C.progress });
+        topBar.render(ctx);
         drawPlate(ctx);
+        if (note) drawNote(ctx);
+        if (debugSkips()) SKIPS.forEach((s, i) => drawButton(ctx, skipRect(i), s.label, { accent: C.purple }));
         drawButton(ctx, shortcutRect(), 'Reception', { accent: C.action });
       }
     },
@@ -388,8 +503,18 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
       return best;
     },
     rectOf(id) {
-      return { menu: menuRect(), shortcut: shortcutRect(), done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect() }[id] ?? null;
+      const bar = Object.fromEntries(topBar.buttons().map((b) => [b.id, b.rect])); // 'pause', 'speed1', 'speed2', 'speed4'
+      const skip = Object.fromEntries(SKIPS.map((s, i) => [s.id, debugSkips() ? skipRect(i) : null]));
+      return { menu: menuRect(), shortcut: shortcutRect(), done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), note: note ? noteRect() : null, ...bar, ...skip }[id] ?? null;
     },
+    get note() {
+      return note?.text ?? null;
+    },
+    // The light over the map now: [r, g, b, alpha as drawn] (tests).
+    get tint() {
+      return shownTint();
+    },
+    topBar,
     pathCells: () => pathCells(),
   };
 
@@ -506,8 +631,23 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     ctx.beginPath();
     ctx.roundRect(r.x + 10, r.y + 14, 14, r.h - 28, 7);
     ctx.fill();
-    text(ctx, o.data.resort.name, r.x + 40, r.y + 14, { size: S.heading, bold: true, color: palette.dark, maxWidth: r.w - 60 });
-    text(ctx, managerLine(o.data.resort.manager), r.x + 40, r.y + 66, { size: S.small, color: C.textMuted, maxWidth: r.w - 60 });
+    // The name on the left, "General Manager …" on the right of the same line (one slim plate under the bar).
+    const mid = r.y + r.h / 2;
+    const half = (r.w - 60) * 0.56;
+    text(ctx, o.data.resort.name, r.x + 40, mid, { size: S.heading, bold: true, color: palette.dark, baseline: 'middle', maxWidth: half });
+    text(ctx, managerLine(o.data.resort.manager), r.x + r.w - 24, mid, { size: S.small, color: C.textMuted, align: 'right', baseline: 'middle', maxWidth: r.w - 60 - half - 20 });
+  }
+  // Why a locked speed was refused: one plain line under the plate for a few seconds.
+  function drawNote(ctx) {
+    const r = noteRect();
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, note.t / 0.4);
+    ctx.fillStyle = C.chip;
+    ctx.beginPath();
+    ctx.roundRect(r.x, r.y, r.w, r.h, 24);
+    ctx.fill();
+    text(ctx, note.text, r.x + r.w / 2, r.y + r.h / 2, { size: S.small, bold: true, color: C.textOnDark, align: 'center', baseline: 'middle', maxWidth: r.w - 40 });
+    ctx.restore();
   }
   function drawBanner(ctx) {
     const b = bannerRect();
