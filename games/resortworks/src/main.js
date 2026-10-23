@@ -6,6 +6,10 @@
 // (core/CampaignSlots, keys campaign_1 … campaign_4, account store resortworks:account) and opens the placeholder resort
 // screen. Starting into an occupied slot asks first, naming the resort it replaces. Settings: the series list
 // (core/SeriesSettings + core/ui/SettingsSheet on core/Settings: this device, every resort).
+// Milestone 1: START RESORT / Continue / Play open the Resort Hub (src/screens/ResortScreen.js): the Roadside Lot in the
+// 3/4 view with the eight starting facilities and two rooms, the guest and the Founder walking their loops
+// (src/systems/resortWorld.js), pan / pinch / wheel zoom, sheets on tap (and from the Reception shortcut), and the
+// placeholder Build Mode on a long press. A reload while the hub is open comes back to it (positions start fresh).
 // Add ?debug=1 for the FPS/state overlay and the setup-data check, ?screen=test for the scaling / tap / asset-loader test
 // screen. With ?debug=1, &safe=phone|tablet stands in a notch and home bar (safe-area insets) on any screen, and
 // &reset=1 empties all four slots.
@@ -336,7 +340,7 @@ async function leaveResort() {
   await campaigns.refresh();
   open = null;
 }
-const resortScreen = createResortScreen({ renderer, layout, assets, run: () => open, onMenu: () => leaveResort() });
+const resortScreen = createResortScreen({ renderer, layout, assets, bus, sheet, run: () => open, onMenu: () => leaveResort(), debug });
 
 // Settings: the series list in bible §36 order and names, then Help / Privacy / Credits, then the display test.
 // Reachable from the Main Menu (always).
@@ -411,7 +415,7 @@ const testSheet = () => ({
 
 // ?debug=1: a test hook for automated checks.
 if (debug.enabled) {
-  window.__rw = { renderer, layout, input, loop, router, assets, sheet, dialog, systemBack, textPrompt, settings, governor, haptics, splashScreen, menuScreen, slotsScreen, setupScreen, resortScreen, playSlot, startResort, deleteSlot, newGame, openSettings, booting, taps: [], get booted() { return booted; }, get account() { return account; }, get campaigns() { return campaigns; }, get open() { return open; } };
+  window.__rw = { bus, renderer, layout, input, loop, router, assets, sheet, dialog, systemBack, textPrompt, settings, governor, haptics, splashScreen, menuScreen, slotsScreen, setupScreen, resortScreen, playSlot, startResort, deleteSlot, newGame, openSettings, booting, taps: [], get booted() { return booted; }, get account() { return account; }, get campaigns() { return campaigns; }, get open() { return open; } };
 }
 
 router.go('boot');

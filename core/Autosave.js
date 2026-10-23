@@ -38,6 +38,7 @@ export class Autosave {
     this.pending = null;
     if (this.saving) {
       this.again = true; // one more after the write in progress
+      this.againReason ??= reason; // (RACEWORKS M30) … for what asked for it, e.g. 'background'
       return this.saving;
     }
     const t0 = globalThis.performance?.now() ?? Date.now();
@@ -63,7 +64,8 @@ export class Autosave {
         this.saving = null;
         if (this.again) {
           this.again = false;
-          this.pending = this.pending ?? 'again';
+          this.pending = this.pending ?? this.againReason ?? 'again';
+          this.againReason = null;
           this.flush();
         }
       });
