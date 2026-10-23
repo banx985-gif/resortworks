@@ -1,0 +1,16 @@
+{
+  "name": "RESORTWORKS",
+  "short_name": "RESORTWORKS",
+  "description": "Grow a tiny roadside motel into a world-class resort.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#1FA3A0",
+  "theme_color": "#1FA3A0",
+  "icons": [
+    { "src": "assets/branding/pwa/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/branding/pwa/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/branding/pwa/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
