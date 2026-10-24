@@ -1,8 +1,11 @@
 // A new resort's campaign save and its slot summary (Milestone 0, bible §5 / §33). The campaign is empty for now — the
 // resort's identity and the date; the simulation's state joins it milestone by milestone (with SAVE_MIGRATIONS).
 import { founderById, paletteById, ROLES, FOUNDER_FLAG } from '../../data/setup.js';
-import { CALENDAR } from '../../data/calendar.js';
+import { CALENDAR, BANDS } from '../../data/calendar.js';
 import { firstBookings } from './bookings.js';
+import { makeTeam } from './staff.js';
+import { freshHousekeeping } from './housekeeping.js';
+import { minuteOf } from './calendar.js';
 
 // A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
 // before the calendar existed (Milestone 2).
@@ -32,6 +35,8 @@ export function newCampaign(setup, now = Date.now()) {
     date: { year: 1, month: 1, day: 1 },
     calendar: calendarFromDate(), // (Milestone 2) the clock exactly as it stands: day, progress, band, speed
     bookings: firstBookings({ seed, day: 0, band: 'morning' }), // (Milestone 3) offers, bookings, stays, room states
+    staff: makeTeam(seed, founder.id), // (Milestone 4) the opening team: the Founder + the four other Start staff
+    housekeeping: freshHousekeeping({ minute: minuteOf(0, 1) }), // (Milestone 4) cleaning jobs, queue, linen
     playSec: 0,
     ngPlus: 0,
   };
@@ -76,5 +81,20 @@ export const SAVE_MIGRATIONS = {
     const d = record.data;
     const cal = d.calendar ?? calendarFromDate(d.date);
     return { ...record, data: { ...d, bookings: d.bookings ?? firstBookings({ seed: d.seed ?? 'resortworks', day: cal.totalDays ?? 0, band: cal.band ?? 'morning' }) } };
+  },
+  // 3 → 4 (Milestone 4): the opening team joins (from the run's seed and Founder), and housekeeping starts at the save's
+  // last band edge with a cleaning job for every room already Dirty and a full day of linen.
+  3: (record) => {
+    const d = record.data;
+    const seed = d.seed ?? 'resortworks';
+    const at = d.bookings?.at ?? { day: d.calendar?.totalDays ?? 0, band: 1 };
+    const dirty = Object.entries(d.bookings?.rooms ?? {})
+      .filter(([, st]) => st === 'dirty' || st === 'cleaning')
+      .map(([id]) => id);
+    const rooms = { ...(d.bookings?.rooms ?? {}) };
+    for (const id of dirty) rooms[id] = 'dirty'; // (nobody was cleaning before M4)
+    const hk = freshHousekeeping({ minute: minuteOf(at.day, Math.max(0, Math.min(BANDS.length - 1, at.band))), dirty });
+    if (at.band === 0) hk.linen.day = at.day - 1; // (Night: today's linen arrives with the Morning)
+    return { ...record, data: { ...d, bookings: d.bookings ? { ...d.bookings, rooms } : d.bookings, staff: d.staff ?? makeTeam(seed, d.resort?.founder?.id ?? 'S01'), housekeeping: d.housekeeping ?? hk } };
   },
 };

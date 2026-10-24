@@ -2,10 +2,11 @@
 // runs it. Picks the bible leaves open are Cowork's (marked) or Claude Code's, and are logged in docs/DECISIONS.md.
 
 // The two Roadside room types (bible §27E). cap = guests it sleeps; rate = base nightly rate in Credits (the Standard
-// pricing band is 1.00×, so it is also the offer's rate until pricing bands arrive).
+// pricing band is 1.00×, so it is also the offer's rate until pricing bands arrive). Milestone 4: clean = base clean
+// minutes (bible §27E); beds = bed spaces (linen: 2 units each, data/housekeeping.js).
 export const ROOM_TYPES = {
-  RM01: { id: 'RM01', name: 'Budget Room', cap: 2, rate: 70, rank: 1 },
-  RM02: { id: 'RM02', name: 'Standard Room', cap: 2, rate: 105, rank: 2 },
+  RM01: { id: 'RM01', name: 'Budget Room', cap: 2, rate: 70, rank: 1, clean: 35, beds: 2 },
+  RM02: { id: 'RM02', name: 'Standard Room', cap: 2, rate: 105, rank: 2, clean: 40, beds: 2 },
 };
 export const PRICE_BAND = { id: 'standard', name: 'Standard', mult: 1.0 }; // bible §27E pricing band used for offers
 
@@ -23,8 +24,8 @@ export const GUEST_TYPES = {
 // the end of the day.
 export const OFFERS = { perMorning: [2, 4], arriveWithin: [0, 3] };
 
-// Room states (bible §10). sellable = can be sold / assigned. Cleaning and Maintenance exist but nothing uses them until
-// M4 / M7. colour = the code-drawn badge on the map.
+// Room states (bible §10). sellable = can be sold / assigned. Cleaning is used from M4 (src/systems/housekeeping.js);
+// Maintenance waits for M7. colour = the code-drawn badge on the map.
 export const ROOM_STATES = {
   ready: { id: 'ready', name: 'Ready', sellable: true, color: '#3E9B4F' },
   reserved: { id: 'reserved', name: 'Reserved', sellable: false, color: '#3A9BE0' },

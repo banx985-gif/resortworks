@@ -16,8 +16,12 @@
 // Decline / pick a room act on the run's booking system. A small toast for new offers, check-ins and check-outs (core
 // NotificationSystem + core/ui/Toast): one at a time, one tap closes it, the rest queue (and wait while a sheet is open).
 // ?debug=1 adds "Rooms Ready" to the skip row (every Dirty room back to Ready until M4 brings cleaning).
+// Milestone 4: the opening team walks the lot (each at their station in their work pattern's bands, resting at the
+// Motel Service Block otherwise); the housekeeper walks to each Dirty room and cleans it in the cleaning pose. A room
+// whose party is waiting at Reception shows "Late" on its badge, and a toast says so. The staff, Laundry, room and
+// Reception sheets show the cleaning (src/screens/resortSheets.js).
 //   createResortScreen({ renderer, layout, assets, bus, sheet, run, onMenu, debug, reducedFlashes, onSkip })
-//     run() → the open campaign { n, data, calendar, bookings } or null    onSkip(days) → the debug skip
+//     run() → the open campaign { n, data, calendar, bookings, team, housekeeping } or null    onSkip(days) → the debug skip
 import { THEME, font } from '../../../../core/Theme.js';
 import { IsoProjection } from '../../../../core/IsoProjection.js';
 import { Camera } from '../../../../core/Camera.js';
@@ -34,6 +38,7 @@ import { createTopBar, topBarRect } from '../../../../core/ui/TopBar.js';
 import { NotificationSystem } from '../../../../core/NotificationSystem.js';
 import { drawToasts, toastHeight } from '../../../../core/ui/Toast.js';
 import { ROOM_STATES, GUEST_TYPES } from '../../data/bookings.js';
+import { LATE_BADGE } from '../../data/housekeeping.js';
 import { BANDS, TINT_FADE } from '../../data/calendar.js';
 import { founderById, paletteById } from '../../data/setup.js';
 import { LOT, ART_LOOK, ART_TWEAK, PERSON, LOOK, roomById } from '../../data/lot.js';
@@ -65,6 +70,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
 
   let world = null;
   let worldOf = null; // the run's booking system the world was made for
+  let worldHk = null; // (M4) and its housekeeping
   let peopleVersion = -1; // world.version the tap list was built for
   let slotN = null;
   let palette = paletteById(null);
@@ -177,10 +183,16 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     const n = ids.map((id) => roomById(id)?.number ?? '?');
     return n.length === 1 ? `Room ${n[0]}` : `Rooms ${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}`;
   };
+  const aOrAn = (w) => (/^[AEIOU]/i.test(w) ? 'An' : 'A');
   const toast = (title, body, art) => notes.post({ kind: 'booking', title, body, art, toast: true });
   bus.on('booking:offers', ({ offers }) => {
     if (!active) return;
     toast(offers.length === 1 ? 'A new booking offer' : `${offers.length} new booking offers`, 'See them at Reception.', GUEST_TYPES[offers[0].type]?.art);
+  });
+  bus.on('booking:late', ({ bookings }) => {
+    if (!active) return;
+    const one = bookings.length === 1 ? bookings[0] : null;
+    toast(`${roomList(bookings.map((b) => b.room))} ${one ? 'is' : 'are'} late`, one ? `${aOrAn(GUEST_TYPES[one.type].name)} ${GUEST_TYPES[one.type].name} is waiting at Reception until it's clean.` : `${bookings.length} parties are waiting at Reception until their rooms are clean.`, GUEST_TYPES[bookings[0].type]?.art);
   });
   bus.on('booking:checkin', ({ bookings }) => {
     if (!active) return;
@@ -321,7 +333,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     const x = calendar()?.clock.dateOf(d);
     return x ? `Y${x.year} · Month ${x.month} · Day ${x.day}` : `Day ${d + 1}`;
   };
-  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act });
+  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null });
   function openSheet(id, via = 'art') {
     if (!world?.byId(id)) return;
     sheet.open(() => resortSheet(world, id, sheetOpts()));
@@ -350,12 +362,13 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     if (!o) return false;
     const founder = founderById(o.data.resort.founder.id);
     palette = paletteById(o.data.resort.palette);
-    if (!world || slotN !== o.n || world.founder !== founder || worldOf !== (o.bookings ?? null)) {
+    if (!world || slotN !== o.n || world.founder !== founder || worldOf !== (o.bookings ?? null) || worldHk !== (o.housekeeping ?? null)) {
       if (slotN !== o.n) viewSet = false;
       const cal = o.calendar;
       const bk = o.bookings ?? null;
-      world = createResortWorld({ founder, band: cal?.band.id ?? 'morning', bandFrac: cal?.bandFrac ?? 0, day: cal?.today ?? 0, stays: bk ? () => [...bk.staying, ...bk.leaving] : null });
+      world = createResortWorld({ founder, band: cal?.band.id ?? 'morning', bandFrac: cal?.bandFrac ?? 0, day: cal?.today ?? 0, stays: bk ? () => [...bk.staying, ...bk.leaving, ...bk.waiting] : null, team: o.team ?? null, hk: o.housekeeping ?? null });
       worldOf = bk;
+      worldHk = o.housekeeping ?? null;
       slotN = o.n;
       paths = null;
       syncSelection();
@@ -621,6 +634,8 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
       if (id?.startsWith?.('badge:')) return badgeRects().find((b) => b.id === id.slice(6))?.rect ?? null;
       return { menu: menuRect(), shortcut: shortcutRect(), done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), note: note ? noteRect() : null, toast: toastRect(), ...bar, ...skip }[id] ?? null;
     },
+    // (Milestone 4) the word on a room's badge now — Ready / Dirty / Cleaning / Late … (tests).
+    badgeOf: (id) => badgeRects().find((b) => b.id === id)?.st.name ?? null,
     // The toasts showing / waiting (tests).
     get toasts() {
       return { showing: notes.toasts.map((t) => t.entry.title), waiting: notes.toastWaiting.map((e) => e.title) };
@@ -760,7 +775,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     const out = [];
     for (const it of world.items) {
       if (it.kind !== 'room') continue;
-      const st = ROOM_STATES[bk.roomState(it.id)];
+      const st = bk.waitingFor?.(it.id) ? LATE_BADGE : ROOM_STATES[bk.roomState(it.id)]; // (M4) a party waiting: Late
       const a = artRect(it);
       const c = camera.worldToScreen(a.x + a.w / 2, a.y + a.h * 0.2);
       const h = 50 * k;

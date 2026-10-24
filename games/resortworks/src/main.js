@@ -17,6 +17,9 @@
 // Milestone 3: each open resort has its booking system (src/systems/bookings.js: offers, bookings, stays, room states),
 // moved on at every band edge of its calendar (and through a debug skip, edge by edge), saved in the campaign save with
 // the calendar (also after each Accept / Decline / room pick). ?debug=1: "Rooms Ready" puts Dirty rooms back to Ready.
+// Milestone 4: each open resort has its opening team (src/systems/staff.js: the Founder + four Start staff) and its
+// housekeeping (src/systems/housekeeping.js: cleaning jobs, queue, linen, late rooms), moved on in game minutes each step
+// and at every band edge before it; both are saved in the campaign save.
 // Add ?debug=1 for the FPS/state overlay and the setup-data check, ?screen=test for the scaling / tap / asset-loader test
 // screen. With ?debug=1, &safe=phone|tablet stands in a notch and home bar (safe-area insets) on any screen, and
 // &reset=1 empties all four slots.
@@ -42,6 +45,8 @@ import { Settings } from '../../../core/Settings.js';
 import { Autosave } from '../../../core/Autosave.js';
 import { createCalendar } from './systems/calendar.js';
 import { createBookingSystem } from './systems/bookings.js';
+import { createHousekeeping } from './systems/housekeeping.js';
+import { loadTeam, saveTeam } from './systems/staff.js';
 import { FrameGovernor } from '../../../core/FrameGovernor.js';
 import { Haptics } from '../../../core/Haptics.js';
 import { settingsSheet } from '../../../core/ui/SettingsSheet.js';
@@ -102,7 +107,10 @@ const loop = new FixedStepLoop({
   stepHz: 60,
   bus,
   update: (dt) => {
-    if (open && router.currentName === 'resort') open.calendar.update(dt); // the calendar runs only while the hub is on screen
+    if (open && router.currentName === 'resort') {
+      open.calendar.update(dt); // the calendar runs only while the hub is on screen
+      open.housekeeping.advance(open.calendar.minute); // (M4) cleaning, in game minutes, up to now
+    }
     if ((pruneT += dt) >= 5) {
       assets.sprites.prune(pruneT, 60); // let go of copies not drawn for a minute
       pruneT = 0;
@@ -214,16 +222,19 @@ bus.on('input:up', () => systemBack.rearm()); // re-arm after any tap, in case a
 // ---------------------------------------------------------------------------
 // The four campaign slots.
 let campaigns = null;
-let open = null; // { n, data, calendar, bookings } — the resort on screen
+let open = null; // { n, data, calendar, bookings, team, housekeeping } — the resort on screen
 let account = {}; // the account store (core/CampaignSlots): empty until achievements / tokens / NG+ exist
 
 // A campaign on screen: its save plus its calendar (Milestone 2) and its bookings (Milestone 3), put back exactly where
 // the save left them.
 function openRun(n, data) {
-  const run = { n, data, calendar: null, bookings: null };
+  const run = { n, data, calendar: null, bookings: null, team: null, housekeeping: null };
   run.calendar = createCalendar({ bus, saved: data.calendar ?? null, run: () => run.data });
   const c = run.calendar;
   run.bookings = createBookingSystem({ seed: data.seed, saved: data.bookings ?? null, bus, day: c.today, band: c.band.id });
+  run.team = loadTeam(data.staff ?? null, data.seed, data.resort.founder.id); // (Milestone 4)
+  run.housekeeping = createHousekeeping({ saved: data.housekeeping ?? null, team: run.team, bookings: run.bookings, bus });
+  run.bookings.attach(run.housekeeping);
   open = run;
   run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;
@@ -233,9 +244,11 @@ bus.on('band:change', () => open && open.bookings.sync(open.calendar.today, open
 // The campaign save: the calendar as it stands, the date the slot card shows, then the slot (save + summary record).
 async function saveRun() {
   if (!open) return;
-  const { n, data, calendar, bookings } = open;
+  const { n, data, calendar, bookings, team, housekeeping } = open;
   data.calendar = calendar.serialize();
   data.bookings = bookings.serialize();
+  data.staff = saveTeam(team);
+  data.housekeeping = housekeeping.serialize();
   const c = calendar.clock;
   data.date = { year: c.year, month: c.month, day: c.day };
   await campaigns.save(n, data);
@@ -244,7 +257,7 @@ const autosave = new Autosave({
   bus,
   triggers: ['clock:month', 'booking:action'],
   save: () => saveRun(),
-  stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize()]) : null),
+  stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize()]) : null),
   enabled: () => !!open,
 });
 autosave.installBackground(); // the app going to the background (or the page closing) saves at once
@@ -257,6 +270,7 @@ function skipDays(days) {
   if (!open) return;
   open.calendar.skipDays(days);
   open.bookings.sync(open.calendar.today, open.calendar.bandIndex); // every band edge on the way, in order
+  open.housekeeping.advance(open.calendar.minute);
   debug.log(`skipped ${days} day(s): ${open.calendar.dateText()}`);
 }
 

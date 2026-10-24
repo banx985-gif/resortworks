@@ -22,19 +22,32 @@
 //     world.items (facilities + rooms) · world.people · world.guests · world.guest (the first guest) · world.grid
 //     world.stateOf(thing) · byId(id) · world.version (changes when someone arrives or leaves the lot)
 //     world.log: [{ who, at, band }] every arrival (tests) · world.offLane: steps found on a blocked tile (should stay 0)
-import { Grid } from '../../../../core/Grid.js';
+// Milestone 4: the opening team (team: src/systems/staff.js loadTeam) — one walker each with their role's picture, at
+// their station in their work pattern's bands and resting at the Motel Service Block otherwise (the Founder too; a
+// world made without a team has only the Founder, on M2's day). A party waiting for a late room stands at Reception
+// (WAIT_PLAN). The housekeeper (hk: src/systems/housekeeping.js) shows every clean the simulation starts: a quick walk to
+// the room, then at least CLEAN.showSec game seconds there in the cleaning pose (the simulation stays in game minutes; if
+// the walker falls more than CLEAN.behindMax cleans behind, it skips the oldest).
+//     world.team (every staff walker) · world.staffOf(memberId)
 import { Agent } from '../../../../core/Agent.js';
 import { findPath } from '../../../../core/Pathing.js';
-import { LOT, FACILITIES, ROOMS, PERSON, GUEST, GUEST_ROOM, GUEST_PLAN, ARRIVE_PLAN, LEAVE_PLAN, ARRIVE_FROM, STAFF_ROLES, STAFF_PLAN } from '../../data/lot.js';
+import { FACILITIES, ROOMS, PERSON, GUEST, GUEST_ROOM, GUEST_PLAN, ARRIVE_PLAN, LEAVE_PLAN, WAIT_PLAN, ARRIVE_FROM, STAFF_ROLES, STAFF_PLAN, roomById } from '../../data/lot.js';
 import { GUEST_TYPES } from '../../data/bookings.js';
 import { ROLES } from '../../data/setup.js';
 import { BANDS } from '../../data/calendar.js';
+import { CLEAN } from '../../data/housekeeping.js';
+import { lotGrid } from './housekeeping.js';
+import { onShiftAt } from './staff.js';
 
 const ARRIVE_SHARE = 0.6; // arrive with at least 40% of the stop's time left to stand there
 // Where each stands on a doorway tile, as [right, depth] shares of a tile on screen: the Founder a little left, guests
 // spread to the right (up to eight at one place), so nobody stands on another's spot. Still inside the tile, so still
 // on the lane.
 const STAFF_SPOT = [-0.27, 0];
+// (Milestone 4) the team at the rest point: the Founder on M1's spot, the others spread round it on the left.
+const STAFF_SPOTS = [STAFF_SPOT, [-0.27, 0.22], [-0.27, -0.22], [-0.08, 0.34], [-0.08, -0.34]];
+const TASK_WALK_SEC = 0.4; // the housekeeper's quick walk to the next room on screen (game seconds)
+const CLEAN_SPOT = [0.3, -0.12]; // the housekeeper cleaning: right of the doorway, a little nearer the room (still on the tile; clear of a building in front)
 const GUEST_SPOTS = [
   [0.27, 0],
   [0.27, 0.15],
@@ -49,14 +62,12 @@ const BAND_I = Object.fromEntries(BANDS.map((b, i) => [b.id, i]));
 // The M2 lone guest (a world made without bookings).
 const LONE = [{ id: 'guest', type: GUEST.typeId, room: GUEST_ROOM, status: 'staying', inDay: -Infinity, inBand: null, outDay: null }];
 
-export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day = 0, stays = null }) {
-  const grid = new Grid({ cols: LOT.cols, rows: LOT.rows, tileSize: LOT.cell });
-  grid.pathCache = new Map();
+export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day = 0, stays = null, team = null, hk = null }) {
+  const grid = lotGrid();
   const items = [
     ...FACILITIES.map((def) => ({ kind: 'facility', id: def.id, def, fp: def.fp, door: def.door })),
     ...ROOMS.map((def) => ({ kind: 'room', id: def.id, def, fp: def.fp, door: def.door })),
   ];
-  for (const it of items) grid.blockRect(it.fp.col, it.fp.row, it.fp.w, it.fp.h);
   const itemById = (id) => items.find((it) => it.id === id) ?? null;
   const placeName = (id) => itemById(id)?.def.name ?? id;
   const staysNow = stays ?? (() => LONE);
@@ -67,28 +78,42 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
   let pastTeleports = 0; // teleports of parties no longer on the lot
 
   const role = STAFF_ROLES[founder.role];
-  const staffPlan = (b) => (b === 'night' ? STAFF_PLAN.night : STAFF_PLAN.work).map((s) => ({ ...s, at: s.at === 'station' ? role.station : s.at }));
-  // A guest's plan for this band: arriving, leaving or an ordinary day. 'room' becomes their room.
+  // A staff member's plan for this band: at their station in their pattern's bands, resting otherwise (no pattern: the
+  // M2 Founder, at the station Morning to Evening).
+  function staffPlan(p, b) {
+    const working = p.pattern ? onShiftAt(p.pattern, b) : b !== 'night';
+    const station = STAFF_ROLES[p.role].station;
+    return (working ? STAFF_PLAN.work : STAFF_PLAN.night).map((s) => ({ ...s, at: s.at === 'station' ? station : s.at }));
+  }
+  // A guest's plan for this band: arriving, waiting for a late room, leaving or an ordinary day. 'room' becomes their room.
   function guestPlan(p, b, d) {
     const st = p.stay;
     let list = GUEST_PLAN[b];
     if (st.status === 'left' && b === 'morning') list = LEAVE_PLAN;
+    else if (st.status === 'waiting') list = WAIT_PLAN;
     else if (st.inDay === d && st.inBand === BAND_I[b]) list = ARRIVE_PLAN;
     const roomName = placeName(st.room);
     return list.map((s) => ({ ...s, at: s.at === 'room' ? st.room : s.at, going: s.going.replace('{room}', roomName), doing: s.doing.replace('{room}', roomName) }));
   }
   // The stop a plan asks for at this band and point in it.
   function stopFor(person, b, frac, d) {
-    const list = person.kind === 'guest' ? guestPlan(person, b, d) : staffPlan(b);
+    const list = person.kind === 'guest' ? guestPlan(person, b, d) : staffPlan(person, b);
     return list.find((s) => s.until == null || frac < s.until) ?? list[list.length - 1];
   }
   const sameStop = (a, b) => a && b && a.at === b.at && a.doing === b.doing && a.going === b.going;
 
   // A walker: an Agent plus where it is heading. phase 'walking' | 'at'. baseSpeed = their normal pace.
   function walker({ id, kind, name, art, speed, spot }) {
-    return { id, kind, name, art, stop: null, phase: 'at', facing: 1, spot, baseSpeed: speed, stay: null, agent: new Agent({ id, name, speed, width: 100, height: PERSON.height, noPathTeleportSec: 1 }) };
+    return { id, kind, name, art, baseArt: art, stop: null, phase: 'at', facing: 1, spot, baseSpeed: speed, stay: null, agent: new Agent({ id, name, speed, width: 100, height: PERSON.height, noPathTeleportSec: 1 }) };
   }
-  const staff = walker({ id: 'staff', kind: 'staff', name: founder.name, art: role.art, speed: PERSON.staffSpeed, spot: STAFF_SPOT });
+  // The staff walkers: the Founder ('staff', as in M1) and, with a team, the four others (their staff ids).
+  const members = team ?? [{ id: founder.id, name: founder.name, role: founder.role, pattern: null, founder: true }];
+  const crew = members.map((m, i) => {
+    const w = walker({ id: m.founder ? 'staff' : m.id, kind: 'staff', name: m.name, art: STAFF_ROLES[m.role].art, speed: PERSON.staffSpeed, spot: STAFF_SPOTS[i % STAFF_SPOTS.length] });
+    return Object.assign(w, { member: m, memberId: m.id, role: m.role, pattern: m.pattern, founder: !!m.founder, tasks: [], task: null, shown: 0 });
+  });
+  const staff = crew.find((w) => w.founder) ?? crew[0];
+  const seenJobs = new Set();
   const guests = []; // in arrival order
   let spotN = 0;
   const gone = new Set(); // parties who drove away today (not brought back while their booking still says "left")
@@ -98,7 +123,7 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
 
   // Step to their own spot on the doorway tile (plan +x −y = screen right, +x +y = deeper).
   function standAside(p) {
-    const [r, d] = p.spot;
+    const [r, d] = p.stop?.cleaning ? CLEAN_SPOT : p.spot;
     const t = grid.tileSize;
     p.agent.x += (r + d) * t;
     p.agent.y += (d - r) * t;
@@ -172,7 +197,8 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
       guests.push(p);
       version++;
       const stop = stopFor(p, bandNow, fracNow, dayNow);
-      if (live && st.inDay === dayNow && st.inBand === BAND_I[bandNow]) {
+      const justCame = (st.inDay === dayNow && st.inBand === BAND_I[bandNow]) || (st.status === 'waiting' && st.waitDay === dayNow && bandNow === 'midday');
+      if (live && justCame) {
         // They have just arrived: out of their car at the car park, then on their way.
         p.stop = { at: ARRIVE_FROM, doing: '', going: '' };
         placeAtDoor(p, ARRIVE_FROM);
@@ -187,7 +213,9 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
     if (d !== dayNow) gone.clear();
     dayNow = d;
     syncGuests(true, bandSec);
-    for (const p of [...guests, staff]) {
+    pullCleans();
+    for (const p of [...guests, ...crew]) {
+      if (p.kind === 'staff' && cleaningShow(p)) continue; // the housekeeper's cleans come before their plan
       const s = stopFor(p, b, frac, d);
       if (!sameStop(s, p.stop)) {
         if (s.at === p.stop?.at) {
@@ -197,13 +225,42 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
       }
     }
   }
+  // (Milestone 4) Every clean the simulation has started joins its housekeeper's list to show.
+  function pullCleans() {
+    for (const j of hk?.starts ?? []) {
+      if (seenJobs.has(j.id)) continue;
+      seenJobs.add(j.id);
+      const p = crew.find((w) => w.memberId === j.staff);
+      if (p) p.tasks.push(j);
+    }
+  }
+  // A housekeeper with a clean to show: on to the next one when this one has been on screen long enough and the
+  // simulation has finished it. Returns true while a clean is being shown (the plan waits).
+  function cleaningShow(p) {
+    if (p.task) {
+      const simOn = hk?.jobOf(p.memberId)?.id === p.task.id;
+      if (p.phase !== 'at' || p.shown < CLEAN.showSec || simOn) return true;
+      p.task = null;
+      p.art = p.baseArt;
+    }
+    while (p.tasks.length > CLEAN.behindMax) p.tasks.shift(); // too far behind: skip the oldest
+    const next = p.tasks.shift();
+    if (!next) return false;
+    const name = roomById(next.room)?.name ?? next.room;
+    p.task = next;
+    p.shown = 0;
+    walkTo(p, { at: next.room, going: `Walking to ${name} to clean it`, doing: `Cleaning ${name}`, cleaning: true }, TASK_WALK_SEC / ARRIVE_SHARE);
+    return true;
+  }
+
   // Everyone where the opening band puts them.
   syncGuests(false, null);
-  placeAt(staff, stopFor(staff, band, bandFrac, day));
+  for (const p of crew) placeAt(p, stopFor(p, band, bandFrac, day));
 
   function update(dt) {
     if (!(dt > 0)) return; // paused: nobody moves
-    for (const p of [...guests, staff]) {
+    for (const p of crew) if (p.task && p.phase === 'at') p.shown += dt;
+    for (const p of [...guests, ...crew]) {
       if (p.phase !== 'walking') continue;
       const a = p.agent;
       const px = a.x;
@@ -215,6 +272,7 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
       const tile = a.tile(grid);
       if (!tile || grid.isBlocked(tile.col, tile.row)) offLane++;
     }
+    for (const p of crew) if (p.task && p.phase === 'at') p.art = CLEAN.pose; // the cleaning pose while in the room
   }
 
   // Plain words for a sheet's "Now" line.
@@ -223,7 +281,7 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
       const words = thing.phase === 'at' ? thing.stop.doing : thing.stop.going;
       return words.replace('{name}', placeName(thing.stop.at));
     }
-    const people = [...guests, staff];
+    const people = [...guests, ...crew];
     const here = people.filter((p) => p.phase === 'at' && p.stop.at === thing.id);
     const coming = people.filter((p) => p.phase === 'walking' && p.stop.at === thing.id);
     const who = (p) => (p.kind === 'guest' ? (p.id === 'guest' ? 'The guest' : thing.kind === 'room' ? 'Their guests' : `A ${p.name}`) : p.name);
@@ -240,7 +298,7 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
     grid,
     items,
     get people() {
-      return [...guests, staff];
+      return [...guests, ...crew];
     },
     get guests() {
       return guests;
@@ -259,12 +317,14 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
       return offLane;
     },
     get teleports() {
-      return [...guests, staff].reduce((n, p) => n + p.agent.teleports, pastTeleports);
+      return [...guests, ...crew].reduce((n, p) => n + p.agent.teleports, pastTeleports);
     },
     get version() {
       return version;
     },
-    byId: (id) => itemById(id) ?? guests.find((p) => p.id === id) ?? (id === 'staff' ? staff : null),
+    team: crew,
+    staffOf: (memberId) => crew.find((w) => w.memberId === memberId) ?? null,
+    byId: (id) => itemById(id) ?? guests.find((p) => p.id === id) ?? crew.find((w) => w.id === id || w.memberId === id) ?? null,
     setTime,
     update,
     stateOf,

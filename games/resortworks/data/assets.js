@@ -3,6 +3,7 @@
 import { FOUNDERS } from './setup.js';
 import { FACILITIES, ROOMS, GUEST, STAFF_ROLES } from './lot.js';
 import { GUEST_TYPES } from './bookings.js';
+import { CLEAN } from './housekeeping.js';
 
 export const ASSETS = {
   // Milestone 0: the five Founders' portraits (setup cards, slot cards, the Founder's sheet).
@@ -17,6 +18,8 @@ export const ASSETS = {
   // Milestone 3: the Roadside guest types' offer / sheet pictures and their walking pictures.
   ...Object.fromEntries(Object.values(GUEST_TYPES).map((g) => [g.art, `assets/images/guests/${g.art}.png`])),
   ...Object.fromEntries(Object.values(GUEST_TYPES).map((g) => [g.sprite, `assets/images/world/${g.sprite}.png`])),
+  // Milestone 4: the housekeeper's cleaning pose (the opening team's portraits are the Founders' above).
+  [CLEAN.pose]: `assets/images/world/${CLEAN.pose}.png`,
   // Milestone 0 loader test (?screen=test): the placeholder PWA icon as a real image, and one deliberately missing file.
   m0Real: 'assets/branding/pwa/icon-192.png',
   m0Missing: 'assets/m0-missing-test.png',

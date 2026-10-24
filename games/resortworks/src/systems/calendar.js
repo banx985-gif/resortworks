@@ -24,6 +24,26 @@ const EDGES = (() => {
 })();
 export const bandIndexAt = (progress) => Math.max(0, EDGES.findIndex((e) => progress >= e.start && progress < e.end));
 
+// Game minutes (Milestone 4: housekeeping runs in game minutes, 1440 a day). A band edge's minute is rounded so the same
+// edge always gives exactly the same number, whatever frame crossed it.
+export const MINUTES_PER_DAY = 1440;
+const r6 = (x) => Math.round(x * 1e6) / 1e6;
+export const bandStartMinute = (band) => r6(EDGES[band].start * MINUTES_PER_DAY);
+export const bandEndMinute = (band) => r6(EDGES[band].end * MINUTES_PER_DAY);
+export const minuteOf = (day, band) => day * MINUTES_PER_DAY + bandStartMinute(band);
+// The day and band a game minute falls in.
+export function bandAtMinute(minute) {
+  const day = Math.floor(minute / MINUTES_PER_DAY);
+  const m = minute - day * MINUTES_PER_DAY;
+  let band = BANDS.length - 1;
+  for (let i = 0; i < BANDS.length; i++)
+    if (m < bandEndMinute(i)) {
+      band = i;
+      break;
+    }
+  return { day, band };
+}
+
 export function createCalendar({ bus = null, saved = null, run = () => null, hooks = PROGRESS_HOOKS } = {}) {
   const clock = new Clock({ bus, daysPerMonth: CALENDAR.daysPerMonth, monthsPerYear: CALENDAR.monthsPerYear, secondsPerDay: CALENDAR.secondsPerDay, speeds: CALENDAR.speeds });
   const speedOpen = (s) => {
@@ -69,6 +89,10 @@ export function createCalendar({ bus = null, saved = null, run = () => null, hoo
     },
     get today() {
       return clock.totalDays;
+    },
+    // (Milestone 4) now in game minutes since the resort opened.
+    get minute() {
+      return (clock.totalDays + clock.dayProgress) * MINUTES_PER_DAY;
     },
     speedOpen,
     lockedLine: (s) => SPEED_UNLOCK[s]?.line ?? '',

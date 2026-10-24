@@ -88,6 +88,8 @@ export const LEAVE_PLAN = [
   { at: 'F07', going: 'Walking back to their car', doing: 'Driving away', leaves: true },
 ];
 export const ARRIVE_FROM = 'F07'; // a new party appears at the car park's doorway
+// Milestone 4: a party whose room isn't Ready at check-in (a late room) waits at Reception until it is.
+export const WAIT_PLAN = [{ at: 'F01', going: 'Walking to Reception to check in', doing: 'Waiting at Reception — {room} isn’t ready yet' }];
 
 // The M2 lone guest's look (a Road Trip Couple in Room 1). Milestone 3: they are the first real booked guest of a new
 // resort (src/systems/resort.js), and a world made without bookings (tests) still has them.

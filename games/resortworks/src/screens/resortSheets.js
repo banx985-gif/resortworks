@@ -9,7 +9,13 @@
 //                     left, "Dirty — needs cleaning".
 //   a guest         — type, party, nights left, room and what they are doing now.
 //   pickRoomSheet   — the rooms for an offer or an upcoming booking, best Fit first (manual pinning beats Auto Assign).
-//   resortSheet(world, id, { accent, bookings, today, dateOf, act }) → a core/ui/BottomSheet menu (key: the id), or null
+// Milestone 4 (the opening team, housekeeping — src/systems/staff.js, src/systems/housekeeping.js):
+//   a staff member  — portrait, name, role, level, the five stats, work pattern, what they're doing now; the
+//                     housekeeper also their current job, the queue and the shift hours left.
+//   Laundry (F04)   — linen units left today, what's been used and any short cleans.
+//   a room          — Dirty (its place in the queue) / Cleaning (who, time left) / Ready, short on linen, Late.
+//   Reception       — a Waiting list flags every party waiting for a late room.
+//   resortSheet(world, id, { accent, bookings, today, dateOf, act, hk, team }) → a core/ui/BottomSheet menu (key: the id), or null
 //     act: { accept(offerId), decline(offerId), pick(offerOrBookingId), open(id), setAuto(on) } — the screen's actions
 //   pickRoomSheet(bookings, forId, { accent, today, act: { choose(forId, roomId), open(id) } })
 import { stationSheet } from '../../../../core/ui/StationSheet.js';
@@ -17,6 +23,11 @@ import { THEME } from '../../../../core/Theme.js';
 import { GUEST, ROOMS, roomById } from '../../data/lot.js';
 import { ROOM_TYPES, GUEST_TYPES, ROOM_STATES, PRICE_BAND } from '../../data/bookings.js';
 import { arrivalWords } from '../systems/bookings.js';
+import { ROLES } from '../../data/setup.js';
+import { STAT_KEYS, STAT_NAMES, TIERS } from '../../data/staff.js';
+import { LINEN, LATE_BADGE } from '../../data/housekeeping.js';
+import { linenFor } from '../systems/housekeeping.js';
+import { patternWords } from '../systems/staff.js';
 
 const C = THEME.color;
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -25,15 +36,16 @@ const aOrAn = (w) => (/^[AEIOU]/i.test(w) ? 'an' : 'a');
 export const rateWords = (rate) => `${rate} Cr a night`;
 const NO_ACT = { accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {} };
 
-export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT } = {}) {
+export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null } = {}) {
   const it = world?.byId(id);
   if (!it) return null;
   const now = [world.stateOf(it)];
   let spec;
   if (it.kind === 'guest') spec = guestSpec(world, it, { bookings, today, dateOf });
-  else if (it.kind === 'staff') spec = { title: world.founder.name, line: world.role.name, art: world.founder.art, tag: { text: 'FOUNDER', color: C.purple }, now };
-  else if (it.kind === 'room') spec = roomSpec(world, it, { bookings, today, act });
+  else if (it.kind === 'staff') spec = staffSpec(world, it, { hk, now });
+  else if (it.kind === 'room') spec = roomSpec(world, it, { bookings, today, act, hk });
   else if (it.id === 'F01' && bookings) spec = receptionSpec(it, { bookings, today, act, accent });
+  else if (it.id === 'F04' && hk) spec = laundrySpec(it, { hk, now });
   else spec = { title: it.def.name, line: it.def.line, art: it.def.art, now };
   return { ...stationSheet({ ...spec, accent, text: { now: 'Now' } }), key: id };
 }
@@ -43,8 +55,20 @@ function receptionSpec(it, { bookings: bk, today, act }) {
   const offers = bk.offers;
   const up = bk.upcoming;
   const stay = bk.staying;
-  const summary = [offers.length ? plural(offers.length, 'new offer') : 'No new offers', up.length ? `${up.length} arriving` : null, stay.length ? `${stay.length} staying` : null].filter(Boolean).join(' · ');
+  const wait = bk.waiting ?? [];
+  const summary = [offers.length ? plural(offers.length, 'new offer') : 'No new offers', wait.length ? `${wait.length} waiting` : null, up.length ? `${up.length} arriving` : null, stay.length ? `${stay.length} staying` : null].filter(Boolean).join(' · ');
   const body = [];
+  // (Milestone 4) Parties waiting for a late room come first.
+  if (wait.length) {
+    body.push({ title: `Waiting for a late room (${wait.length})`, lines: [{ text: 'Their room isn’t clean yet. They check in the moment it is.', color: C.bad }], std: 'waiting' });
+    body.push({
+      columns: 1,
+      buttons: wait.map((b) => {
+        const t = GUEST_TYPES[b.type];
+        return { id: `guest:${b.id}`, icon: t.art, label: `LATE · ${t.name} → ${roomById(b.room).name}`, sub: `Waiting at Reception · ${partyWords(b.party)} · ${plural(b.nights, 'night')}`, accent: LATE_BADGE.color, onTap: () => act.open(b.id) };
+      }),
+    });
+  }
   body.push({ title: `New offers (${offers.length})`, lines: offers.length ? [] : ['New booking offers arrive each Morning. Unanswered ones expire at the end of the day.'], std: 'offers' });
   for (const o of offers) {
     const t = GUEST_TYPES[o.type];
@@ -100,10 +124,10 @@ export function roomStateLine(bk, room, today) {
   if (st === 'reserved') return b ? `Reserved for ${aOrAn(tname)} ${tname}, arriving ${arrivalWords(b.arrival, today)}` : 'Reserved';
   if (st === 'occupied') return b ? `Occupied by ${aOrAn(tname)} ${tname} · ${nightsLeftWords(b.nightsLeft).toLowerCase()}` : 'Occupied';
   if (st === 'dirty') return 'Dirty — needs cleaning';
-  if (st === 'cleaning') return 'Being cleaned';
+  if (st === 'cleaning') return 'Cleaning';
   return 'Closed for maintenance';
 }
-function roomSpec(world, it, { bookings: bk, today, act }) {
+function roomSpec(world, it, { bookings: bk, today, act, hk = null }) {
   const room = it.def;
   const rt = ROOM_TYPES[room.typeId];
   if (!bk) return { title: room.name, line: room.type, art: room.art, now: [world.stateOf(it)] };
@@ -111,9 +135,18 @@ function roomSpec(world, it, { bookings: bk, today, act }) {
   const b = bk.bookingInRoom(room.id);
   const now = [roomStateLine(bk, room, today)];
   if (st.id === 'occupied') now.push({ text: world.stateOf(it), color: C.textMuted });
-  if (st.id === 'dirty') now.push({ text: "It can't be sold or given to a guest until it's clean.", color: C.textMuted });
+  // (Milestone 4) the cleaning: who and how long, or its place in the queue; a party waiting; short on linen.
+  const job = hk?.cleaningOf(room.id);
+  if (st.id === 'cleaning' && job) now[0] = `Cleaning — ${job.who} · ${minutesWords(job.left)} left`;
+  else if (job) now[0] = `Dirty — ${job.who} is on the way to clean it`;
+  else if (st.id === 'dirty' && hk?.queuePosition(room.id)) now[0] = `Dirty — ${ordinal(hk.queuePosition(room.id))} in the cleaning queue`;
+  const waiting = bk.waitingFor?.(room.id);
+  if (waiting) now.push({ text: `Late: ${aOrAn(GUEST_TYPES[waiting.type].name)} ${GUEST_TYPES[waiting.type].name} is waiting at Reception`, color: LATE_BADGE.color });
+  else if ((st.id === 'dirty' || st.id === 'cleaning') && b?.status === 'upcoming') now.push({ text: `Booked next: ${aOrAn(GUEST_TYPES[b.type].name)} ${GUEST_TYPES[b.type].name}, arriving ${arrivalWords(b.arrival, today)}`, color: C.textMuted });
+  if (st.id === 'dirty' && !hk) now.push({ text: "It can't be sold or given to a guest until it's clean.", color: C.textMuted });
+  if (hk?.isShort(room.id)) now.push({ text: 'Short on linen at its last clean', color: C.bad });
   const main = [];
-  if (b?.status === 'staying') main.push({ id: `guest:${b.id}`, label: 'See the guest', icon: GUEST_TYPES[b.type].art, onTap: () => act.open(b.id) });
+  if (b?.status === 'staying' || b?.status === 'waiting') main.push({ id: `guest:${b.id}`, label: 'See the guest', icon: GUEST_TYPES[b.type].art, onTap: () => act.open(b.id) });
   if (b?.status === 'upcoming') main.push({ id: `booking:${b.id}`, label: 'Change this booking’s room', onTap: () => act.pick(b.id) });
   return {
     title: room.name,
@@ -126,6 +159,47 @@ function roomSpec(world, it, { bookings: bk, today, act }) {
   };
 }
 
+const ordinal = (n) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
+export const minutesWords = (m) => (m >= 60 ? `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, '0')} min` : `${Math.max(1, Math.ceil(m))} min`);
+
+// --- a staff member (Milestone 4) -----------------------------------------------------------------------------------
+function staffSpec(world, p, { hk, now }) {
+  const m = p.member;
+  const tag = p.founder ? { text: 'FOUNDER', color: C.purple } : { text: 'STAFF', color: C.progress };
+  if (!m?.stats) return { title: p.name, line: ROLES[p.role]?.name ?? world.role.name, art: m?.art ?? world.founder.art, tag, now };
+  const job = hk?.jobOf(m.id);
+  const nowLines = [...now];
+  if (job) nowLines[0] = job.phase === 'walk' ? `Walking to ${roomById(job.room).name} to clean it` : `Cleaning ${roomById(job.room).name} · ${minutesWords(job.left)} left`;
+  const body = [
+    { title: 'Stats', lines: STAT_KEYS.map((k) => ({ text: STAT_NAMES[k], right: String(Math.round(m.stats[k])) })) },
+    { title: 'Work', lines: [{ text: 'Level', right: `${m.level} · ${TIERS[m.tier]?.name ?? 'Standard'}` }, { text: 'Work pattern', right: patternWords(m.pattern) }] },
+  ];
+  if (m.role === 'HK' && hk) {
+    body.push({
+      title: 'Cleaning',
+      lines: [
+        { text: 'Current job', right: job ? `${roomById(job.room).name} · ${job.phase === 'walk' ? 'on the way' : `${minutesWords(job.left)} left`}` : 'None' },
+        { text: 'Rooms in the queue', right: String(hk.queue.length) },
+        { text: 'Shift hours left', right: hk.onShift(m.id) ? minutesWords(hk.hoursLeft(m.id)) : 'Off shift' },
+      ],
+    });
+  }
+  return { title: m.name, line: ROLES[m.role].name, art: m.art, tag, now: nowLines, body };
+}
+
+// --- F04 Laundry Room (Milestone 4) ---------------------------------------------------------------------------------
+function laundrySpec(it, { hk, now }) {
+  const l = hk.linen;
+  const lines = [
+    { text: 'Linen left today', right: `${l.left} of ${l.cap}` },
+    { text: 'Used today', right: `${l.used} units · ${plural(l.rooms, 'room')}` },
+    { text: 'Each room turn', right: `${linenFor('R1')} units (${LINEN.perBed} a bed)` },
+  ];
+  if (l.short) lines.push({ text: 'Short on linen today', right: plural(l.short, 'room'), color: C.bad });
+  lines.push({ text: `Restocked to ${l.cap} each Morning. Out of linen, cleaning takes ${LINEN.shortFactor} times as long.`, color: C.textMuted });
+  return { title: it.def.name, line: it.def.line, art: it.def.art, now: [`${l.left} of ${l.cap} linen units left today`, ...now.map((x) => ({ text: x, color: C.textMuted }))], body: [{ title: 'Linen', lines }] };
+}
+
 // --- a guest --------------------------------------------------------------------------------------------------------
 function guestSpec(world, p, { bookings: bk, today, dateOf }) {
   const b = bk?.byId(p.id);
@@ -134,11 +208,13 @@ function guestSpec(world, p, { bookings: bk, today, dateOf }) {
   const room = roomById(b.room);
   const out = b.arrival + b.nights;
   const lines = [
-    { text: 'Nights left', right: b.status === 'left' ? 'Checked out' : String(b.nightsLeft) },
+    { text: 'Nights left', right: b.status === 'left' ? 'Checked out' : b.status === 'waiting' ? 'Not checked in yet' : String(b.nightsLeft) },
     { text: 'Room', right: `${room.name} (${ROOM_TYPES[room.typeId].name})` },
     { text: 'Checks out', right: b.status === 'left' ? 'This morning' : out - today === 1 ? 'Tomorrow morning' : dateOf ? `Morning of ${dateOf(out)}` : `In ${out - today} days` },
     { text: 'Rate', right: rateWords(b.rate) },
   ];
+  if (b.status === 'waiting') lines.unshift({ text: 'Late room', right: `${room.name} isn’t clean yet`, color: LATE_BADGE.color });
+  else if (b.late) lines.push({ text: 'Waited for their room', right: minutesWords(b.late.minutes) });
   return { title: t.name, line: `${partyWords(b.party)} · ${room.name}`, art: t.art, now: [world.stateOf(p)], body: [{ title: 'Stay', lines }] };
 }
 
