@@ -124,7 +124,8 @@ export class FakeStoreProvider {
     const sub = this.state.subscription;
     const active = !!sub?.active && (sub.expiresAt == null || this.now() <= sub.expiresAt);
     const removeKey = Object.keys(this.products).find((k) => this.products[k].entitlement === 'removeAds');
-    return { status: 'ok', removeAds: !!this.state.owned[removeKey], vip: { active, expiresAt: active ? sub.expiresAt : null } };
+    const owned = Object.keys(this.state.owned).filter((k) => this.state.owned[k]); // every one-time item owned (BOTWORKS M30)
+    return { status: 'ok', removeAds: !!this.state.owned[removeKey], vip: { active, expiresAt: active ? sub.expiresAt : null }, owned };
   }
 
   async restore() {

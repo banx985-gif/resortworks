@@ -14,6 +14,9 @@
 // bands, the speed unlocks), stepped here while the hub is on screen. It is saved in the slot's campaign save (core/
 // Autosave: each new month, on Pause, leaving the hub, the app going to the background), the slot card's Year / Month
 // with it; loading puts the clock back exactly (at a speed the rules still allow). ?debug=1: skip a day / month / year.
+// Milestone 3: each open resort has its booking system (src/systems/bookings.js: offers, bookings, stays, room states),
+// moved on at every band edge of its calendar (and through a debug skip, edge by edge), saved in the campaign save with
+// the calendar (also after each Accept / Decline / room pick). ?debug=1: "Rooms Ready" puts Dirty rooms back to Ready.
 // Add ?debug=1 for the FPS/state overlay and the setup-data check, ?screen=test for the scaling / tap / asset-loader test
 // screen. With ?debug=1, &safe=phone|tablet stands in a notch and home bar (safe-area insets) on any screen, and
 // &reset=1 empties all four slots.
@@ -38,6 +41,7 @@ import { drawButton, hitRect, setPressPoint, clearPress } from '../../../core/ui
 import { Settings } from '../../../core/Settings.js';
 import { Autosave } from '../../../core/Autosave.js';
 import { createCalendar } from './systems/calendar.js';
+import { createBookingSystem } from './systems/bookings.js';
 import { FrameGovernor } from '../../../core/FrameGovernor.js';
 import { Haptics } from '../../../core/Haptics.js';
 import { settingsSheet } from '../../../core/ui/SettingsSheet.js';
@@ -210,30 +214,37 @@ bus.on('input:up', () => systemBack.rearm()); // re-arm after any tap, in case a
 // ---------------------------------------------------------------------------
 // The four campaign slots.
 let campaigns = null;
-let open = null; // { n, data, calendar } — the resort on screen
+let open = null; // { n, data, calendar, bookings } — the resort on screen
 let account = {}; // the account store (core/CampaignSlots): empty until achievements / tokens / NG+ exist
 
-// A campaign on screen: its save plus its calendar, put back exactly where the save left it (Milestone 2).
+// A campaign on screen: its save plus its calendar (Milestone 2) and its bookings (Milestone 3), put back exactly where
+// the save left them.
 function openRun(n, data) {
-  const run = { n, data, calendar: null };
+  const run = { n, data, calendar: null, bookings: null };
   run.calendar = createCalendar({ bus, saved: data.calendar ?? null, run: () => run.data });
+  const c = run.calendar;
+  run.bookings = createBookingSystem({ seed: data.seed, saved: data.bookings ?? null, bus, day: c.today, band: c.band.id });
   open = run;
+  run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;
 }
+// Every band edge moves the open resort's bookings on (check-ins, check-outs, nights, offers), in order.
+bus.on('band:change', () => open && open.bookings.sync(open.calendar.today, open.calendar.bandIndex));
 // The campaign save: the calendar as it stands, the date the slot card shows, then the slot (save + summary record).
 async function saveRun() {
   if (!open) return;
-  const { n, data, calendar } = open;
+  const { n, data, calendar, bookings } = open;
   data.calendar = calendar.serialize();
+  data.bookings = bookings.serialize();
   const c = calendar.clock;
   data.date = { year: c.year, month: c.month, day: c.day };
   await campaigns.save(n, data);
 }
 const autosave = new Autosave({
   bus,
-  triggers: ['clock:month'],
+  triggers: ['clock:month', 'booking:action'],
   save: () => saveRun(),
-  stamp: () => (open ? JSON.stringify(open.calendar.serialize()) : null),
+  stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize()]) : null),
   enabled: () => !!open,
 });
 autosave.installBackground(); // the app going to the background (or the page closing) saves at once
@@ -245,6 +256,7 @@ bus.on('band:change', ({ band }) => debug.log(`band: ${band}`));
 function skipDays(days) {
   if (!open) return;
   open.calendar.skipDays(days);
+  open.bookings.sync(open.calendar.today, open.calendar.bandIndex); // every band edge on the way, in order
   debug.log(`skipped ${days} day(s): ${open.calendar.dateText()}`);
 }
 

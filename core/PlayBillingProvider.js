@@ -117,7 +117,8 @@ export class PlayBillingProvider {
     const removeKey = Object.keys(this.products).find((k) => this.products[k].entitlement === 'removeAds');
     const vipKey = Object.keys(this.products).find((k) => this.products[k].entitlement === 'vip');
     const vip = list.find((t) => t.productIdentifier === vipKey && t.isActive !== false);
-    return { status: 'ok', removeAds: list.some((t) => t.productIdentifier === removeKey), vip: { active: !!vip, expiresAt: vip?.expirationDate ? Date.parse(vip.expirationDate) || null : null } };
+    const owned = [...new Set(list.map((t) => t.productIdentifier).filter((k) => this.products[k]?.kind === 'nonConsumable'))]; // every one-time item owned (BOTWORKS M30)
+    return { status: 'ok', removeAds: list.some((t) => t.productIdentifier === removeKey), vip: { active: !!vip, expiresAt: vip?.expirationDate ? Date.parse(vip.expirationDate) || null : null }, owned };
   }
 
   restore() {

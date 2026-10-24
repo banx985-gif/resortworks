@@ -10,8 +10,14 @@
 // sits under the bar. People keep the calendar's pace (still while paused) and go where the band sends them; a soft light
 // tint over the map follows the band, fading between bands (slower and softer with Reduced flashes). With ?debug=1, a row
 // of skip buttons (+1 day / +1 month / +1 year) sits above the Reception shortcut.
+// Milestone 3: eight rooms, each with a code-drawn state badge (its number and Ready / Reserved / Occupied / Dirty …) that
+// opens its sheet; booked guests walk in from the car park, live their days and drive away (the world follows the open
+// run's bookings). The Reception sheet holds the Bookings list (src/screens/resortSheets.js) and the room picker; Accept /
+// Decline / pick a room act on the run's booking system. A small toast for new offers, check-ins and check-outs (core
+// NotificationSystem + core/ui/Toast): one at a time, one tap closes it, the rest queue (and wait while a sheet is open).
+// ?debug=1 adds "Rooms Ready" to the skip row (every Dirty room back to Ready until M4 brings cleaning).
 //   createResortScreen({ renderer, layout, assets, bus, sheet, run, onMenu, debug, reducedFlashes, onSkip })
-//     run() → the open campaign { n, data, calendar } or null    onSkip(days) → the debug skip
+//     run() → the open campaign { n, data, calendar, bookings } or null    onSkip(days) → the debug skip
 import { THEME, font } from '../../../../core/Theme.js';
 import { IsoProjection } from '../../../../core/IsoProjection.js';
 import { Camera } from '../../../../core/Camera.js';
@@ -25,11 +31,14 @@ import { drawCharacter } from '../../../../core/CharacterMotion.js';
 import { drawButton, hitRect } from '../../../../core/ui/Button.js';
 import { card, text, para } from '../../../../core/ui/Kit.js';
 import { createTopBar, topBarRect } from '../../../../core/ui/TopBar.js';
+import { NotificationSystem } from '../../../../core/NotificationSystem.js';
+import { drawToasts, toastHeight } from '../../../../core/ui/Toast.js';
+import { ROOM_STATES, GUEST_TYPES } from '../../data/bookings.js';
 import { BANDS, TINT_FADE } from '../../data/calendar.js';
 import { founderById, paletteById } from '../../data/setup.js';
-import { LOT, ART_LOOK, ART_TWEAK, PERSON, LOOK } from '../../data/lot.js';
+import { LOT, ART_LOOK, ART_TWEAK, PERSON, LOOK, roomById } from '../../data/lot.js';
 import { createResortWorld } from '../systems/resortWorld.js';
-import { resortSheet } from './resortSheets.js';
+import { resortSheet, pickRoomSheet } from './resortSheets.js';
 import { managerLine } from '../systems/resort.js';
 
 const C = THEME.color;
@@ -55,6 +64,8 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
   const groundScale = () => Math.min(renderer.pixelScale * detailFor(camera.zoom), Math.sqrt(LOT.floorMaxPixels / (worldW * worldH)));
 
   let world = null;
+  let worldOf = null; // the run's booking system the world was made for
+  let peopleVersion = -1; // world.version the tap list was built for
   let slotN = null;
   let palette = paletteById(null);
   let paths = null; // Set of "c,r" — the lanes people use, drawn as sandy paths
@@ -160,6 +171,28 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     },
   });
 
+  // --- toasts (Milestone 3): one at a time, one tap closes it, the rest wait their turn ---------------------------------
+  const notes = new NotificationSystem({ maxToasts: 1, toastQueueMax: 5, toastSec: 3 });
+  const roomList = (ids) => {
+    const n = ids.map((id) => roomById(id)?.number ?? '?');
+    return n.length === 1 ? `Room ${n[0]}` : `Rooms ${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}`;
+  };
+  const toast = (title, body, art) => notes.post({ kind: 'booking', title, body, art, toast: true });
+  bus.on('booking:offers', ({ offers }) => {
+    if (!active) return;
+    toast(offers.length === 1 ? 'A new booking offer' : `${offers.length} new booking offers`, 'See them at Reception.', GUEST_TYPES[offers[0].type]?.art);
+  });
+  bus.on('booking:checkin', ({ bookings }) => {
+    if (!active) return;
+    const one = bookings.length === 1 ? bookings[0] : null;
+    toast(one ? `${GUEST_TYPES[one.type].name} checked in` : `${bookings.length} parties checked in`, `${roomList(bookings.map((b) => b.room))} ${one ? 'is' : 'are'} now Occupied.`, GUEST_TYPES[bookings[0].type]?.art);
+  });
+  bus.on('booking:checkout', ({ bookings }) => {
+    if (!active) return;
+    const one = bookings.length === 1 ? bookings[0] : null;
+    toast(one ? `${GUEST_TYPES[one.type].name} checked out` : `${bookings.length} parties checked out`, `${roomList(bookings.map((b) => b.room))} ${one ? 'is' : 'are'} Dirty — ${one ? 'needs' : 'need'} cleaning.`, GUEST_TYPES[bookings[0].type]?.art);
+  });
+
   // --- screen rects ------------------------------------------------------------------------------------------------
   const menuRect = () => topBar.backRect();
   const plateRect = () => {
@@ -167,20 +200,28 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     const bar = topBarRect(layout);
     return { x: sr.x + 24, y: bar.y + bar.h + 12, w: sr.w - 48, h: 96 };
   };
+  const toastRect = () => {
+    const t = notes.toasts[0];
+    if (!t) return null;
+    const p = plateRect();
+    return { x: p.x, y: p.y + p.h + 10, w: p.w, h: toastHeight(t) };
+  };
   const noteRect = () => {
     const p = plateRect();
-    return { x: p.x, y: p.y + p.h + 10, w: p.w, h: 70 };
+    const t = toastRect();
+    return { x: p.x, y: (t ? t.y + t.h : p.y + p.h) + 10, w: p.w, h: 70 };
   };
   // ?debug=1: skip a day / month / year (so the speed unlocks can be tested).
   const SKIPS = [
     { id: 'skipDay', label: '+1 day', days: 1 },
     { id: 'skipMonth', label: '+1 month', days: 28 },
     { id: 'skipYear', label: '+1 year', days: 336 },
+    { id: 'readyRooms', label: 'Rooms Ready', days: null }, // (Milestone 3) every Dirty room back to Ready
   ];
   const skipRect = (i) => {
     const s = shortcutRect();
     const sr = layout.safeRect;
-    const w = (sr.w - 48 - 2 * 16) / 3;
+    const w = (sr.w - 48 - (SKIPS.length - 1) * 16) / SKIPS.length;
     return { x: sr.x + 24 + i * (w + 16), y: s.y - 16 - 100, w, h: 100 };
   };
   const debugSkips = () => !!debug?.enabled;
@@ -199,7 +240,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     return { x: b.x + b.w - 300 - 24, y: b.y + b.h - 24 - 110, w: 300, h: 110 };
   };
   const onSkipRow = (p) => debugSkips() && SKIPS.some((_, i) => hitRect(p, skipRect(i)));
-  const onUi = (p) => (buildMode ? hitRect(p, bannerRect()) : topBar.contains(p) || hitRect(p, plateRect()) || hitRect(p, shortcutRect()) || onSkipRow(p) || (note && hitRect(p, noteRect())));
+  const onUi = (p) => (buildMode ? hitRect(p, bannerRect()) : topBar.contains(p) || hitRect(p, plateRect()) || hitRect(p, shortcutRect()) || onSkipRow(p) || (note && hitRect(p, noteRect())) || (toastRect() && hitRect(p, toastRect())));
   const overSheet = (p) => sheet.active && p.y >= sheet.rect().y;
 
   // The camera sees the lot between the name plate and the bottom row.
@@ -242,12 +283,59 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
   };
   const inView = (sx, sy) => sy >= camera.viewY && sy <= camera.viewY + camera.viewH;
 
+  // What the sheets' buttons do (Milestone 3): the open run's booking system, then a save is asked for.
+  const bookings = () => run()?.bookings ?? null;
+  const today = () => calendar()?.today ?? 0;
+  const acted = (what) => {
+    bus.emit('booking:action', { what });
+    debug?.log(`booking: ${what}`);
+  };
+  const say = (words) => words && (note = { text: words, t: 3 });
+  const act = {
+    accept(id) {
+      const r = bookings()?.accept(id);
+      if (r?.needsRoom) return openPicker(id);
+      if (r?.ok) acted(`accept ${id} → ${r.booking.room}`);
+      else say(r?.why);
+    },
+    decline(id) {
+      if (bookings()?.decline(id)) acted(`decline ${id}`);
+    },
+    pick: (id) => openPicker(id),
+    choose(forId, roomId) {
+      const bk = bookings();
+      const x = bk?.byId(forId);
+      if (!x) return;
+      const r = x.status ? bk.pin(forId, roomId) : bk.accept(forId, { room: roomId });
+      if (!r.ok) return say(r.why);
+      acted(`${x.status ? 'pin' : 'accept'} ${forId} → ${roomId}`);
+      openSheet('F01', 'picker');
+    },
+    open: (id) => openSheet(id, 'sheet'),
+    setAuto(on) {
+      bookings()?.setAutoAssign(on);
+      acted(`auto assign ${on ? 'on' : 'off'}`);
+    },
+  };
+  const dateWords = (d) => {
+    const x = calendar()?.clock.dateOf(d);
+    return x ? `Y${x.year} · Month ${x.month} · Day ${x.day}` : `Day ${d + 1}`;
+  };
+  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act });
   function openSheet(id, via = 'art') {
     if (!world?.byId(id)) return;
-    const accent = palette.hex;
-    sheet.open(() => resortSheet(world, id, { accent }));
+    sheet.open(() => resortSheet(world, id, sheetOpts()));
     opened = { id, via };
     debug?.log(`sheet: ${id} (${via})`);
+  }
+  // The room picker for an offer or an upcoming booking (manual pinning). If the offer goes (end of the day) the
+  // sheet turns back into Reception.
+  function openPicker(forId) {
+    const bk = bookings();
+    if (!bk?.byId(forId)) return;
+    sheet.open(() => pickRoomSheet(bk, forId, sheetOpts()) ?? resortSheet(world, 'F01', sheetOpts()));
+    opened = { id: `pick:${forId}`, via: 'sheet' };
+    debug?.log(`sheet: pick a room for ${forId}`);
   }
   function setBuildMode(on) {
     if (buildMode === on) return;
@@ -262,13 +350,16 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     if (!o) return false;
     const founder = founderById(o.data.resort.founder.id);
     palette = paletteById(o.data.resort.palette);
-    if (!world || slotN !== o.n || world.founder !== founder) {
+    if (!world || slotN !== o.n || world.founder !== founder || worldOf !== (o.bookings ?? null)) {
       if (slotN !== o.n) viewSet = false;
       const cal = o.calendar;
-      world = createResortWorld({ founder, band: cal?.band.id ?? 'morning', bandFrac: cal?.bandFrac ?? 0 });
+      const bk = o.bookings ?? null;
+      world = createResortWorld({ founder, band: cal?.band.id ?? 'morning', bandFrac: cal?.bandFrac ?? 0, day: cal?.today ?? 0, stays: bk ? () => [...bk.staying, ...bk.leaving] : null });
+      worldOf = bk;
       slotN = o.n;
       paths = null;
       syncSelection();
+      peopleVersion = world.version;
     }
     groundLayer.invalidate(); // (the accent colour may differ)
     tint.cur = tintOf(o.calendar?.band.id); // the light starts right for the time of day (no fade on opening)
@@ -348,9 +439,14 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     update(dt) {
       const cal = calendar();
       if (world && cal) {
-        world.setTime(cal.band.id, cal.bandFrac, cal.bandSeconds);
+        world.setTime(cal.band.id, cal.bandFrac, cal.bandSeconds, cal.today);
         world.update(cal.paused ? 0 : dt * cal.speed);
+        if (world.version !== peopleVersion) {
+          peopleVersion = world.version; // someone arrived or drove away: the tap list again
+          syncSelection();
+        }
       }
+      notes.update(dt, { hold: sheet.active || !active });
       updateTint(dt);
       if (note && (note.t -= dt) <= 0) note = null;
     },
@@ -393,9 +489,18 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
         topBar.handleTap(p); // ‹ Menu, Pause, the speeds (a locked one explains itself)
         return log(b?.id ?? 'bar');
       }
+      const tr = toastRect();
+      if (tr && hitRect(p, tr)) {
+        notes.toasts.shift(); // one tap closes it; the next one waiting shows after
+        return log('toast');
+      }
       const sk = debugSkips() ? SKIPS.findIndex((_, i) => hitRect(p, skipRect(i))) : -1;
       if (sk >= 0) {
-        onSkip(SKIPS[sk].days);
+        if (SKIPS[sk].days) onSkip(SKIPS[sk].days);
+        else {
+          const n = bookings()?.makeAllReady() ?? 0;
+          acted(`rooms ready (${n})`);
+        }
         return log(SKIPS[sk].id);
       }
       if (hitRect(p, shortcutRect())) {
@@ -403,6 +508,11 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
         return log('shortcut');
       }
       if (hitRect(p, plateRect()) || !inView(p.x, p.y)) return log(null);
+      const badge = badgeAt(p);
+      if (badge) {
+        openSheet(badge.id, 'badge');
+        return log(badge.id);
+      }
       const picked = pickAt(p.x, p.y);
       if (picked) openSheet(picked.id);
       log(picked?.id ?? null);
@@ -443,10 +553,13 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
       assets.detail = 1;
       camera.restore(ctx);
       drawTint(ctx);
+      if (!buildMode) drawBadges(ctx);
       if (buildMode) drawBanner(ctx);
       else {
         topBar.render(ctx);
         drawPlate(ctx);
+        const tr = toastRect();
+        if (tr) drawToasts(ctx, notes.toasts.slice(0, 1), { x: tr.x, y: tr.y, w: tr.w, life: notes.toastSec, moreText: (n) => `+${n} more at Reception`, drawIcon: (c, e, r) => e.art && assets.drawContained(c, e.art, r) });
         if (note) drawNote(ctx);
         if (debugSkips()) SKIPS.forEach((s, i) => drawButton(ctx, skipRect(i), s.label, { accent: C.purple }));
         drawButton(ctx, shortcutRect(), 'Reception', { accent: C.action });
@@ -465,7 +578,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
       for (let i = 1; i < 12; i++)
         for (let j = 1; j < 12; j++) {
           const s = camera.worldToScreen(r.x + (r.w * i) / 12, r.y + (r.h * j) / 12);
-          if (!inView(s.x, s.y) || s.x < 30 || s.x > W - 30 || onUi(s) || overSheet(s) || pickAt(s.x, s.y) !== it) continue;
+          if (!inView(s.x, s.y) || s.x < 30 || s.x > W - 30 || onUi(s) || overSheet(s) || (badgeAt(s) && badgeAt(s).id !== id) || pickAt(s.x, s.y) !== it) continue; // (a room badge on top takes the tap)
           const d = Math.hypot(s.x - mid.x, s.y - mid.y);
           if (!best || d < best.d) best = { x: s.x, y: s.y, d };
         }
@@ -505,8 +618,16 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     rectOf(id) {
       const bar = Object.fromEntries(topBar.buttons().map((b) => [b.id, b.rect])); // 'pause', 'speed1', 'speed2', 'speed4'
       const skip = Object.fromEntries(SKIPS.map((s, i) => [s.id, debugSkips() ? skipRect(i) : null]));
-      return { menu: menuRect(), shortcut: shortcutRect(), done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), note: note ? noteRect() : null, ...bar, ...skip }[id] ?? null;
+      if (id?.startsWith?.('badge:')) return badgeRects().find((b) => b.id === id.slice(6))?.rect ?? null;
+      return { menu: menuRect(), shortcut: shortcutRect(), done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), note: note ? noteRect() : null, toast: toastRect(), ...bar, ...skip }[id] ?? null;
     },
+    // The toasts showing / waiting (tests).
+    get toasts() {
+      return { showing: notes.toasts.map((t) => t.entry.title), waiting: notes.toastWaiting.map((e) => e.title) };
+    },
+    notes,
+    act,
+    openPicker,
     get note() {
       return note?.text ?? null;
     },
@@ -621,6 +742,60 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     for (let c = 0; c <= LOT.cols; c++) line(ctx, iso.corner(c, 0), iso.corner(c, LOT.rows));
     for (let r = 0; r <= LOT.rows; r++) line(ctx, iso.corner(0, r), iso.corner(LOT.cols, r));
     ctx.restore();
+  }
+  // --- room state badges (Milestone 3): a code-drawn pill on each room's roof — its number in a white disc and its state
+  // in the state's colour. Drawn in screen space (always readable), a little smaller when zoomed far out; a tap on one
+  // opens that room's sheet.
+  const badgeScale = () => Math.max(0.62, Math.min(1, camera.zoom / 0.5));
+  let measure = null;
+  function textW(words, size) {
+    measure ??= (typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(4, 4) : document.createElement('canvas')).getContext('2d');
+    measure.font = font(size, true);
+    return measure.measureText(words).width;
+  }
+  function badgeRects() {
+    const bk = bookings();
+    if (!world || !bk) return [];
+    const k = badgeScale();
+    const out = [];
+    for (const it of world.items) {
+      if (it.kind !== 'room') continue;
+      const st = ROOM_STATES[bk.roomState(it.id)];
+      const a = artRect(it);
+      const c = camera.worldToScreen(a.x + a.w / 2, a.y + a.h * 0.2);
+      const h = 50 * k;
+      const w = h + 16 * k + textW(st.name, 26 * k) + 18 * k;
+      const rect = { x: c.x - w / 2, y: c.y - h / 2, w, h };
+      if (rect.y < camera.viewY || rect.y + rect.h > camera.viewY + camera.viewH || rect.x + rect.w < 0 || rect.x > W) continue;
+      out.push({ id: it.id, number: it.def.number, st, rect, k });
+    }
+    return out;
+  }
+  const badgeAt = (p) => badgeRects().find((b) => hitRect(p, { x: b.rect.x - 6, y: b.rect.y - 6, w: b.rect.w + 12, h: b.rect.h + 12 })) ?? null;
+  function drawBadges(ctx) {
+    for (const b of badgeRects()) {
+      const { rect: r, k } = b;
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.beginPath();
+      ctx.roundRect(r.x + 2, r.y + 4, r.w, r.h, r.h / 2);
+      ctx.fill();
+      ctx.fillStyle = b.st.color;
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 3 * k;
+      ctx.beginPath();
+      ctx.roundRect(r.x, r.y, r.w, r.h, r.h / 2);
+      ctx.fill();
+      ctx.stroke();
+      const d = r.h - 10 * k;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(r.x + 5 * k + d / 2, r.y + r.h / 2, d / 2, 0, Math.PI * 2);
+      ctx.fill();
+      text(ctx, String(b.number), r.x + 5 * k + d / 2, r.y + r.h / 2 + 1, { size: 28 * k, bold: true, color: b.st.color, align: 'center', baseline: 'middle' });
+      text(ctx, b.st.name, r.x + r.h + 8 * k, r.y + r.h / 2 + 1, { size: 26 * k, bold: true, color: '#FFFFFF', baseline: 'middle' });
+      ctx.restore();
+    }
   }
   function drawPlate(ctx) {
     const r = plateRect();

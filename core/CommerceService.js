@@ -9,7 +9,8 @@
 //                        | { status: 'cancelled' | 'failed' | 'offline' | 'unavailable' }
 //   finish(txId)       the purchase has been granted and saved; the store may stop re-delivering it
 //   pending()          → [transaction] bought but never finished (the app closed in between): delivered again
-//   restore()          → { status: 'ok', removeAds, vip: { active, expiresAt } } | { status: 'offline' | 'unavailable' }
+//   restore()          → { status: 'ok', removeAds, vip: { active, expiresAt }, owned? } | { status: 'offline' | 'unavailable' }
+//                        owned (optional, BOTWORKS M30): the keys of every one-time (nonConsumable) item the account owns
 //   status()           the same as restore(), used for the quiet "recheck when online"
 //
 // Products (game data): { [key]: { kind: 'consumable' | 'nonConsumable' | 'subscription', entitlement?: 'removeAds' | 'vip' } }
@@ -17,7 +18,9 @@
 // transaction seen before grants nothing — also after a save and reload, and when the store delivers it again.
 // A cancelled, failed or offline purchase changes nothing at all.
 //
-//   new CommerceService({ provider, products, entitlements, grant(product, tx), commit(), messages, now, bus })
+//   new CommerceService({ provider, products, entitlements, grant(product, tx), commit(), messages, now, bus, owned(keys) })
+//   owned(keys) (optional, BOTWORKS M30): called after every restore / store check whose provider lists owned one-time
+//   items — for a one-time item with no entitlement of its own (e.g. a Supporter Pack). Games that pass nothing: as before.
 //   await loadProducts() → { ok, products, message }
 //   await buy(key)       → { ok, status, message, granted, duplicate }
 //   await restore()      → { ok, status, message, removeAds, vip }
@@ -48,7 +51,8 @@ const DEFAULT_MESSAGES = {
 };
 
 export class CommerceService {
-  constructor({ provider = NO_STORE_PROVIDER, products = {}, entitlements, grant = () => {}, commit = async () => {}, messages = {}, now = () => Date.now(), bus = null } = {}) {
+  constructor({ provider = NO_STORE_PROVIDER, products = {}, entitlements, grant = () => {}, commit = async () => {}, messages = {}, now = () => Date.now(), bus = null, owned = null } = {}) {
+    this.ownedHook = owned;
     this.provider = provider ?? NO_STORE_PROVIDER;
     this.products = products;
     this.entitlements = entitlements;
@@ -172,9 +176,10 @@ export class CommerceService {
     this.lastStatus = status;
     if (status !== 'ok') return { ok: false, status, message: this.msg(status) };
     this.entitlements.applyStatus({ removeAds: !!res.removeAds, vip: res.vip ?? { active: false } }, this.now());
+    const extra = this._applyOwned(res);
     await this.commit();
     this.bus?.emit('commerce:restored', { removeAds: !!res.removeAds, vip: !!res.vip?.active });
-    const any = !!res.removeAds || !!res.vip?.active;
+    const any = !!res.removeAds || !!res.vip?.active || extra;
     return { ok: true, status, message: this.msg(any ? 'restored' : 'nothingToRestore'), removeAds: !!res.removeAds, vip: !!res.vip?.active };
   }
 
@@ -190,6 +195,15 @@ export class CommerceService {
     this.lastStatus = res?.status ?? 'failed';
     if (res?.status !== 'ok') return { ok: false, status: this.lastStatus };
     this.entitlements.applyStatus({ removeAds: !!res.removeAds, vip: res.vip ?? { active: false } }, this.now());
+    this._applyOwned(res);
     return { ok: true, status: 'ok' };
+  }
+
+  // The game's hook for one-time items without an entitlement of their own. Returns true when one is owned.
+  _applyOwned(res) {
+    if (!this.ownedHook || !Array.isArray(res?.owned)) return false;
+    const keys = res.owned.filter((k) => this.products[k]?.kind === 'nonConsumable' && !this.products[k].entitlement);
+    this.ownedHook(keys);
+    return keys.length > 0;
   }
 }

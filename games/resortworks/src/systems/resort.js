@@ -2,6 +2,7 @@
 // resort's identity and the date; the simulation's state joins it milestone by milestone (with SAVE_MIGRATIONS).
 import { founderById, paletteById, ROLES, FOUNDER_FLAG } from '../../data/setup.js';
 import { CALENDAR } from '../../data/calendar.js';
+import { firstBookings } from './bookings.js';
 
 // A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
 // before the calendar existed (Milestone 2).
@@ -15,6 +16,7 @@ export const managerLine = (name) => `General Manager ${name || '…'}`;
 
 // setup: { resort, manager, palette, founder } from Resort Setup.
 export function newCampaign(setup, now = Date.now()) {
+  const seed = `resortworks-${now}`; // the run's seed, fixed at creation (a reload never rerolls it)
   const founder = founderById(setup.founder);
   if (!founder) throw new Error(`Unknown founder ${setup.founder}`);
   if (!setup.resort?.trim() || !setup.manager?.trim()) throw new Error('A resort needs a name and a General Manager');
@@ -26,9 +28,10 @@ export function newCampaign(setup, now = Date.now()) {
       founder: { id: founder.id, [FOUNDER_FLAG]: true }, // the permanent Founder history flag (bible §5)
       createdAt: now,
     },
-    seed: `resortworks-${now}`, // the run's seed, fixed at creation (a reload never rerolls it)
+    seed,
     date: { year: 1, month: 1, day: 1 },
     calendar: calendarFromDate(), // (Milestone 2) the clock exactly as it stands: day, progress, band, speed
+    bookings: firstBookings({ seed, day: 0, band: 'morning' }), // (Milestone 3) offers, bookings, stays, room states
     playSec: 0,
     ngPlus: 0,
   };
@@ -65,6 +68,13 @@ export function playTime(sec) {
 }
 
 // Save version → upgrade. 1 → 2 (Milestone 2): a save from before the calendar gets one at its date, start of Morning.
+// 2 → 3 (Milestone 3): a save from before bookings gets them at its calendar's day and band — the lone guest as the first
+// booked guest in Room 1 (2 nights from now), every other room Ready, and that day's offers if Morning has come.
 export const SAVE_MIGRATIONS = {
   1: (record) => ({ ...record, data: { ...record.data, calendar: record.data.calendar ?? calendarFromDate(record.data.date) } }),
+  2: (record) => {
+    const d = record.data;
+    const cal = d.calendar ?? calendarFromDate(d.date);
+    return { ...record, data: { ...d, bookings: d.bookings ?? firstBookings({ seed: d.seed ?? 'resortworks', day: cal.totalDays ?? 0, band: cal.band ?? 'morning' }) } };
+  },
 };

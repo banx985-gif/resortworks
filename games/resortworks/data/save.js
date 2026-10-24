@@ -8,5 +8,5 @@ export const SAVE = {
   count: 4,
   prefix: 'campaign_',
   accountKey: 'resortworks:account',
-  version: 2, // 2 = Milestone 2 (the calendar: day, progress in the day, band, speed)
+  version: 3, // 2 = Milestone 2 (the calendar: day, progress in the day, band, speed); 3 = Milestone 3 (bookings, stays, room states)
 };

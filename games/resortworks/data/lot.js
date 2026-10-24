@@ -30,42 +30,75 @@ export const FACILITIES = [
   { id: 'F08', name: 'Garden Strip', art: 'facility_f08', fp: { col: 8, row: 8, w: 2, h: 2 }, door: { col: 8, row: 10 }, line: 'Makes everything within 4 tiles more appealing (+6 Appeal).' },
 ];
 
-// The first two rooms (bible §10; the full eight come with booking in Milestone 3).
+// The eight starting rooms (bible §10 / §27M, Milestone 3): 4 × RM01 Budget Room and 4 × RM02 Standard Room. Rooms 1 and 2
+// are Milestone 1's; the six new ones fill the free land so every doorway is on a front face and on a lane. Odd numbers are
+// Budget, even numbers Standard (Cowork's 4 + 4 split). id = the room's own id (its sheet, its saved state); typeId = its
+// room type (data/bookings.js ROOM_TYPES: capacity, rate).
+const room = (n, typeId, col, row, door) => ({
+  id: `R${n}`,
+  number: n,
+  name: `Room ${n}`,
+  typeId,
+  type: typeId === 'RM01' ? 'Budget Room' : 'Standard Room',
+  art: typeId === 'RM01' ? 'room_rm01' : 'room_rm02',
+  fp: { col, row, w: 2, h: 2 },
+  door,
+});
 export const ROOMS = [
-  { id: 'RM01', name: 'Room 1', type: 'Budget Room', art: 'room_rm01', fp: { col: 0, row: 5, w: 2, h: 2 }, door: { col: 1, row: 7 } },
-  { id: 'RM02', name: 'Room 2', type: 'Standard Room', art: 'room_rm02', fp: { col: 12, row: 5, w: 2, h: 2 }, door: { col: 12, row: 7 } },
+  room(1, 'RM01', 0, 5, { col: 1, row: 7 }),
+  room(2, 'RM02', 12, 5, { col: 12, row: 7 }),
+  room(3, 'RM01', 2, 5, { col: 3, row: 7 }),
+  room(4, 'RM02', 8, 0, { col: 8, row: 2 }),
+  room(5, 'RM01', 0, 2, { col: 1, row: 4 }),
+  room(6, 'RM02', 10, 0, { col: 10, row: 2 }),
+  room(7, 'RM01', 0, 8, { col: 2, row: 9 }),
+  room(8, 'RM02', 12, 8, { col: 12, row: 10 }),
 ];
+export const roomById = (id) => ROOMS.find((r) => r.id === id) ?? null;
 
 // How each picture sits on its footprint: width = the footprint diamond's width × width; the diamond's front corner sits
 // at foot (a share of the picture's height, from the top). One scale for every piece of art.
 export const ART_LOOK = { width: 1.06, foot: 0.97 };
-export const ART_TWEAK = {
-  RM01: { width: 1.0, foot: 0.985 },
-  RM02: { width: 1.0, foot: 0.985 },
-};
+export const ART_TWEAK = Object.fromEntries(ROOMS.map((r) => [r.id, { width: 1.0, foot: 0.985 }]));
 
 // People: drawn height at zoom 1 (logical px); feet = where the feet sit in the picture (share of its height).
 export const PERSON = { height: 200, feet: 0.985, guestSpeed: 260, staffSpeed: 280 };
 
-// The one guest: a Road Trip Couple whose day follows the bands (Milestone 2, replacing M1's fixed loop). Each band lists
-// where they go; a band with two stops splits at `until` (a share of the band). going = while walking there, doing =
-// while there (their sheet's "Now" line).
-export const GUEST_ROOM = 'RM01';
+// A staying guest's day follows the bands (Milestone 2's lone guest; Milestone 3: every booked guest). Each band lists
+// where they go; a band with two stops splits at `until` (a share of the band). at: 'room' = their own room. going =
+// while walking there, doing = while there (their sheet's "Now" line; {room} = their room's name).
+export const GUEST_PLAN = {
+  night: [{ at: 'room', going: 'Heading to bed', doing: 'Sleeping' }],
+  morning: [{ at: 'F06', going: 'Walking to the café for breakfast', doing: 'Having breakfast at the café' }],
+  midday: [{ at: 'F01', going: 'Walking to Reception', doing: 'At Reception' }],
+  afternoon: [{ at: 'F03', going: 'Walking to the pool', doing: 'At the pool' }],
+  evening: [
+    { at: 'F06', until: 0.55, going: 'Walking to the café for dinner', doing: 'Having dinner at the café' },
+    { at: 'room', going: 'Walking back to their room', doing: 'Back in their room' },
+  ],
+};
+// Milestone 3: the band they check in (Midday of the arrival day): from the car park to Reception, then to their room.
+// The band they check out (Morning of the last day): from their room to Reception, then to their car — and away.
+export const ARRIVE_PLAN = [
+  { at: 'F01', until: 0.45, going: 'Walking to Reception to check in', doing: 'Checking in at Reception' },
+  { at: 'room', going: 'Walking to {room}', doing: 'Settling into {room}' },
+];
+export const LEAVE_PLAN = [
+  { at: 'F01', until: 0.5, going: 'Walking to Reception to check out', doing: 'Checking out at Reception' },
+  { at: 'F07', going: 'Walking back to their car', doing: 'Driving away', leaves: true },
+];
+export const ARRIVE_FROM = 'F07'; // a new party appears at the car park's doorway
+
+// The M2 lone guest's look (a Road Trip Couple in Room 1). Milestone 3: they are the first real booked guest of a new
+// resort (src/systems/resort.js), and a world made without bookings (tests) still has them.
+export const GUEST_ROOM = 'R1';
 export const GUEST = {
   art: 'world_guest_adult_a',
   sheetArt: 'guest_gt01',
   title: 'Guest',
   type: 'Road Trip Couple',
-  plan: {
-    night: [{ at: GUEST_ROOM, going: 'Heading to bed', doing: 'Sleeping' }],
-    morning: [{ at: 'F06', going: 'Walking to the café for breakfast', doing: 'Having breakfast at the café' }],
-    midday: [{ at: 'F01', going: 'Walking to Reception', doing: 'At Reception' }],
-    afternoon: [{ at: 'F03', going: 'Walking to the pool', doing: 'At the pool' }],
-    evening: [
-      { at: 'F06', until: 0.55, going: 'Walking to the café for dinner', doing: 'Having dinner at the café' },
-      { at: GUEST_ROOM, going: 'Walking back to their room', doing: 'Back in their room' },
-    ],
-  },
+  typeId: 'GT01',
+  plan: GUEST_PLAN,
 };
 
 // The one staff member is the run's Founder: their role's station and walking picture (bible §8 roles).
