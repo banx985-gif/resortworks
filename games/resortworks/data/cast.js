@@ -93,6 +93,7 @@ export const OPAL = {
   welcomeTitle: 'Welcome to your motel',
   welcome: ['I’ve left you the keys and a very tired pool pump.', 'Make it a place people come back to.'],
   sign: '— Dame Opal Fairweather',
+  firstComplaint: 'Everyone gets one. It’s what you do next that they’ll remember.', // (Milestone 7) the first complaint ever
   tips: [
     'New offers arrive every Morning at Reception. Unanswered ones are gone by the end of the day.',
     'A Dirty room can still be booked for a later day, as long as Ruby can get to it first.',

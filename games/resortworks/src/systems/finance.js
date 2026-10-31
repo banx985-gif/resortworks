@@ -18,6 +18,7 @@
 //     fin.checkout(booking, day) · fin.onEdge(day, band, bookings) · fin.cash · fin.debt · fin.ceiling · fin.lifetimeRevenue
 //     fin.bandOf(rt) · fin.setBand(rt, id) · fin.rateOf(rt) · fin.offerChance(offer, service) · fin.dayLines(day) ·
 //     fin.month · fin.months · fin.econ (core EconomySystem) · fin.credit · serialize()
+//     (Milestone 7) fin.spend(line, amount, day, source) — a complaint's comped meal or partial refund (a cost line)
 //   On the bus: core 'economy:change' (each ledger line) · 'finance:income' { line, amount, source } (a room id or 'F06':
 //   the screen's small "+N") · 'finance:month' { month } · 'finance:credit' { taken | repaid, debt } · 'finance:warning'
 import { EconomySystem } from '../../../../core/EconomySystem.js';
@@ -181,6 +182,13 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
       }
       if (band === BAND.night) dayChange(day, bk);
       bookDay = day;
+    },
+    // (Milestone 7) a one-off cost on its own ledger line (comped meals, refunds).
+    spend(line, amount, day, source = null) {
+      if (LINES[line]?.kind !== 'cost') return 0;
+      const v = move(line, amount, day, source);
+      bookDay = day;
+      return v;
     },
     bandOf: (rt) => s.bands[rt] ?? DEFAULT_BAND,
     setBand(rt, id) {

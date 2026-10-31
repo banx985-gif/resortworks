@@ -26,6 +26,10 @@
 // rate in the current pricing band, and is kept only with the chance finance gives for that rate and the rolling Service
 // (drawn from its own seeded Rng, seed + day, so the offers themselves never change with the price — only which come in);
 // each check-out books the room's revenue, and every band edge is passed on after the reviews (café, bills, wages).
+// Milestone 7: with complaints attached (attachComplaints(cp), src/systems/complaints.js) every check-in is passed on at its
+// game minute (the triggers), the complaint clock moves with each band edge (before it) and the café band is passed on;
+// a complaint's recovery can give a guest priority service (setPriority: their room's clean jumps the queue) or move them
+// to a better Ready room (changeRoom: a waiting party checks in there at once; a staying party's old room gets a clean).
 import { Rng } from '../../../../core/Rng.js';
 import { BANDS } from '../../data/calendar.js';
 import { LATE } from '../../data/housekeeping.js';
@@ -109,6 +113,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   let hk = null; // (Milestone 4) the housekeeping system, once attached
   let rv = null; // (Milestone 5) the reviews system, once attached
   let fin = null; // (Milestone 6) the finance system, once attached
+  let cp = null; // (Milestone 7) the complaints system, once attached
   const pricing = (day) => (fin ? { rateOf: fin.rateOf, chance: (o) => fin.offerChance(o, rv?.headline(day).service ?? null) } : null);
   const changed = () => {
     version++;
@@ -154,7 +159,8 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     return dirty ? `No free room: ${dirty} ${dirty === 1 ? 'room is' : 'rooms are'} Dirty and the rest are taken.` : 'No free room: every room is taken.';
   }
 
-  function checkIn(b, day, band) {
+  // minute: the game minute it happens (M7's triggers; a band-edge check-in is at the band's start).
+  function checkIn(b, day, band, minute = minuteOf(day, band)) {
     b.status = 'staying';
     b.inDay = day;
     b.inBand = band;
@@ -162,6 +168,17 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     if (hk?.isShort(b.room)) b.shortLinen = true; // (for M5: the room's last clean was short on linen)
     setRoom(b.room, 'occupied');
     s.stats.checkIns++;
+    cp?.onCheckIn(b, minute); // (Milestone 7) late room, front desk queue, short linen, price over budget
+  }
+  // (Milestone 4) A waiting party checks in at this minute: their late minutes and Service loss go on the stay.
+  function lateCheckIn(w, id, minute) {
+    const at = bandAtMinute(minute);
+    const mins = Math.max(0, Math.round((minute - w.waitFrom) * 100) / 100);
+    w.late = { minutes: mins, serviceLoss: Math.min(LATE.lossCap, Math.round(mins / LATE.lossPerMinutes)) };
+    s.stats.lateMinutes = Math.round((s.stats.lateMinutes + mins) * 100) / 100;
+    setRoom(id, 'reserved');
+    checkIn(w, at.day, at.band, minute);
+    bus?.emit('booking:checkin', { bookings: [clone(w)], late: true });
   }
   // (Milestone 4) Their room isn't Ready at check-in: they wait at Reception and the room is late.
   function startWaiting(b, day, band) {
@@ -226,15 +243,8 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   function roomReady(id, minute) {
     const w = s.bookings.find((b) => b.room === id && b.status === 'waiting');
     const up = s.bookings.find((b) => b.room === id && b.status === 'upcoming');
-    if (w) {
-      const at = bandAtMinute(minute);
-      const mins = Math.max(0, Math.round((minute - w.waitFrom) * 100) / 100);
-      w.late = { minutes: mins, serviceLoss: Math.min(LATE.lossCap, Math.round(mins / LATE.lossPerMinutes)) };
-      s.stats.lateMinutes = Math.round((s.stats.lateMinutes + mins) * 100) / 100;
-      setRoom(id, 'reserved');
-      checkIn(w, at.day, at.band);
-      bus?.emit('booking:checkin', { bookings: [clone(w)], late: true });
-    } else setRoom(id, up ? 'reserved' : 'ready');
+    if (w) lateCheckIn(w, id, minute);
+    else setRoom(id, up ? 'reserved' : 'ready');
     changed();
   }
 
@@ -245,8 +255,10 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
       while (s.at.day < day || (s.at.day === day && s.at.band < band)) {
         const next = s.at.band === BANDS.length - 1 ? { day: s.at.day + 1, band: 0 } : { day: s.at.day, band: s.at.band + 1 };
         hk?.advance(minuteOf(next.day, next.band)); // cleaning up to this edge first, then the edge
+        cp?.advance(minuteOf(next.day, next.band)); // (Milestone 7) late parties' 30 minutes up to this edge
         hk?.onEdge(next.day, next.band);
         edge(next.day, next.band);
+        cp?.onEdge(next.day, next.band, api); // (Milestone 7) the café band
         rv?.onEdge(next.day, next.band); // (Milestone 5) a new month rates the month just ended
         fin?.onEdge(next.day, next.band, api); // (Milestone 6) the café at Evening, the bills at the day change
         n++;
@@ -272,7 +284,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
       s.stats.accepted++;
       // Accepted on its arrival day after check-in time began: they check in straight away.
       if (b.arrival <= s.at.day && s.at.band >= BAND.midday) {
-        checkIn(b, s.at.day, s.at.band);
+        checkIn(b, s.at.day, s.at.band, Math.max(hk?.at ?? 0, cp?.at ?? 0, minuteOf(s.at.day, s.at.band)));
         bus?.emit('booking:checkin', { bookings: [clone(b)] });
       }
       changed();
@@ -331,6 +343,51 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     // (Milestone 6) the finance system: offer rates and demand, check-out revenue, every band edge passed on.
     attachFinance(f) {
       fin = f;
+    },
+    // (Milestone 7) the complaints system: check-ins, the minute and the café band passed on.
+    attachComplaints(c) {
+      cp = c;
+    },
+    // (Milestone 7) a complaint's apology: priority service for this guest (their room's clean jumps the queue).
+    setPriority(bookingId) {
+      const b = s.bookings.find((x) => x.id === bookingId);
+      if (!b) return false;
+      b.priority = true;
+      changed();
+      return true;
+    },
+    priorityRoom: (id) => s.bookings.some((b) => b.room === id && b.priority && (b.status === 'waiting' || b.status === 'upcoming')),
+    // (Milestone 7) Ready rooms a waiting or staying guest could move to: nobody holds it, it sleeps the party and it is the
+    // same type as their room or better — same type first, then the lowest number.
+    roomChangeOptions(bookingId) {
+      const b = s.bookings.find((x) => x.id === bookingId);
+      if (!b || !['waiting', 'staying'].includes(b.status)) return [];
+      const rank = ROOM_TYPES[roomById(b.room).typeId].rank;
+      return ROOMS.filter((r) => r.id !== b.room && roomState(r.id) === 'ready' && !heldBy(r.id, b) && ROOM_TYPES[r.typeId].cap >= b.party && ROOM_TYPES[r.typeId].rank >= rank).sort(
+        (x, y) => ROOM_TYPES[x.typeId].rank - ROOM_TYPES[y.typeId].rank || x.number - y.number,
+      );
+    },
+    // (Milestone 7) a complaint's room change at this minute: a waiting party checks in to the new room now (their old
+    // room keeps its cleaning job and turns Ready / Reserved for its next booking when clean); a staying party moves and
+    // their old room is Dirty with a cleaning job.
+    changeRoom(bookingId, roomId, minute) {
+      const b = s.bookings.find((x) => x.id === bookingId);
+      const r = api.roomChangeOptions(bookingId).find((x) => x.id === roomId);
+      if (!b || !r) return { ok: false, why: `${roomById(roomId)?.name ?? 'That room'} isn't free.` };
+      const old = b.room;
+      b.room = r.id;
+      b.movedFrom = old;
+      if (b.status === 'waiting') {
+        lateCheckIn(b, r.id, minute);
+        if (roomState(old) === 'reserved') setRoom(old, s.bookings.some((x) => x.room === old && x.status === 'upcoming') ? 'reserved' : 'ready');
+      } else {
+        setRoom(r.id, 'occupied');
+        b.shortLinen = !!hk?.isShort(r.id);
+        setRoom(old, 'dirty');
+        hk?.enqueue([old]);
+      }
+      changed();
+      return { ok: true, booking: b, from: old };
     },
     // A party arriving today (or earlier and waiting) holds this room: its cleaning jumps the queue.
     arrivalDue: (id, day) => s.bookings.some((b) => b.room === id && (b.status === 'waiting' || (b.status === 'upcoming' && b.arrival <= day))),

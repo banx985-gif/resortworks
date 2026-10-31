@@ -26,7 +26,13 @@
 //   financeSheet    — cash and Emergency Credit, today's and this month's income and costs by line in plain words, the
 //                     last 6 months' profit as a bar chart.
 //   a room / the picker — the rate in the room type's current band.
-//   resortSheet(world, id, { accent, bookings, today, dateOf, act, hk, team, reviews, finance }) → a core/ui/BottomSheet menu (key: the id), or null
+// Milestone 7 (complaints / recovery, src/systems/complaints.js):
+//   Reception       — a Complaints list first: the guest's picture, what's wrong in plain words, how long it has waited
+//                     (tap one for its sheet); reviews of recovered stays say "Recovered".
+//   complaintSheet  — what's wrong, how long it has waited, then each recovery action: its chance, cost, a "Best fit" hint,
+//                     or why it can't be used; what was tried and how it went.
+//   a guest         — their complaints.
+//   resortSheet(world, id, { accent, bookings, today, dateOf, act, hk, team, reviews, finance, complaints }) → a core/ui/BottomSheet menu (key: the id), or null
 //     act: { accept(offerId), decline(offerId), pick(offerOrBookingId), open(id), setAuto(on), rates(), finance(),
 //            setBand(roomType, bandId) } — the screen's actions
 //   pickRoomSheet(bookings, forId, { accent, today, act: { choose(forId, roomId), open(id) } })
@@ -43,40 +49,50 @@ import { patternWords } from '../systems/staff.js';
 import { HEADLINES, WINDOW_DAYS } from '../../data/reviews.js';
 import { PRICE_BANDS, LINES, INCOME_LINES, COST_LINES, CREDIT, HISTORY, bandById } from '../../data/finance.js';
 import { credits, signed, bandRate, offerChance } from '../systems/finance.js';
+import { COMPLAINT_TYPES, ACTIONS, RECOVERY, REP_UNRESOLVED } from '../../data/complaints.js';
+import { bandsBetween } from '../systems/complaints.js';
+import { bandAtMinute } from '../systems/calendar.js';
 
 const C = THEME.color;
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const partyWords = (n) => (n === 1 ? '1 person' : `${n} people`);
 const aOrAn = (w) => (/^[AEIOU]/i.test(w) ? 'an' : 'a');
 export const rateWords = (rate) => `${rate} Cr a night`;
-const NO_ACT = { accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {}, review() {}, scores() {}, rates() {}, finance() {}, setBand() {} };
+const NO_ACT = { accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {}, review() {}, scores() {}, rates() {}, finance() {}, setBand() {}, complaint() {}, recover() {} };
 // (Milestone 5) the star rating in a few characters: "3★", or "New" before the first month ends.
 export const starText = (stars) => (stars ? `${stars}★` : 'New');
 const starsLong = (n) => `${'★'.repeat(n)}${'☆'.repeat(5 - n)}`;
 const REVIEWS_SHOWN = 20;
 
-export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null, finance = null } = {}) {
+export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null, finance = null, complaints = null } = {}) {
   const it = world?.byId(id);
   if (!it) return null;
   const now = [world.stateOf(it)];
   let spec;
-  if (it.kind === 'guest') spec = guestSpec(world, it, { bookings, today, dateOf });
+  if (it.kind === 'guest') spec = guestSpec(world, it, { bookings, today, dateOf, complaints, act });
   else if (it.kind === 'staff') spec = staffSpec(world, it, { hk, now });
   else if (it.kind === 'room') spec = roomSpec(world, it, { bookings, today, act, hk, finance });
-  else if (it.id === 'F01' && bookings) spec = receptionSpec(it, { bookings, today, act, accent, reviews, dateOf, finance });
+  else if (it.id === 'F01' && bookings) spec = receptionSpec(it, { bookings, today, act, accent, reviews, dateOf, finance, complaints });
   else if (it.id === 'F04' && hk) spec = laundrySpec(it, { hk, now });
   else spec = { title: it.def.name, line: it.def.line, art: it.def.art, now };
   return { ...stationSheet({ ...spec, accent, text: { now: 'Now' } }), key: id };
 }
 
 // --- Reception: the Bookings list -----------------------------------------------------------------------------------
-function receptionSpec(it, { bookings: bk, today, act, reviews = null, dateOf = null, finance = null }) {
+function receptionSpec(it, { bookings: bk, today, act, reviews = null, dateOf = null, finance = null, complaints = null }) {
   const offers = bk.offers;
   const up = bk.upcoming;
   const stay = bk.staying;
   const wait = bk.waiting ?? [];
-  const summary = [offers.length ? plural(offers.length, 'new offer') : 'No new offers', wait.length ? `${wait.length} waiting` : null, up.length ? `${up.length} arriving` : null, stay.length ? `${stay.length} staying` : null].filter(Boolean).join(' · ');
+  const needing = complaints?.needing ?? [];
+  const summary = [needing.length ? plural(needing.length, 'complaint') : null, offers.length ? plural(offers.length, 'new offer') : 'No new offers', wait.length ? `${wait.length} waiting` : null, up.length ? `${up.length} arriving` : null, stay.length ? `${stay.length} staying` : null].filter(Boolean).join(' · ');
   const body = [];
+  // (Milestone 7) Complaints come first: the guests still here who complained.
+  const list = complaints?.open ?? [];
+  if (list.length) {
+    body.push({ title: `Complaints (${list.length})`, lines: needing.length ? [{ text: 'Sort them out quickly: every band they wait makes it harder.', color: C.bad }] : [], std: 'complaints' });
+    body.push({ columns: 1, buttons: list.map((c) => complaintRow(c, complaints, act)) });
+  }
   // (Milestone 4) Parties waiting for a late room come first.
   if (wait.length) {
     body.push({ title: `Waiting for a late room (${wait.length})`, lines: [{ text: 'Their room isn’t clean yet. They check in the moment it is.', color: C.bad }], std: 'waiting' });
@@ -133,7 +149,7 @@ function receptionSpec(it, { bookings: bk, today, act, reviews = null, dateOf = 
         buttons: list.slice(0, REVIEWS_SHOWN).map((v) => {
           const t = GUEST_TYPES[v.type];
           const when = v.day === today ? 'today' : dateOf ? dateOf(v.day) : `Day ${v.day + 1}`;
-          return { id: `review:${v.id}`, icon: t.art, label: `${starsLong(v.stars)} ${t.name}`, sub: `${roomById(v.room)?.name ?? ''} · left ${when} · ${Math.round(v.sat)}/100`, accent: v.stars >= 4 ? C.good : v.stars <= 2 ? C.bad : C.progress, onTap: () => act.review(v.id) };
+          return { id: `review:${v.id}`, icon: t.art, label: `${starsLong(v.stars)} ${t.name}`, sub: `${roomById(v.room)?.name ?? ''} · left ${when} · ${Math.round(v.sat)}/100${v.recovered ? ' · Recovered' : v.unresolved ? ' · complaint not sorted' : ''}`, accent: v.stars >= 4 ? C.good : v.stars <= 2 ? C.bad : C.progress, onTap: () => act.review(v.id) };
         }),
       });
   }
@@ -234,7 +250,7 @@ function laundrySpec(it, { hk, now }) {
 }
 
 // --- a guest --------------------------------------------------------------------------------------------------------
-function guestSpec(world, p, { bookings: bk, today, dateOf }) {
+function guestSpec(world, p, { bookings: bk, today, dateOf, complaints = null, act = NO_ACT }) {
   const b = bk?.byId(p.id);
   if (!b) return { title: GUEST.title, line: p.name ?? GUEST.type, art: GUEST.sheetArt, now: [world.stateOf(p)] };
   const t = GUEST_TYPES[b.type];
@@ -248,7 +264,68 @@ function guestSpec(world, p, { bookings: bk, today, dateOf }) {
   ];
   if (b.status === 'waiting') lines.unshift({ text: 'Late room', right: `${room.name} isn’t clean yet`, color: LATE_BADGE.color });
   else if (b.late) lines.push({ text: 'Waited for their room', right: minutesWords(b.late.minutes) });
-  return { title: t.name, line: `${partyWords(b.party)} · ${room.name}`, art: t.art, now: [world.stateOf(p)], body: [{ title: 'Stay', lines }] };
+  if (b.priority) lines.push({ text: 'Priority service', right: 'Yes', color: C.good });
+  const mine = complaints?.forBooking(b.id) ?? []; // (Milestone 7)
+  const body = [{ title: 'Stay', lines }];
+  if (mine.length) body.unshift({ title: 'Complaints', columns: 1, buttons: mine.map((c) => complaintRow(c, complaints, act)) });
+  return { title: t.name, line: `${partyWords(b.party)} · ${room.name}`, art: t.art, now: [world.stateOf(p)], body };
+}
+
+// --- (Milestone 7) complaints ---------------------------------------------------------------------------------------
+const bandWords = (n) => (n <= 0 ? 'this band' : n === 1 ? '1 band ago' : `${n} bands ago`);
+function statusWords(c, cp) {
+  if (c.status === 'recovered') return { text: 'Sorted out', color: C.good, tag: 'RECOVERED' };
+  if (c.status === 'failed') return { text: 'No more tries', color: C.textMuted, tag: 'NO MORE TRIES' };
+  if (c.status === 'unresolved') return { text: 'Never sorted out', color: C.bad, tag: 'UNRESOLVED' };
+  return { text: `Waiting ${minutesWords(Math.max(0, cp.at - c.at))}`, color: C.bad, tag: 'COMPLAINT' };
+}
+function complaintRow(c, cp, act) {
+  const t = GUEST_TYPES[c.type];
+  const st = statusWords(c, cp);
+  const left = c.status === 'open' && c.tries.length ? ' · 1 try left' : '';
+  return { id: `complaint:${c.id}`, icon: t.art, label: `${COMPLAINT_TYPES[c.kind].name} · ${t.name}`, sub: `${roomById(c.room)?.name ?? ''} · ${st.text}${left}`, accent: c.status === 'recovered' ? C.good : c.status === 'failed' ? C.textMuted : C.bad, onTap: () => act.complaint(c.id) };
+}
+// One complaint: what's wrong, how long it has waited, the recovery actions (chance, cost, best fit or why not), the tries.
+export function complaintSheet(cp, id, { accent = C.progress, act = NO_ACT, bookings = null } = {}) {
+  const c = cp?.byId(id);
+  if (!c) return null;
+  const t = GUEST_TYPES[c.type];
+  const kind = COMPLAINT_TYPES[c.kind];
+  const st = statusWords(c, cp);
+  const room = roomById(c.room);
+  const b = c.closed ? null : bookings?.byId(c.booking);
+  const now = [kind.line, { text: `${st.text} · came in ${bandWords(bandsBetween(c, bandAtMinute(cp.at)))}`, color: st.color }];
+  const last = c.tries[c.tries.length - 1];
+  if (last) now.push(last.ok ? { text: `${ACTIONS[last.action].name} worked! They're happy again.`, color: C.good } : { text: `${ACTIONS[last.action].name} didn't work (−${-RECOVERY.fail} satisfaction).${c.status === 'open' ? ' You can try once more.' : ''}`, color: C.bad });
+  const body = [];
+  if (!c.closed) {
+    const opts = cp.options(id);
+    body.push({
+      title: c.status === 'open' ? 'What will you do?' : 'Recovery actions',
+      std: 'actions',
+      lines: c.status === 'open' ? [{ text: `Each band they wait takes ${RECOVERY.perBand}% off the chance. Front Office Service: ${Math.round(cp.serviceStat())}.`, color: C.textMuted }] : [],
+      columns: 1,
+      buttons: opts
+        .filter((o) => o.on)
+        .map((o) => ({
+          id: `recover:${o.id}`,
+          label: `${o.best ? '★ ' : ''}${o.name}${o.room ? ` → ${roomById(o.room).name}` : ''}`,
+          sub: o.ok ? `${o.best ? 'Best fit · ' : ''}${o.chance}% chance · ${o.line}` : o.why,
+          cost: o.cost ? credits(o.cost) : 'Free',
+          accent: !o.ok ? C.textMuted : o.best ? C.action : C.progress,
+          disabled: !o.ok,
+          onTap: () => act.recover(c.id, o.id),
+        })),
+    });
+    const later = opts.filter((o) => !o.on);
+    if (later.length) body.push({ title: 'Coming later', std: 'later', lines: later.map((o) => ({ text: `${o.name}: ${o.why}`, color: C.textMuted })) });
+  }
+  if (c.tries.length) body.push({ title: 'Tried', std: 'tries', lines: c.tries.map((x) => ({ text: `${ACTIONS[x.action].name}${x.cost ? ` (${credits(x.cost)})` : ''}`, right: `${x.ok ? 'Worked' : "Didn't work"} · ${x.chance}%`, color: x.ok ? C.good : C.bad })) });
+  body.push({ title: 'How recovery works', std: 'how', lines: [{ text: `Put right, the problem stops counting against their review and they leave ${RECOVERY.bonus} points happier (${RECOVERY.bonus + RECOVERY.sameBand} if fixed in the band it came in). Still not sorted when they check out: REP ${REP_UNRESOLVED}.`, color: C.textMuted }] });
+  body.push({ columns: 1, buttons: [{ id: 'back', label: '‹ Back to Reception', accent: C.textMuted, onTap: () => act.open('F01') }] });
+  const main = b ? [{ id: `guest:${b.id}`, label: 'See the guest', icon: t.art, onTap: () => act.open(b.id) }] : [];
+  const tagColor = c.status === 'recovered' ? C.good : c.status === 'failed' ? C.textMuted : C.bad;
+  return { ...stationSheet({ title: kind.name, line: `${t.name} · ${room?.name ?? ''} · ${partyWords(c.party)}`, art: t.art, tag: { text: st.tag, color: tagColor }, accent, now, main, body, text: { now: 'Now' } }), key: `complaint:${id}` };
 }
 
 // --- the room picker (manual pinning) ------------------------------------------------------------------------------

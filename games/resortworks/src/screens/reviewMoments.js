@@ -10,6 +10,8 @@
 // stand-in while a picture loads), and Dame Opal Fairweather says a short line (that month's tip) before they mark.
 //   opalWelcomeMoment({ layout, assets }) — Opal's one-tap welcome card after START RESORT: her portrait, then her two
 //     lines one at a time.
+// Milestone 7: a review whose stay had a complaint put right shows a small green "Recovered" tag;
+//   opalLineMoment({ layout, assets, line, title }) — Opal's short one-line card (the first complaint ever).
 import { THEME, font } from '../../../../core/Theme.js';
 import { castById, judgeCast, OPAL, opalTip } from '../../data/cast.js';
 import { faceCrop } from '../ui/resortArt.js';
@@ -107,6 +109,16 @@ function drawCastFace(ctx, assets, cast, cx, cy, r, ring = C.outline) {
   ctx.stroke();
   return true;
 }
+// (Milestone 7) a small pill, right-aligned at x.
+function drawTag(ctx, words, x, cy, color) {
+  ctx.font = font(THEME.size.small, true);
+  const w = ctx.measureText(words).width + 40;
+  roundRect(ctx, { x: x - w, y: cy - 26, w, h: 52 }, 26, color);
+  ctx.fillStyle = C.textOnAction;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(words, x - w / 2, cy + 1);
+}
 const barColor = (v) => (v >= 78 ? C.good : v >= 64 ? C.progress : v >= 50 ? C.warn : C.bad);
 
 // --- a review -------------------------------------------------------------------------------------------------------
@@ -143,6 +155,7 @@ export function reviewMoment(review, { assets = null, layout }) {
       ctx.fillStyle = C.textMuted;
       ctx.font = font(THEME.size.small);
       ctx.fillText(t.name, art.x + art.w + 28, art.y + 92, p.w - 460);
+      if (review.recovered) drawTag(ctx, 'Recovered', p.x + p.w - 40, p.y + 150, C.good); // (Milestone 7)
       // the seven parts, one at a time
       const rowY = p.y + 190;
       const rowH = 84;
@@ -335,6 +348,50 @@ export function opalWelcomeMoment({ layout, assets = null }) {
       });
       if (time >= signAt) {
         ctx.globalAlpha = Math.min(1, (time - signAt) / 0.3);
+        ctx.fillStyle = C.textMuted;
+        ctx.font = font(THEME.size.body);
+        ctx.fillText(OPAL.sign, cx, p.y + H - 70, p.w - 80);
+        ctx.globalAlpha = 1;
+      }
+      drawSkip(ctx, p, time, done);
+      ctx.restore();
+    },
+  };
+}
+
+// --- (Milestone 7) Dame Opal's one line (the first complaint ever) ------------------------------------------------------
+export function opalLineMoment({ layout, assets = null, line = OPAL.firstComplaint, title = 'Your first complaint' }) {
+  const opal = castById('opal');
+  const lineAt = START + 0.1;
+  const done = lineAt + 0.5;
+  const H = 760;
+  return {
+    kind: 'opal',
+    id: 'firstComplaint',
+    title: opal.name,
+    subtitle: title,
+    accent: C.progress,
+    minShowSec: done,
+    revealSec: done,
+    skipRect: () => skipRectOf(panelRect(layout, H)),
+    drawFn(ctx, time) {
+      const p = panelRect(layout, H);
+      ctx.save();
+      roundRect(ctx, p, 32, C.panel, C.progress, 6);
+      const cx = p.x + p.w / 2;
+      if (!drawCastFace(ctx, assets, opal, cx, p.y + 210, 150, C.progress)) {
+        ctx.beginPath();
+        ctx.arc(cx, p.y + 210, 150, 0, Math.PI * 2);
+        ctx.fillStyle = C.panelInfo;
+        ctx.fill();
+      }
+      if (time >= lineAt) {
+        ctx.globalAlpha = Math.min(1, (time - lineAt) / 0.3);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = C.text;
+        ctx.font = font(THEME.size.heading, true);
+        wrap(ctx, `“${line}”`, p.w - 100, 3).forEach((l, j) => ctx.fillText(l, cx, p.y + 440 + j * 62, p.w - 80));
         ctx.fillStyle = C.textMuted;
         ctx.font = font(THEME.size.body);
         ctx.fillText(OPAL.sign, cx, p.y + H - 70, p.w - 80);

@@ -56,6 +56,8 @@ function windowAt(patternId, t) {
   }
   return null;
 }
+// (Milestone 7) Is someone on this work pattern on shift at minute t? (the front desk queue)
+export const onShiftAtMinute = (patternId, t) => windowAt(patternId, t) != null;
 // The next shift start after minute t.
 function nextShiftAfter(patternId, t) {
   const w = shiftWindow(patternId);
@@ -115,11 +117,13 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
     return ws != null && capacityLeft(m, ws) > 1e-9;
   };
   // Oldest first; a room with a party arriving today (or waiting now) jumps the queue; then the lower room number.
-  function nextJob(t) {
+  // (Milestone 7) a room whose guest was given priority service (a complaint's apology) jumps ahead of those.
+  function ordered(t) {
     const day = Math.floor(t / MINUTES_PER_DAY);
-    const due = (j) => (bookings?.arrivalDue(j.room, day) ? 0 : 1);
-    return [...s.queue].sort((a, b) => due(a) - due(b) || a.created - b.created || roomById(a.room).number - roomById(b.room).number)[0] ?? null;
+    const due = (j) => (bookings?.priorityRoom?.(j.room) ? 0 : bookings?.arrivalDue(j.room, day) ? 1 : 2);
+    return [...s.queue].sort((a, b) => due(a) - due(b) || a.created - b.created || roomById(a.room).number - roomById(b.room).number);
   }
+  const nextJob = (t) => ordered(t)[0] ?? null;
   function start(m, q, t) {
     const ws = windowAt(m.pattern, t);
     if (s.shift[m.id]?.key !== ws) {
@@ -226,10 +230,7 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
     hasJob: (id) => s.queue.some((j) => j.room === id) || Object.values(s.active).some((j) => j.room === id),
     // 1-based place in the queue (the order the next pick would take), or 0 when not waiting.
     queuePosition(id) {
-      const day = Math.floor(s.at / MINUTES_PER_DAY);
-      const due = (j) => (bookings?.arrivalDue(j.room, day) ? 0 : 1);
-      const order = [...s.queue].sort((a, b) => due(a) - due(b) || a.created - b.created || roomById(a.room).number - roomById(b.room).number);
-      return order.findIndex((j) => j.room === id) + 1;
+      return ordered(s.at).findIndex((j) => j.room === id) + 1;
     },
     jobOf: (staffId) => {
       const j = s.active[staffId];

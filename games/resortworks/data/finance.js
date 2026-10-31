@@ -51,6 +51,8 @@ export const LINES = {
   amenities: { kind: 'cost', name: 'Amenities' },
   utilities: { kind: 'cost', name: 'Utilities' },
   interest: { kind: 'cost', name: 'Credit interest' },
+  comps: { kind: 'cost', name: 'Comped meals' }, // (Milestone 7) complaint recovery
+  refunds: { kind: 'cost', name: 'Refunds' }, // (Milestone 7) complaint recovery
   creditDraw: { kind: 'credit', name: 'Emergency Credit taken' },
   creditRepay: { kind: 'credit', name: 'Emergency Credit paid back' },
 };

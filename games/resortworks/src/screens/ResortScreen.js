@@ -28,6 +28,9 @@
 // the Finance sheet, the rest of the chip still opens Resort scores. Reception has Rates (a pricing band per room type)
 // and Finance. A small "+N" floats up over the room at each check-out and over the Snack Café each Evening (core
 // FloatFeed — never piled up; gentler with Reduced flashes; held while a sheet or a moment is up).
+// Milestone 7: a toast for each complaint, ahead of the others waiting (one tap opens its sheet: the recovery actions);
+// Reception lists the complaints first. The first complaint ever brings Dame Opal's one-line card. While a complaint's
+// sheet is open the calendar stands still (holdsCalendar, read by main).
 //   createResortScreen({ renderer, layout, assets, bus, sheet, feedback, run, onMenu, debug, reducedFlashes, onSkip, onRep })
 //     run() → the open campaign { n, data, calendar, bookings, team, housekeeping, reviews, finance } or null    onSkip(days) → the debug skip
 //     feedback: core MajorFeedback (main draws it and gives it the taps)    onRep() → the debug REP skip
@@ -52,11 +55,12 @@ import { BANDS, TINT_FADE } from '../../data/calendar.js';
 import { founderById, paletteById } from '../../data/setup.js';
 import { LOT, ART_LOOK, ART_TWEAK, PERSON, LOOK, roomById } from '../../data/lot.js';
 import { createResortWorld } from '../systems/resortWorld.js';
-import { resortSheet, pickRoomSheet, resortScoresSheet, starText, ratesSheet, financeSheet } from './resortSheets.js';
+import { resortSheet, pickRoomSheet, resortScoresSheet, starText, ratesSheet, financeSheet, complaintSheet } from './resortSheets.js';
+import { COMPLAINT_TYPES } from '../../data/complaints.js';
 import { credits } from '../systems/finance.js';
 import { VfxSystem } from '../../../../core/VfxSystem.js';
 import { FloatFeed } from '../../../../core/FloatFeed.js';
-import { reviewMoment, guideMoment, starWords } from './reviewMoments.js';
+import { reviewMoment, guideMoment, starWords, opalLineMoment } from './reviewMoments.js';
 import { managerLine } from '../systems/resort.js';
 
 const C = THEME.color;
@@ -270,6 +274,26 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     opened = { id: 'scores', via };
     debug?.log(`sheet: resort scores (${via})`);
   }
+  // (Milestone 7) a complaint: a toast at the front of the line (one tap opens its sheet); the first complaint ever also
+  // brings Dame Opal's line (a one-tap moment, queued like the others).
+  bus.on('complaint:new', ({ complaint: c, first }) => {
+    if (!active) return;
+    const t = GUEST_TYPES[c.type];
+    const e = toast(`Complaint: ${COMPLAINT_TYPES[c.kind].name}`, `${t.name} · ${roomList([c.room])}. Tap to sort it out.`, t.art, { complaint: c.id });
+    const i = notes.toastWaiting.indexOf(e);
+    if (i > 0) notes.toastWaiting.unshift(...notes.toastWaiting.splice(i, 1));
+    if (first && feedback) {
+      feedback.show(opalLineMoment({ layout, assets }));
+      debug?.log('Opal: first complaint');
+    }
+  });
+  function openComplaint(id, via = 'sheet') {
+    const cp = run()?.complaints;
+    if (!cp?.byId(id)) return;
+    sheet.open(() => complaintSheet(cp, id, { accent: palette.hex, act, bookings: bookings() }) ?? resortSheet(world, 'F01', sheetOpts()));
+    opened = { id: `complaint:${id}`, via };
+    debug?.log(`sheet: complaint ${id} (${via})`);
+  }
   // (Milestone 6) the Finance and Rates sheets
   function openFinance(via = 'sheet') {
     const fin = run()?.finance;
@@ -430,6 +454,12 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     scores: () => openScores('sheet'),
     rates: () => openRates('sheet'), // (Milestone 6)
     finance: () => openFinance('sheet'),
+    complaint: (id) => openComplaint(id, 'sheet'), // (Milestone 7)
+    recover(id, actionId) {
+      const r = run()?.complaints?.act(id, actionId);
+      if (!r?.ok) return say(r?.why);
+      debug?.log(`complaint ${id}: ${actionId} → ${r.success ? 'recovered' : 'failed'} (${r.chance}%)`); // (complaint:result asks for a save)
+    },
     setBand(rt, id) {
       if (run()?.finance?.setBand(rt, id)) debug?.log(`rates: ${rt} → ${id}`); // (finance:band asks for a save)
     },
@@ -442,7 +472,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     const x = calendar()?.clock.dateOf(d);
     return x ? `Y${x.year} · Month ${x.month} · Day ${x.day}` : `Day ${d + 1}`;
   };
-  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null, finance: run()?.finance ?? null });
+  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null, finance: run()?.finance ?? null, complaints: run()?.complaints ?? null });
   function openSheet(id, via = 'art') {
     if (!world?.byId(id)) return;
     sheet.open(() => resortSheet(world, id, sheetOpts()));
@@ -631,6 +661,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       if (tr && hitRect(p, tr)) {
         const t0 = notes.toasts.shift(); // one tap closes it; the next one waiting shows after
         if (t0?.entry.data?.review) showReview(t0.entry.data.review); // (M5) a review toast opens its card
+        if (t0?.entry.data?.complaint) openComplaint(t0.entry.data.complaint, 'toast'); // (M7) a complaint toast opens its sheet
         return log('toast');
       }
       const sk = debugSkips() ? SKIPS.findIndex((_, i) => hitRect(p, skipRect(i))) : -1;
@@ -775,6 +806,11 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     openScores,
     openFinance,
     openRates,
+    openComplaint,
+    // (Milestone 7) the calendar stands still while a complaint's sheet is open (main reads it).
+    get holdsCalendar() {
+      return active && sheet.active && !!opened?.id?.startsWith?.('complaint:');
+    },
     floats,
     barStats: () => barStats().map((x) => x.text),
     get note() {

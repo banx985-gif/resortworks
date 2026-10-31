@@ -14,6 +14,10 @@
 //     rv.list (newest first) · byId(id) · stars (null = "New") · lastMonth · months · rank · nextRank · repValue ·
 //     headline(today) (live, the last 28 days) · addRep(n) (debug) · rankAtLeast(id) · serialize()
 //   On the bus: 'review:new' { review } · 'review:month' { month } · core 'reputation:change' / 'reputation:rankUp'
+// Milestone 7: with complaints attached (attachComplaints(cp), src/systems/complaints.js) each check-out first settles the
+// stay's complaints: a recovered one cancels its category's loss (late room → Service, short linen → Clean, over budget →
+// Value) and gives the Recovery Bonus to the final satisfaction (the review keeps a "Recovered" tag and "Saved by great
+// service"); each failed try costs 5; one still unresolved costs REP 5 (bible §27A) and the comment says so.
 import { ReputationSystem } from '../../../../core/ReputationSystem.js';
 import { rankAtLeast as reached } from '../../../../core/CompanyRank.js';
 import { writeReview } from '../../../../core/ReviewText.js';
@@ -21,6 +25,8 @@ import { FACILITIES, roomById } from '../../data/lot.js';
 import { ROOM_TYPES, GUEST_TYPES } from '../../data/bookings.js';
 import { CATEGORY_IDS, STAY_INPUTS, GUEST_WEIGHTS, REVIEW_STARS, REP, RANKS, WINDOW_DAYS, HEADLINE_FIXED, QUALITY, STAR_TABLE, FIVE_STAR_HEADLINES, FIVE_STAR_MIN, GUIDE, REVIEW_TEXT } from '../../data/reviews.js';
 import { BANDS } from '../../data/calendar.js';
+import { REP_UNRESOLVED, COMPLAINT_TEXT, SAVED_MEMORY } from '../../data/complaints.js';
+import { Rng } from '../../../../core/Rng.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const r2 = (x) => Math.round(x * 100) / 100;
@@ -37,21 +43,22 @@ function roleStat(team, role, stat) {
 }
 
 // The seven categories for one stay (whole numbers 0–100). b: the booking (type, roomType = the type they wanted, room,
-// rate, shortLinen, late), roomType: the room type they got.
-export function stayCategories(b, { team = [], facilities = FACILITIES, roomType = null } = {}) {
+// rate, shortLinen, late), roomType: the room type they got. (Milestone 7) cancel: { service, clean, value } — a recovered
+// complaint's category: its loss doesn't count (the late Service loss, the short-linen Clean loss, Value under its base).
+export function stayCategories(b, { team = [], facilities = FACILITIES, roomType = null, cancel = {} } = {}) {
   const I = STAY_INPUTS;
   const got = roomType ?? b.roomType;
   const want = ROOM_TYPES[b.roomType];
   const have = ROOM_TYPES[got];
   const budget = GUEST_TYPES[b.type]?.budget ?? b.rate;
   const room = I.room.base[got] + (have.id === want.id ? I.room.wanted : have.rank < want.rank ? I.room.worse : 0);
-  const clean = Math.min(I.clean.cap, I.clean.base + (b.shortLinen ? I.clean.short : 0));
-  const service = I.service.base - (b.late?.serviceLoss ?? 0) + (roleStat(team, I.service.role, I.service.stat) - 50) / I.service.div;
+  const clean = Math.min(I.clean.cap, I.clean.base + (b.shortLinen && !cancel.clean ? I.clean.short : 0));
+  const service = I.service.base - (cancel.service ? 0 : b.late?.serviceLoss ?? 0) + (roleStat(team, I.service.role, I.service.stat) - 50) / I.service.div;
   const fac = (x) => (hasFacility(x.facility.id, facilities) ? x.facility.add : 0);
   const food = Math.min(I.food.cap, I.food.base + fac(I.food) + (roleStat(team, I.food.role, I.food.stat) - 50) / I.food.div);
   const activities = I.activities.base + fac(I.activities) + (roleStat(team, I.activities.role, I.activities.stat) - 50) / I.activities.div;
   const comfort = I.comfort.base[got];
-  const value = I.value.base + (I.value.span * (budget - b.rate)) / budget;
+  const value = cancel.value ? Math.max(I.value.base, I.value.base + (I.value.span * (budget - b.rate)) / budget) : I.value.base + (I.value.span * (budget - b.rate)) / budget;
   const raw = { room, clean, service, food, activities, comfort, value };
   return Object.fromEntries(CATEGORY_IDS.map((k) => [k, Math.round(clamp(raw[k]))]));
 }
@@ -105,25 +112,32 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
     s.rep = rep.serialize();
   };
   let lastDay = s.list.length ? s.list[0].day : 0;
+  let cp = null; // (Milestone 7) the complaints system, once attached
 
   function prune(today) {
     s.list = s.list.filter((v, i) => i < LIST_MAX || v.day > today - WINDOW_DAYS - 1);
   }
 
   function checkout(b, day) {
-    const cats = stayCategories(b, { team, facilities, roomType: roomTypeOf(b) });
-    const sat = finalSatisfaction(cats, b.type);
+    const fx = cp?.closeStay(b, day) ?? null; // (Milestone 7) the stay's complaints, settled
+    const cats = stayCategories(b, { team, facilities, roomType: roomTypeOf(b), cancel: fx?.cancel ?? {} });
+    const base = finalSatisfaction(cats, b.type);
+    const sat = fx ? r2(clamp(base + fx.bonus + fx.penalty)) : base;
     const stars = reviewStars(sat);
     const id = `V${s.nextId++}`;
     const fitBand = stars >= 4 ? 'high' : stars === 3 ? 'mid' : 'low';
-    const text = writeReview(REVIEW_TEXT, { stats: cats, fitBand, seed: `${seed}:${id}` });
-    const review = { id, booking: b.id, type: b.type, room: b.room, got: roomTypeOf(b), wanted: b.roomType, nights: b.nights, day, cats, sat, stars, rep: repFor(stars), text, late: !!b.late, short: !!b.shortLinen };
+    let text = writeReview(REVIEW_TEXT, { stats: cats, fitBand, seed: `${seed}:${id}` });
+    const unresolved = fx?.unresolved ?? 0;
+    if (fx?.complaints.length) text = `${text} ${new Rng(`${seed}:${id}:complaint`).pick(COMPLAINT_TEXT[unresolved ? 'unresolved' : 'recovered'])}`;
+    const review = { id, booking: b.id, type: b.type, room: b.room, got: roomTypeOf(b), wanted: b.roomType, nights: b.nights, day, cats, sat, stars, rep: repFor(stars) + REP_UNRESOLVED * unresolved, text, late: !!b.late, short: !!b.shortLinen };
+    if (fx?.complaints.length) Object.assign(review, { complaints: fx.complaints, recovered: fx.recovered, unresolved, bonus: fx.bonus, penalty: fx.penalty, base, memory: fx.saved ? SAVED_MEMORY : null });
     s.list.unshift(review);
     s.counts.reviews++;
     s.counts.byStars[stars]++;
     lastDay = day;
     rep.add(REP.stay, 'stay');
     if (REP.stars[stars]) rep.add(REP.stars[stars], `${stars}-star review`);
+    if (unresolved) rep.add(REP_UNRESOLVED * unresolved, 'unresolved complaint'); // (Milestone 7, bible §27A)
     syncRep();
     prune(day);
     bus?.emit('review:new', { review: clone(review) });
@@ -150,6 +164,9 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
 
   const rv = {
     checkout,
+    attachComplaints(c) {
+      cp = c;
+    },
     onEdge(day, band) {
       if (band !== NIGHT) return;
       prune(day);

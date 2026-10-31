@@ -8,7 +8,7 @@ export const SAVE = {
   count: 4,
   prefix: 'campaign_',
   accountKey: 'resortworks:account',
-  version: 6, // 2 = Milestone 2 (the calendar: day, progress in the day, band, speed); 3 = Milestone 3 (bookings, stays, room states);
+  version: 7, // 2 = Milestone 2 (the calendar: day, progress in the day, band, speed); 3 = Milestone 3 (bookings, stays, room states);
   // 4 = Milestone 4 (the opening team; housekeeping: cleaning jobs, queue, linen, late rooms); 5 = Milestone 5 (reviews,
-  // the rolling scores, REP / Rank and the star rating); 6 = Milestone 6 (Credits, the ledger, Emergency Credit, pricing bands)
+  // the rolling scores, REP / Rank and the star rating); 6 = Milestone 6 (Credits, the ledger, Emergency Credit, pricing bands); 7 = Milestone 7 (complaints, recovery actions and results)
 };

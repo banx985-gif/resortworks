@@ -8,6 +8,7 @@ import { freshHousekeeping } from './housekeeping.js';
 import { minuteOf } from './calendar.js';
 import { freshReviews } from './reviews.js';
 import { freshFinance } from './finance.js';
+import { freshComplaints } from './complaints.js';
 
 // A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
 // before the calendar existed (Milestone 2).
@@ -41,6 +42,7 @@ export function newCampaign(setup, now = Date.now()) {
     housekeeping: freshHousekeeping({ minute: minuteOf(0, 1) }), // (Milestone 4) cleaning jobs, queue, linen
     reviews: freshReviews(), // (Milestone 5) reviews, REP / Rank, the monthly star rating ("New" until the first month ends)
     finance: freshFinance({ day: 0 }), // (Milestone 6) 32,000 Credits, the ledger, no debt, Standard pricing
+    complaints: freshComplaints(), // (Milestone 7) complaints, recovery actions and results
     opal: { welcomed: false }, // (M6b) Dame Opal's welcome card is due (a save from before M6b has none: no welcome)
     playSec: 0,
     ngPlus: 0,
@@ -107,4 +109,11 @@ export const SAVE_MIGRATIONS = {
   4: (record) => ({ ...record, data: { ...record.data, reviews: record.data.reviews ?? freshReviews() } }),
   // 5 → 6 (Milestone 6): 32,000 Credits from the save's day, no debt, Standard pricing (no money was kept before).
   5: (record) => ({ ...record, data: { ...record.data, finance: record.data.finance ?? freshFinance({ day: record.data.calendar?.totalDays ?? 0 }) } }),
+  // 6 → 7 (Milestone 7): no complaints yet; the complaint clock starts at the save's last band edge (no trigger is rolled
+  // for anything that happened before).
+  6: (record) => {
+    const d = record.data;
+    const at = d.bookings?.at ?? { day: d.calendar?.totalDays ?? 0, band: 1 };
+    return { ...record, data: { ...d, complaints: d.complaints ?? { ...freshComplaints(), at: minuteOf(at.day, Math.max(0, Math.min(BANDS.length - 1, at.band))) } } };
+  },
 };

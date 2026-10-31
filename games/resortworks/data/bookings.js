@@ -13,11 +13,12 @@ export const PRICE_BAND = { id: 'standard', name: 'Standard', mult: 1.0 }; // bi
 // The Roadside guest types (Cowork's pick: all fit a 2-person room). budget / nights from bible §27F. party = people in
 // the party; weight = share of offers; wants = chance of asking for each room type (Claude Code's pick from the budgets:
 // a Road Trip Couple (95) or Solo Traveller (100) sits between the two rates; a Retired Couple (165) wants Standard).
-// sprite = their walking picture (card), art = their sheet / offer picture.
+// sprite = their walking picture (card), art = their sheet / offer picture. (Milestone 7) patience = bible §27F Patience
+// (0–100): how likely a trigger is to become a complaint (data/complaints.js).
 export const GUEST_TYPES = {
-  GT01: { id: 'GT01', name: 'Road Trip Couple', budget: 95, nights: [1, 2], party: 2, weight: 40, wants: { RM01: 0.55, RM02: 0.45 }, sprite: 'world_guest_adult_a', art: 'guest_gt01' },
-  GT03: { id: 'GT03', name: 'Solo Traveller', budget: 100, nights: [1, 3], party: 1, weight: 35, wants: { RM01: 0.6, RM02: 0.4 }, sprite: 'world_guest_adult_b', art: 'guest_gt03' },
-  GT04: { id: 'GT04', name: 'Retired Couple', budget: 165, nights: [3, 6], party: 2, weight: 25, wants: { RM01: 0.15, RM02: 0.85 }, sprite: 'world_guest_elder', art: 'guest_gt04' },
+  GT01: { id: 'GT01', name: 'Road Trip Couple', budget: 95, patience: 55, nights: [1, 2], party: 2, weight: 40, wants: { RM01: 0.55, RM02: 0.45 }, sprite: 'world_guest_adult_a', art: 'guest_gt01' },
+  GT03: { id: 'GT03', name: 'Solo Traveller', budget: 100, patience: 60, nights: [1, 3], party: 1, weight: 35, wants: { RM01: 0.6, RM02: 0.4 }, sprite: 'world_guest_adult_b', art: 'guest_gt03' },
+  GT04: { id: 'GT04', name: 'Retired Couple', budget: 165, patience: 70, nights: [3, 6], party: 2, weight: 25, wants: { RM01: 0.15, RM02: 0.85 }, sprite: 'world_guest_elder', art: 'guest_gt04' },
 };
 
 // Offers (Cowork's starting pick): 2–4 new offers each Morning, arriving today to +3 days. Unanswered offers expire at
