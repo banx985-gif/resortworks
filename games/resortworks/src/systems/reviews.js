@@ -18,6 +18,9 @@
 // stay's complaints: a recovered one cancels its category's loss (late room → Service, short linen → Clean, over budget →
 // Value) and gives the Recovery Bonus to the final satisfaction (the review keeps a "Recovered" tag and "Saved by great
 // service"); each failed try costs 5; one still unresolved costs REP 5 (bible §27A) and the comment says so.
+// Milestone 8: the stay's Condition inputs (bible §12) — the worst working share the party saw (src/systems/maintenance.js
+// keeps it on the booking: b.cond) scales the Café's +6 Food, the Pool's +8 Activity and the room's Comfort; the Garden's
+// +6 Appeal follows its working share (attachMaintenance(mt)). A recovered breakdown complaint cancels its loss.
 import { ReputationSystem } from '../../../../core/ReputationSystem.js';
 import { rankAtLeast as reached } from '../../../../core/CompanyRank.js';
 import { writeReview } from '../../../../core/ReviewText.js';
@@ -45,6 +48,8 @@ function roleStat(team, role, stat) {
 // The seven categories for one stay (whole numbers 0–100). b: the booking (type, roomType = the type they wanted, room,
 // rate, shortLinen, late), roomType: the room type they got. (Milestone 7) cancel: { service, clean, value } — a recovered
 // complaint's category: its loss doesn't count (the late Service loss, the short-linen Clean loss, Value under its base).
+// (Milestone 8) b.cond: { room, F03, F06 } — the worst working share of their room, the Pool and the Café during the stay
+// (1 when missing); a recovered breakdown cancels comfort / activities / food's share.
 export function stayCategories(b, { team = [], facilities = FACILITIES, roomType = null, cancel = {} } = {}) {
   const I = STAY_INPUTS;
   const got = roomType ?? b.roomType;
@@ -54,10 +59,11 @@ export function stayCategories(b, { team = [], facilities = FACILITIES, roomType
   const room = I.room.base[got] + (have.id === want.id ? I.room.wanted : have.rank < want.rank ? I.room.worse : 0);
   const clean = Math.min(I.clean.cap, I.clean.base + (b.shortLinen && !cancel.clean ? I.clean.short : 0));
   const service = I.service.base - (cancel.service ? 0 : b.late?.serviceLoss ?? 0) + (roleStat(team, I.service.role, I.service.stat) - 50) / I.service.div;
-  const fac = (x) => (hasFacility(x.facility.id, facilities) ? x.facility.add : 0);
-  const food = Math.min(I.food.cap, I.food.base + fac(I.food) + (roleStat(team, I.food.role, I.food.stat) - 50) / I.food.div);
-  const activities = I.activities.base + fac(I.activities) + (roleStat(team, I.activities.role, I.activities.stat) - 50) / I.activities.div;
-  const comfort = I.comfort.base[got];
+  const share = (id, key) => (cancel[key] ? 1 : b.cond?.[id] ?? 1);
+  const fac = (x, key) => (hasFacility(x.facility.id, facilities) ? x.facility.add * share(x.facility.id, key) : 0);
+  const food = Math.min(I.food.cap, I.food.base + fac(I.food, 'food') + (roleStat(team, I.food.role, I.food.stat) - 50) / I.food.div);
+  const activities = I.activities.base + fac(I.activities, 'activities') + (roleStat(team, I.activities.role, I.activities.stat) - 50) / I.activities.div;
+  const comfort = I.comfort.base[got] * share('room', 'comfort');
   const value = cancel.value ? Math.max(I.value.base, I.value.base + (I.value.span * (budget - b.rate)) / budget) : I.value.base + (I.value.span * (budget - b.rate)) / budget;
   const raw = { room, clean, service, food, activities, comfort, value };
   return Object.fromEntries(CATEGORY_IDS.map((k) => [k, Math.round(clamp(raw[k]))]));
@@ -73,8 +79,9 @@ export const reviewStars = (sat) => REVIEW_STARS.find((s) => sat >= s.min)?.star
 export const repFor = (stars) => REP.stay + (REP.stars[stars] ?? 0);
 
 // The headline scores over the reviews of days [from, to] (inclusive). Satisfaction / Service / ValueIndex are the
-// averages (null with no reviews); Appeal, Staff Wellbeing and Prestige are fixed for now.
-export function headlineFrom(reviews, from, to, facilities = FACILITIES) {
+// averages (null with no reviews); Appeal, Staff Wellbeing and Prestige are fixed for now. (Milestone 8) effOf(id): a
+// facility's working share (the Garden's +6 Appeal follows it).
+export function headlineFrom(reviews, from, to, facilities = FACILITIES, effOf = () => 1) {
   const inside = reviews.filter((v) => v.day >= from && v.day <= to);
   const avg = (f) => (inside.length ? r2(inside.reduce((t, v) => t + f(v), 0) / inside.length) : null);
   const ap = HEADLINE_FIXED.appeal;
@@ -82,7 +89,7 @@ export function headlineFrom(reviews, from, to, facilities = FACILITIES) {
     satisfaction: avg((v) => v.sat),
     service: avg((v) => v.cats.service),
     value: avg((v) => v.cats.value),
-    appeal: ap.base + (hasFacility(ap.facility.id, facilities) ? ap.facility.add : 0),
+    appeal: r2(ap.base + (hasFacility(ap.facility.id, facilities) ? ap.facility.add * effOf(ap.facility.id) : 0)),
     wellbeing: HEADLINE_FIXED.wellbeing,
     prestige: HEADLINE_FIXED.prestige,
     count: inside.length,
@@ -113,6 +120,8 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
   };
   let lastDay = s.list.length ? s.list[0].day : 0;
   let cp = null; // (Milestone 7) the complaints system, once attached
+  let mt = null; // (Milestone 8) the maintenance system, once attached
+  const effOf = (id) => mt?.eff(id) ?? 1;
 
   function prune(today) {
     s.list = s.list.filter((v, i) => i < LIST_MAX || v.day > today - WINDOW_DAYS - 1);
@@ -146,7 +155,7 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
 
   // The day change into a new month (day = the new day, a multiple of 28): rate the 28 days just ended.
   function monthEnd(day) {
-    const h = headlineFrom(s.list, day - WINDOW_DAYS, day - 1, facilities);
+    const h = headlineFrom(s.list, day - WINDOW_DAYS, day - 1, facilities, effOf);
     const prev = s.months[s.months.length - 1] ?? null;
     if (h.count === 0) {
       if (!prev) return null; // no stays at all yet: the rating stays "New"
@@ -167,13 +176,16 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
     attachComplaints(c) {
       cp = c;
     },
+    attachMaintenance(m) {
+      mt = m;
+    },
     onEdge(day, band) {
       if (band !== NIGHT) return;
       prune(day);
       if (day > 0 && day % WINDOW_DAYS === 0) monthEnd(day);
     },
     // Live headline scores (the last 28 days up to today).
-    headline: (today) => headlineFrom(s.list, today - WINDOW_DAYS + 1, today, facilities),
+    headline: (today) => headlineFrom(s.list, today - WINDOW_DAYS + 1, today, facilities, effOf),
     get list() {
       return s.list;
     },

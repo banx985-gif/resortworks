@@ -4,6 +4,7 @@ import { FOUNDERS } from './setup.js';
 import { FACILITIES, ROOMS, GUEST, STAFF_ROLES } from './lot.js';
 import { GUEST_TYPES } from './bookings.js';
 import { CLEAN } from './housekeeping.js';
+import { JOBS } from './maintenance.js';
 import { NAMED_CAST } from './cast.js';
 
 export const ASSETS = {
@@ -21,6 +22,8 @@ export const ASSETS = {
   ...Object.fromEntries(Object.values(GUEST_TYPES).map((g) => [g.sprite, `assets/images/world/${g.sprite}.png`])),
   // Milestone 4: the housekeeper's cleaning pose (the opening team's portraits are the Founders' above).
   [CLEAN.pose]: `assets/images/world/${CLEAN.pose}.png`,
+  // Milestone 8: the Maintenance person's repair pose (at every repair and service).
+  [JOBS.pose]: `assets/images/world/${JOBS.pose}.png`,
   // M6b: the named chibi cast in use now (Dame Opal and the four Roadside Guide inspectors); the rest join with their
   // milestones.
   ...Object.fromEntries(NAMED_CAST.filter((c) => c.milestone === 'M6b').map((c) => [c.art, c.portrait])),

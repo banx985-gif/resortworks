@@ -16,6 +16,8 @@
 //     hk.hasJob(id) · queuePosition(id) · jobOf(staffId) · cleaningOf(roomId) · isShort(roomId) · housekeepers ·
 //     queue · linen · stats · starts (recent job starts, for the walker on the map) · at · serialize()
 //   On the bus: 'hk:start' { job } · 'hk:arrive' { job } · 'hk:done' { job } · 'hk:change'
+// Milestone 8: with maintenance attached (attachMaintenance(mt)) the Morning restock is the linen × the Laundry Room's
+// working share (offline: none).
 import { Grid } from '../../../../core/Grid.js';
 import { findPath } from '../../../../core/Pathing.js';
 import { LOT, FACILITIES, ROOMS, roomById } from '../../data/lot.js';
@@ -37,7 +39,7 @@ export function lotGrid() {
   for (const it of [...FACILITIES, ...ROOMS]) grid.blockRect(it.fp.col, it.fp.row, it.fp.w, it.fp.h);
   return grid;
 }
-const doorOf = (id) => (roomById(id) ?? FACILITIES.find((f) => f.id === id))?.door ?? null;
+export const doorOf = (id) => (roomById(id) ?? FACILITIES.find((f) => f.id === id))?.door ?? null;
 
 // A work pattern's shift each day: where it starts (minute of the day) and how long the window is (Night wraps).
 function shiftWindow(patternId) {
@@ -46,8 +48,8 @@ function shiftWindow(patternId) {
   const len = bands.reduce((t, i) => t + (bandEndMinute(i) - bandStartMinute(i)), 0);
   return { start, len };
 }
-// The shift window holding minute t (its start), or null when off shift.
-function windowAt(patternId, t) {
+// The shift window holding minute t (its start), or null when off shift. (Milestone 8: maintenance uses it too.)
+export function windowAt(patternId, t) {
   const w = shiftWindow(patternId);
   const d = Math.floor(t / MINUTES_PER_DAY);
   for (const day of [d, d - 1]) {
@@ -59,7 +61,7 @@ function windowAt(patternId, t) {
 // (Milestone 7) Is someone on this work pattern on shift at minute t? (the front desk queue)
 export const onShiftAtMinute = (patternId, t) => windowAt(patternId, t) != null;
 // The next shift start after minute t.
-function nextShiftAfter(patternId, t) {
+export function nextShiftAfter(patternId, t) {
   const w = shiftWindow(patternId);
   let ws = Math.floor(t / MINUTES_PER_DAY) * MINUTES_PER_DAY + w.start;
   while (ws <= t + 1e-9) ws += MINUTES_PER_DAY;
@@ -89,6 +91,7 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
   let s = saved ? load(saved) : freshHousekeeping({ minute: bookings ? minuteOf(bookings.at.day, bookings.at.band) : undefined, dirty: bookings ? ROOMS.filter((r) => bookings.roomState(r.id) === 'dirty').map((r) => r.id) : [] });
   const starts = Object.values(s.active).map((j) => ({ ...j })); // (in memory only: the walker catches up from here)
   let version = 0;
+  let mt = null; // (Milestone 8) the maintenance system, once attached
   const changed = () => {
     version++;
     bus?.emit('hk:change', {});
@@ -207,7 +210,13 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
       return n;
     },
     onEdge(day, band) {
-      if (band === BAND_I.morning && s.linen.day !== day) s.linen = { day, left: linenCap, used: 0, rooms: 0, short: 0 };
+      if (band === BAND_I.morning && s.linen.day !== day) {
+        const share = mt ? mt.eff('F04') : 1; // (Milestone 8) a worn Laundry washes less; an offline one none
+        s.linen = { day, left: Math.round(linenCap * share), used: 0, rooms: 0, short: 0, share };
+      }
+    },
+    attachMaintenance(m) {
+      mt = m;
     },
     enqueue(ids) {
       for (const id of ids) if (!hk.hasJob(id)) s.queue.push({ id: `J${s.nextId++}`, room: id, created: s.at });

@@ -30,6 +30,11 @@
 // game minute (the triggers), the complaint clock moves with each band edge (before it) and the café band is passed on;
 // a complaint's recovery can give a guest priority service (setPriority: their room's clean jumps the queue) or move them
 // to a better Ready room (changeRoom: a waiting party checks in there at once; a staying party's old room gets a clean).
+// Milestone 8: with maintenance attached (attachMaintenance(mt), src/systems/maintenance.js) its jobs move with the game
+// minute (before each band edge) and the day change passes on after the edge (wear, breakdowns). A broken room is in
+// Maintenance (roomBroken): it can't be sold; the state under it (Dirty, Ready, Occupied …) is kept and still changes (a
+// clean, a check-out) and comes back when it is repaired (roomRepaired) — a party waiting for it checks in then. A party
+// staying in a room that breaks gets a breakdown complaint (src/systems/complaints.js).
 import { Rng } from '../../../../core/Rng.js';
 import { BANDS } from '../../data/calendar.js';
 import { LATE } from '../../data/housekeeping.js';
@@ -43,7 +48,7 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 
 // A fresh booking state at a day and band: every room Ready, no guests, that day's offers if Morning has come.
 export function freshBookings({ seed, day = 0, band = 'morning' }) {
-  const s = { autoAssign: true, nextId: 1, at: { day, band: BAND[band] ?? 1 }, rooms: Object.fromEntries(ROOMS.map((r) => [r.id, 'ready'])), offers: [], bookings: [], stats: { ...STATS0 } };
+  const s = { autoAssign: true, nextId: 1, at: { day, band: BAND[band] ?? 1 }, rooms: Object.fromEntries(ROOMS.map((r) => [r.id, 'ready'])), under: {}, fixedAt: {}, cleanAt: {}, offers: [], bookings: [], stats: { ...STATS0 } };
   if (s.at.band >= BAND.morning) s.offers = makeOffers(seed, day, s.stats);
   return s;
 }
@@ -114,6 +119,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   let rv = null; // (Milestone 5) the reviews system, once attached
   let fin = null; // (Milestone 6) the finance system, once attached
   let cp = null; // (Milestone 7) the complaints system, once attached
+  let mt = null; // (Milestone 8) the maintenance system, once attached
   const pricing = (day) => (fin ? { rateOf: fin.rateOf, chance: (o) => fin.offerChance(o, rv?.headline(day).service ?? null) } : null);
   const changed = () => {
     version++;
@@ -121,8 +127,10 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   };
 
   const roomState = (id) => s.rooms[id] ?? 'ready';
+  // (Milestone 8) a room in Maintenance keeps the state under it: changes go there until it is repaired.
   const setRoom = (id, state) => {
-    s.rooms[id] = state;
+    if (s.rooms[id] === 'maintenance' && state !== 'maintenance') s.under[id] = state;
+    else s.rooms[id] = state;
   };
   // Rooms an offer / booking could have by its arrival day (the one place this is decided): a room nobody else holds that
   // is Ready now, or (Milestone 4) Dirty / Cleaning with a cleaning job queued when the party arrives on a later day — it
@@ -243,7 +251,11 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   function roomReady(id, minute) {
     const w = s.bookings.find((b) => b.room === id && b.status === 'waiting');
     const up = s.bookings.find((b) => b.room === id && b.status === 'upcoming');
-    if (w) lateCheckIn(w, id, minute);
+    if (s.rooms[id] === 'maintenance') {
+      // (Milestone 8) clean but broken: held for its party, who checks in when it is repaired
+      s.under[id] = w || up ? 'reserved' : 'ready';
+      s.cleanAt[id] = minute;
+    } else if (w) lateCheckIn(w, id, Math.max(minute, s.fixedAt[id] ?? minute));
     else setRoom(id, up ? 'reserved' : 'ready');
     changed();
   }
@@ -255,9 +267,11 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
       while (s.at.day < day || (s.at.day === day && s.at.band < band)) {
         const next = s.at.band === BANDS.length - 1 ? { day: s.at.day + 1, band: 0 } : { day: s.at.day, band: s.at.band + 1 };
         hk?.advance(minuteOf(next.day, next.band)); // cleaning up to this edge first, then the edge
+        mt?.advance(minuteOf(next.day, next.band)); // (Milestone 8) maintenance jobs up to this edge
         cp?.advance(minuteOf(next.day, next.band)); // (Milestone 7) late parties' 30 minutes up to this edge
         hk?.onEdge(next.day, next.band);
         edge(next.day, next.band);
+        mt?.onEdge(next.day, next.band, api); // (Milestone 8) the day change: wear, breakdowns
         cp?.onEdge(next.day, next.band, api); // (Milestone 7) the café band
         rv?.onEdge(next.day, next.band); // (Milestone 5) a new month rates the month just ended
         fin?.onEdge(next.day, next.band, api); // (Milestone 6) the café at Evening, the bills at the day change
@@ -320,12 +334,12 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
       s.autoAssign = !!on;
       changed();
     },
-    // Debug (?debug=1): every Dirty / Cleaning / Maintenance room clean at once (its cleaning job dropped; a room booked
+    // Debug (?debug=1): every Dirty / Cleaning room clean at once (Milestone 8: a Maintenance room is broken and waits for its repair) (its cleaning job dropped; a room booked
     // next turns Reserved and a waiting party checks in).
     makeAllReady() {
       let n = 0;
       for (const id of Object.keys(s.rooms))
-        if (!['reserved', 'occupied'].includes(s.rooms[id]) && s.rooms[id] !== 'ready') {
+        if (!['reserved', 'occupied', 'maintenance'].includes(s.rooms[id]) && s.rooms[id] !== 'ready') {
           hk?.cancelRoom(id);
           roomReady(id, Math.max(hk?.at ?? 0, minuteOf(s.at.day, s.at.band)));
           n++;
@@ -348,6 +362,36 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     attachComplaints(c) {
       cp = c;
     },
+    // (Milestone 8) the maintenance system: its jobs and the day change passed on.
+    attachMaintenance(m) {
+      mt = m;
+    },
+    // (Milestone 8) a room breaks down at this minute: Maintenance (the state under it kept); a party staying in it gets a
+    // breakdown complaint.
+    roomBroken(id, minute) {
+      if (s.rooms[id] === 'maintenance') return null;
+      s.under[id] = s.rooms[id];
+      s.rooms[id] = 'maintenance';
+      delete s.fixedAt[id];
+      delete s.cleanAt[id];
+      const b = s.bookings.find((x) => x.room === id && x.status === 'staying') ?? null;
+      if (b) cp?.onRoomBreakdown?.(b, minute, id);
+      changed();
+      return b;
+    },
+    // (Milestone 8) repaired at this minute: the state under it comes back; a party waiting for it checks in now (or when
+    // it was cleaned, if later).
+    roomRepaired(id, minute) {
+      if (s.rooms[id] !== 'maintenance') return false;
+      s.rooms[id] = s.under[id] ?? 'ready';
+      delete s.under[id];
+      s.fixedAt[id] = minute;
+      const w = s.bookings.find((b) => b.room === id && b.status === 'waiting');
+      if (w && ['ready', 'reserved'].includes(s.rooms[id])) lateCheckIn(w, id, Math.max(minute, s.cleanAt[id] ?? minute));
+      changed();
+      return true;
+    },
+    underState: (id) => (s.rooms[id] === 'maintenance' ? s.under[id] ?? 'ready' : null),
     // (Milestone 7) a complaint's apology: priority service for this guest (their room's clean jumps the queue).
     setPriority(bookingId) {
       const b = s.bookings.find((x) => x.id === bookingId);
@@ -456,5 +500,9 @@ function load(saved) {
   s.offers = Array.isArray(s.offers) ? s.offers.filter((o) => GUEST_TYPES[o.type] && ROOM_TYPES[o.roomType]) : [];
   s.bookings = Array.isArray(s.bookings) ? s.bookings.filter((b) => GUEST_TYPES[b.type] && roomById(b.room)) : [];
   s.stats = { ...STATS0, ...(s.stats ?? {}) };
+  s.under = Object.fromEntries(Object.entries(s.under ?? {}).filter(([id, st]) => s.rooms[id] === 'maintenance' && ROOM_STATES[st]));
+  for (const id of Object.keys(s.rooms)) if (s.rooms[id] === 'maintenance' && !s.under[id]) s.under[id] = 'ready';
+  s.fixedAt = s.fixedAt && typeof s.fixedAt === 'object' ? s.fixedAt : {};
+  s.cleanAt = s.cleanAt && typeof s.cleanAt === 'object' ? s.cleanAt : {};
   return s;
 }

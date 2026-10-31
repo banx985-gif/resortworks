@@ -53,6 +53,8 @@ export const LINES = {
   interest: { kind: 'cost', name: 'Credit interest' },
   comps: { kind: 'cost', name: 'Comped meals' }, // (Milestone 7) complaint recovery
   refunds: { kind: 'cost', name: 'Refunds' }, // (Milestone 7) complaint recovery
+  repairs: { kind: 'cost', name: 'Repairs' }, // (Milestone 8) 8% of the build cost a repair
+  parts: { kind: 'cost', name: 'Maintenance parts' }, // (Milestone 8) 1% of the build cost a preventive service
   creditDraw: { kind: 'credit', name: 'Emergency Credit taken' },
   creditRepay: { kind: 'credit', name: 'Emergency Credit paid back' },
 };

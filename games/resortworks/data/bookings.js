@@ -26,7 +26,7 @@ export const GUEST_TYPES = {
 export const OFFERS = { perMorning: [2, 4], arriveWithin: [0, 3] };
 
 // Room states (bible §10). sellable = can be sold / assigned. Cleaning is used from M4 (src/systems/housekeeping.js);
-// Maintenance waits for M7. colour = the code-drawn badge on the map.
+// Maintenance from M8 (a broken room, src/systems/maintenance.js). colour = the code-drawn badge on the map.
 export const ROOM_STATES = {
   ready: { id: 'ready', name: 'Ready', sellable: true, color: '#3E9B4F' },
   reserved: { id: 'reserved', name: 'Reserved', sellable: false, color: '#3A9BE0' },

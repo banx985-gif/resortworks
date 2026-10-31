@@ -29,6 +29,8 @@
 // the room, then at least CLEAN.showSec game seconds there in the cleaning pose (the simulation stays in game minutes; if
 // the walker falls more than CLEAN.behindMax cleans behind, it skips the oldest).
 //     world.team (every staff walker) · world.staffOf(memberId)
+// Milestone 8: the Maintenance person (mt: src/systems/maintenance.js) shows every job the simulation starts the same way:
+// a quick walk to the facility or room, then at least JOBS.showSec game seconds there in the repair pose.
 import { Agent } from '../../../../core/Agent.js';
 import { findPath } from '../../../../core/Pathing.js';
 import { FACILITIES, ROOMS, PERSON, GUEST, GUEST_ROOM, GUEST_PLAN, ARRIVE_PLAN, LEAVE_PLAN, WAIT_PLAN, ARRIVE_FROM, STAFF_ROLES, STAFF_PLAN, roomById } from '../../data/lot.js';
@@ -36,6 +38,7 @@ import { GUEST_TYPES } from '../../data/bookings.js';
 import { ROLES } from '../../data/setup.js';
 import { BANDS } from '../../data/calendar.js';
 import { CLEAN } from '../../data/housekeeping.js';
+import { JOBS } from '../../data/maintenance.js';
 import { lotGrid } from './housekeeping.js';
 import { onShiftAt } from './staff.js';
 
@@ -62,7 +65,7 @@ const BAND_I = Object.fromEntries(BANDS.map((b, i) => [b.id, i]));
 // The M2 lone guest (a world made without bookings).
 const LONE = [{ id: 'guest', type: GUEST.typeId, room: GUEST_ROOM, status: 'staying', inDay: -Infinity, inBand: null, outDay: null }];
 
-export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day = 0, stays = null, team = null, hk = null }) {
+export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day = 0, stays = null, team = null, hk = null, mt = null }) {
   const grid = lotGrid();
   const items = [
     ...FACILITIES.map((def) => ({ kind: 'facility', id: def.id, def, fp: def.fp, door: def.door })),
@@ -225,31 +228,45 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
       }
     }
   }
-  // (Milestone 4) Every clean the simulation has started joins its housekeeper's list to show.
+  // (Milestone 4) Every clean the simulation has started joins its housekeeper's list to show. (Milestone 8) Every
+  // maintenance job joins the Maintenance person's.
   function pullCleans() {
-    for (const j of hk?.starts ?? []) {
-      if (seenJobs.has(j.id)) continue;
-      seenJobs.add(j.id);
-      const p = crew.find((w) => w.memberId === j.staff);
-      if (p) p.tasks.push(j);
-    }
+    for (const [sys, src] of [
+      [hk, 'hk'],
+      [mt, 'mt'],
+    ])
+      for (const j of sys?.starts ?? []) {
+        if (seenJobs.has(j.id)) continue;
+        seenJobs.add(j.id);
+        const p = crew.find((w) => w.memberId === j.staff);
+        if (p) p.tasks.push({ ...j, src });
+      }
+  }
+  // What a shown job looks like: the words, the pose, how long at least, and the system that runs it.
+  function taskLook(j) {
+    const name = roomById(j.target ?? j.room)?.name ?? placeName(j.target ?? j.room);
+    if (j.src !== 'mt') return { at: j.room, going: `Walking to ${name} to clean it`, doing: `Cleaning ${name}`, pose: CLEAN.pose, showSec: CLEAN.showSec, behindMax: CLEAN.behindMax, sys: hk };
+    const verb = j.kind === 'repair' ? ['repair', 'Repairing'] : ['service', 'Servicing'];
+    const the = roomById(j.target) ? name : `the ${name}`;
+    return { at: j.target, going: `Walking to ${the} to ${verb[0]} it`, doing: `${verb[1]} ${the}`, pose: JOBS.pose, showSec: JOBS.showSec, behindMax: JOBS.behindMax, sys: mt };
   }
   // A housekeeper with a clean to show: on to the next one when this one has been on screen long enough and the
   // simulation has finished it. Returns true while a clean is being shown (the plan waits).
   function cleaningShow(p) {
     if (p.task) {
-      const simOn = hk?.jobOf(p.memberId)?.id === p.task.id;
-      if (p.phase !== 'at' || p.shown < CLEAN.showSec || simOn) return true;
+      const look = p.task.look;
+      const simOn = look.sys?.jobOf(p.memberId)?.id === p.task.id;
+      if (p.phase !== 'at' || p.shown < look.showSec || simOn) return true;
       p.task = null;
       p.art = p.baseArt;
     }
     while (p.tasks.length > CLEAN.behindMax) p.tasks.shift(); // too far behind: skip the oldest
     const next = p.tasks.shift();
     if (!next) return false;
-    const name = roomById(next.room)?.name ?? next.room;
-    p.task = next;
+    const look = taskLook(next);
+    p.task = { ...next, look };
     p.shown = 0;
-    walkTo(p, { at: next.room, going: `Walking to ${name} to clean it`, doing: `Cleaning ${name}`, cleaning: true }, TASK_WALK_SEC / ARRIVE_SHARE);
+    walkTo(p, { at: look.at, going: look.going, doing: look.doing, cleaning: true }, TASK_WALK_SEC / ARRIVE_SHARE);
     return true;
   }
 
@@ -272,7 +289,7 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
       const tile = a.tile(grid);
       if (!tile || grid.isBlocked(tile.col, tile.row)) offLane++;
     }
-    for (const p of crew) if (p.task && p.phase === 'at') p.art = CLEAN.pose; // the cleaning pose while in the room
+    for (const p of crew) if (p.task && p.phase === 'at') p.art = p.task.look.pose; // the cleaning / repair pose while there
   }
 
   // Plain words for a sheet's "Now" line.

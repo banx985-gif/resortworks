@@ -33,6 +33,9 @@
 // Milestone 7: each open resort has its complaints (src/systems/complaints.js: triggers, complaints, recovery actions and
 // results), moved on with the bookings and the game minute and saved with the rest. The calendar also stands still while a
 // complaint's sheet is open (the screen's holdsCalendar), so choosing an action never costs bands.
+// Milestone 8: each open resort has its maintenance (src/systems/maintenance.js: Condition of every facility and room, wear,
+// breakdowns, the Maintenance person's jobs, repair and parts costs), moved on in game minutes each step and with the
+// bookings' band edges, and saved with the rest. ?debug=1&maint=0 stops wear (the older milestones' browser runs).
 // Add ?debug=1 for the FPS/state overlay and the setup-data check, ?screen=test for the scaling / tap / asset-loader test
 // screen. With ?debug=1, &complaints=0 switches complaint triggers off (the older milestones' browser runs), &safe=phone|tablet stands in a notch and home bar (safe-area insets) on any screen, and
 // &reset=1 empties all four slots.
@@ -63,6 +66,7 @@ import { loadTeam, saveTeam } from './systems/staff.js';
 import { createReviews } from './systems/reviews.js';
 import { createFinance } from './systems/finance.js';
 import { createComplaints } from './systems/complaints.js';
+import { createMaintenance } from './systems/maintenance.js';
 import { MajorFeedback } from '../../../core/MajorFeedback.js';
 import { skipMoment, opalWelcomeMoment } from './screens/reviewMoments.js';
 import { validateCast } from '../data/cast.js';
@@ -143,6 +147,7 @@ const loop = new FixedStepLoop({
       open.calendar.update(dt); // the calendar runs only while the hub is on screen
       open.housekeeping.advance(open.calendar.minute); // (M4) cleaning, in game minutes, up to now
       open.complaints.advance(open.calendar.minute); // (M7) a late party's 30 minutes at Reception
+      open.maintenance.advance(open.calendar.minute); // (M8) maintenance jobs, in game minutes, up to now
     }
     if ((pruneT += dt) >= 5) {
       assets.sprites.prune(pruneT, 60); // let go of copies not drawn for a minute
@@ -256,13 +261,13 @@ bus.on('input:up', () => systemBack.rearm()); // re-arm after any tap, in case a
 // ---------------------------------------------------------------------------
 // The four campaign slots.
 let campaigns = null;
-let open = null; // { n, data, calendar, bookings, team, housekeeping, reviews, finance, complaints } — the resort on screen
+let open = null; // { n, data, calendar, bookings, team, housekeeping, reviews, finance, complaints, maintenance } — the resort on screen
 let account = {}; // the account store (core/CampaignSlots): empty until achievements / tokens / NG+ exist
 
 // A campaign on screen: its save plus its calendar (Milestone 2) and its bookings (Milestone 3), put back exactly where
 // the save left them.
 function openRun(n, data) {
-  const run = { n, data, calendar: null, bookings: null, team: null, housekeeping: null, reviews: null, finance: null, complaints: null };
+  const run = { n, data, calendar: null, bookings: null, team: null, housekeeping: null, reviews: null, finance: null, complaints: null, maintenance: null };
   // (Milestone 5) the speed unlocks read the live Rank
   run.calendar = createCalendar({ bus, saved: data.calendar ?? null, run: () => ({ ...run.data, reviews: run.reviews?.live ?? run.data.reviews }) });
   const c = run.calendar;
@@ -278,6 +283,13 @@ function openRun(n, data) {
   run.bookings.attachComplaints(run.complaints);
   run.reviews.attachComplaints(run.complaints);
   if (debug.enabled && PARAMS.get('complaints') === '0') run.complaints.setEnabled(false); // (older milestones' browser runs)
+  // (Milestone 8) Condition, wear, breakdowns, maintenance jobs
+  run.maintenance = createMaintenance({ saved: data.maintenance ?? null, team: run.team, bookings: run.bookings, finance: run.finance, complaints: run.complaints, bus, seed: data.seed, rules: debug.enabled && PARAMS.get('maint') === '0' ? { noWear: true } : {} });
+  run.bookings.attachMaintenance(run.maintenance);
+  run.housekeeping.attachMaintenance(run.maintenance);
+  run.reviews.attachMaintenance(run.maintenance);
+  run.finance.attachMaintenance(run.maintenance);
+  run.complaints.attachMaintenance(run.maintenance);
   open = run;
   run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;
@@ -295,7 +307,7 @@ bus.on('band:change', () => open && open.bookings.sync(open.calendar.today, open
 // The campaign save: the calendar as it stands, the date the slot card shows, then the slot (save + summary record).
 async function saveRun() {
   if (!open) return;
-  const { n, data, calendar, bookings, team, housekeeping, reviews, finance, complaints } = open;
+  const { n, data, calendar, bookings, team, housekeeping, reviews, finance, complaints, maintenance } = open;
   data.calendar = calendar.serialize();
   data.bookings = bookings.serialize();
   data.staff = saveTeam(team);
@@ -304,15 +316,16 @@ async function saveRun() {
   data.stars = reviews.stars ?? 0;
   data.finance = finance.serialize();
   data.complaints = complaints.serialize();
+  data.maintenance = maintenance.serialize();
   const c = calendar.clock;
   data.date = { year: c.year, month: c.month, day: c.day };
   await campaigns.save(n, data);
 }
 const autosave = new Autosave({
   bus,
-  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result'],
+  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service'],
   save: () => saveRun(),
-  stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize()]) : null),
+  stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize(), open.maintenance.serialize()]) : null),
   enabled: () => !!open,
 });
 autosave.installBackground(); // the app going to the background (or the page closing) saves at once
@@ -327,6 +340,7 @@ function skipDays(days) {
   open.bookings.sync(open.calendar.today, open.calendar.bandIndex); // every band edge on the way, in order
   open.housekeeping.advance(open.calendar.minute);
   open.complaints.advance(open.calendar.minute);
+  open.maintenance.advance(open.calendar.minute);
   debug.log(`skipped ${days} day(s): ${open.calendar.dateText()}`);
 }
 

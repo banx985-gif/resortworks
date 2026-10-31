@@ -19,6 +19,8 @@
 //     fin.bandOf(rt) · fin.setBand(rt, id) · fin.rateOf(rt) · fin.offerChance(offer, service) · fin.dayLines(day) ·
 //     fin.month · fin.months · fin.econ (core EconomySystem) · fin.credit · serialize()
 //     (Milestone 7) fin.spend(line, amount, day, source) — a complaint's comped meal or partial refund (a cost line)
+//     (Milestone 8) repairs and maintenance parts go through spend too; fin.attachMaintenance(mt): an offline Snack Café
+//     takes no money
 //   On the bus: core 'economy:change' (each ledger line) · 'finance:income' { line, amount, source } (a room id or 'F06':
 //   the screen's small "+N") · 'finance:month' { month } · 'finance:credit' { taken | repaid, debt } · 'finance:warning'
 import { EconomySystem } from '../../../../core/EconomySystem.js';
@@ -82,6 +84,7 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
   const econ = new EconomySystem({ bus, currencies: CURRENCIES, now: () => bookDay, maxLines: HISTORY.ledgerLines });
   econ.load(s.econ);
   let version = 0;
+  let mt = null; // (Milestone 8) the maintenance system, once attached
 
   const cash = () => econ.balance('credits');
   const ceiling = () => creditCeiling(s.lifetimeRevenue);
@@ -178,7 +181,7 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
     onEdge(day, band, bk) {
       if (band === BAND.evening) {
         const guests = (bk?.staying ?? []).reduce((t, b) => t + (b.party ?? 1), 0);
-        if (guests && FACILITIES.some((f) => f.id === CAFE.facility)) move('cafe', guests * CAFE.perGuestDay, day, CAFE.facility);
+        if (guests && FACILITIES.some((f) => f.id === CAFE.facility) && !mt?.isOffline(CAFE.facility)) move('cafe', guests * CAFE.perGuestDay, day, CAFE.facility);
       }
       if (band === BAND.night) dayChange(day, bk);
       bookDay = day;
@@ -189,6 +192,9 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
       const v = move(line, amount, day, source);
       bookDay = day;
       return v;
+    },
+    attachMaintenance(m) {
+      mt = m;
     },
     bandOf: (rt) => s.bands[rt] ?? DEFAULT_BAND,
     setBand(rt, id) {

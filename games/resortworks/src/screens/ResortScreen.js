@@ -31,6 +31,10 @@
 // Milestone 7: a toast for each complaint, ahead of the others waiting (one tap opens its sheet: the recovery actions);
 // Reception lists the complaints first. The first complaint ever brings Dame Opal's one-line card. While a complaint's
 // sheet is open the calendar stands still (holdsCalendar, read by main).
+// Milestone 8: a code-drawn wrench badge on every worn facility or room (an amber disc) and a red warning triangle on a
+// broken one (bible §36: a different shape, not only a colour); a toast for each breakdown (one tap opens its sheet).
+// The Maintenance person walks to each job in the repair pose; every facility and room sheet shows its Condition and a
+// Service now button.
 //   createResortScreen({ renderer, layout, assets, bus, sheet, feedback, run, onMenu, debug, reducedFlashes, onSkip, onRep })
 //     run() → the open campaign { n, data, calendar, bookings, team, housekeeping, reviews, finance } or null    onSkip(days) → the debug skip
 //     feedback: core MajorFeedback (main draws it and gives it the taps)    onRep() → the debug REP skip
@@ -57,6 +61,8 @@ import { LOT, ART_LOOK, ART_TWEAK, PERSON, LOOK, roomById } from '../../data/lot
 import { createResortWorld } from '../systems/resortWorld.js';
 import { resortSheet, pickRoomSheet, resortScoresSheet, starText, ratesSheet, financeSheet, complaintSheet } from './resortSheets.js';
 import { COMPLAINT_TYPES } from '../../data/complaints.js';
+import { BADGE } from '../../data/maintenance.js';
+import { targetName } from '../systems/maintenance.js';
 import { credits } from '../systems/finance.js';
 import { VfxSystem } from '../../../../core/VfxSystem.js';
 import { FloatFeed } from '../../../../core/FloatFeed.js';
@@ -88,6 +94,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   let world = null;
   let worldOf = null; // the run's booking system the world was made for
   let worldHk = null; // (M4) and its housekeeping
+  let worldMt = null; // (M8) and its maintenance
   let peopleVersion = -1; // world.version the tap list was built for
   let slotN = null;
   let palette = paletteById(null);
@@ -287,6 +294,12 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       debug?.log('Opal: first complaint');
     }
   });
+  // (Milestone 8) a toast for each breakdown (one tap opens the broken thing's sheet).
+  bus.on('mt:breakdown', ({ id }) => {
+    if (!active) return;
+    const room = roomById(id);
+    toast(`Breakdown: ${targetName(id)}`, room ? `${room.name} is closed until Maintenance repairs it.` : `The ${targetName(id)} is offline until Maintenance repairs it.`, world?.byId(id)?.def.art ?? null, { open: id });
+  });
   function openComplaint(id, via = 'sheet') {
     const cp = run()?.complaints;
     if (!cp?.byId(id)) return;
@@ -460,6 +473,12 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       if (!r?.ok) return say(r?.why);
       debug?.log(`complaint ${id}: ${actionId} → ${r.success ? 'recovered' : 'failed'} (${r.chance}%)`); // (complaint:result asks for a save)
     },
+    // (Milestone 8) Service now from a facility or room sheet
+    service(id) {
+      const r = run()?.maintenance?.serviceNow(id);
+      if (!r?.ok) return say(r?.why);
+      debug?.log(`service now: ${id}`); // (mt:service asks for a save)
+    },
     setBand(rt, id) {
       if (run()?.finance?.setBand(rt, id)) debug?.log(`rates: ${rt} → ${id}`); // (finance:band asks for a save)
     },
@@ -472,7 +491,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     const x = calendar()?.clock.dateOf(d);
     return x ? `Y${x.year} · Month ${x.month} · Day ${x.day}` : `Day ${d + 1}`;
   };
-  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null, finance: run()?.finance ?? null, complaints: run()?.complaints ?? null });
+  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null, finance: run()?.finance ?? null, complaints: run()?.complaints ?? null, mt: run()?.maintenance ?? null });
   function openSheet(id, via = 'art') {
     if (!world?.byId(id)) return;
     sheet.open(() => resortSheet(world, id, sheetOpts()));
@@ -501,13 +520,14 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     if (!o) return false;
     const founder = founderById(o.data.resort.founder.id);
     palette = paletteById(o.data.resort.palette);
-    if (!world || slotN !== o.n || world.founder !== founder || worldOf !== (o.bookings ?? null) || worldHk !== (o.housekeeping ?? null)) {
+    if (!world || slotN !== o.n || world.founder !== founder || worldOf !== (o.bookings ?? null) || worldHk !== (o.housekeeping ?? null) || worldMt !== (o.maintenance ?? null)) {
       if (slotN !== o.n) viewSet = false;
       const cal = o.calendar;
       const bk = o.bookings ?? null;
-      world = createResortWorld({ founder, band: cal?.band.id ?? 'morning', bandFrac: cal?.bandFrac ?? 0, day: cal?.today ?? 0, stays: bk ? () => [...bk.staying, ...bk.leaving, ...bk.waiting] : null, team: o.team ?? null, hk: o.housekeeping ?? null });
+      world = createResortWorld({ founder, band: cal?.band.id ?? 'morning', bandFrac: cal?.bandFrac ?? 0, day: cal?.today ?? 0, stays: bk ? () => [...bk.staying, ...bk.leaving, ...bk.waiting] : null, team: o.team ?? null, hk: o.housekeeping ?? null, mt: o.maintenance ?? null });
       worldOf = bk;
       worldHk = o.housekeeping ?? null;
+      worldMt = o.maintenance ?? null;
       slotN = o.n;
       paths = null;
       syncSelection();
@@ -662,6 +682,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         const t0 = notes.toasts.shift(); // one tap closes it; the next one waiting shows after
         if (t0?.entry.data?.review) showReview(t0.entry.data.review); // (M5) a review toast opens its card
         if (t0?.entry.data?.complaint) openComplaint(t0.entry.data.complaint, 'toast'); // (M7) a complaint toast opens its sheet
+        if (t0?.entry.data?.open) openSheet(t0.entry.data.open, 'toast'); // (M8) a breakdown toast opens the broken thing's sheet
         return log('toast');
       }
       const sk = debugSkips() ? SKIPS.findIndex((_, i) => hitRect(p, skipRect(i))) : -1;
@@ -679,6 +700,11 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         return log('shortcut');
       }
       if (hitRect(p, plateRect()) || !inView(p.x, p.y)) return log(null);
+      const wr = wrenchRects().find((b) => hitRect(p, b.rect)); // (M8) a wrench badge opens its sheet
+      if (wr) {
+        openSheet(wr.id, 'wrench');
+        return log(wr.id);
+      }
       const badge = badgeAt(p);
       if (badge) {
         openSheet(badge.id, 'badge');
@@ -724,6 +750,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       assets.detail = 1;
       camera.restore(ctx);
       drawTint(ctx);
+      if (!buildMode) drawWrenches(ctx);
       if (!buildMode) drawBadges(ctx);
       if (!buildMode) vfx.render(ctx, 'screen'); // (M6) the "+N" money floats, under the bar and the sheets
       if (buildMode) drawBanner(ctx);
@@ -791,8 +818,11 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       const bar = Object.fromEntries(topBar.buttons().map((b) => [b.id, b.rect])); // 'pause', 'speed1', 'speed2', 'speed4'
       const skip = Object.fromEntries(SKIPS.map((s, i) => [s.id, debugSkips() ? skipRect(i) : null]));
       if (id?.startsWith?.('badge:')) return badgeRects().find((b) => b.id === id.slice(6))?.rect ?? null;
+      if (id?.startsWith?.('wrench:')) return wrenchRects().find((b) => b.id === id.slice(7))?.rect ?? null;
       return { menu: menuRect(), shortcut: shortcutRect(), done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), note: note ? noteRect() : null, toast: toastRect(), stats: scoresRect(), credits: creditsRect(), skipMoment: feedback?.current?.skipRect?.() ?? null, ...bar, ...skip }[id] ?? null;
     },
+    // (Milestone 8) a wrench badge: 'worn' / 'broken' / null (tests); its rect via rectOf('wrench:<id>').
+    wrenchOf: (id) => wrenchRects().find((b) => b.id === id)?.kind ?? null,
     // (Milestone 4) the word on a room's badge now — Ready / Dirty / Cleaning / Late … (tests).
     badgeOf: (id) => badgeRects().find((b) => b.id === id)?.st.name ?? null,
     // The toasts showing / waiting (tests).
@@ -979,6 +1009,77 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       ctx.fill();
       text(ctx, String(b.number), r.x + 5 * k + d / 2, r.y + r.h / 2 + 1, { size: 28 * k, bold: true, color: b.st.color, align: 'center', baseline: 'middle' });
       text(ctx, b.st.name, r.x + r.h + 8 * k, r.y + r.h / 2 + 1, { size: 26 * k, bold: true, color: '#FFFFFF', baseline: 'middle' });
+      ctx.restore();
+    }
+  }
+  // --- (Milestone 8) wrench badges: worn = an amber disc, broken = a red warning triangle (bible §36: shape + colour) -----
+  // A facility's sits over the middle of its roof; a room's left of its state pill. Screen space, like the room badges.
+  function wrenchRects() {
+    const mt = run()?.maintenance;
+    if (!world || !mt) return [];
+    const k = badgeScale();
+    const out = [];
+    for (const it of world.items) {
+      const kind = mt.isOffline(it.id) ? 'broken' : mt.isWorn(it.id) ? 'worn' : null;
+      if (!kind) continue;
+      const a = artRect(it);
+      const c = camera.worldToScreen(a.x + a.w / 2, a.y + a.h * 0.2);
+      const size = 62 * k;
+      let x = c.x - size / 2;
+      let y = c.y - size / 2;
+      if (it.kind === 'room') {
+        const pill = badgeRects().find((b) => b.id === it.id);
+        if (pill) {
+          x = pill.rect.x - size - 6 * k;
+          y = pill.rect.y + (pill.rect.h - size) / 2;
+        }
+      }
+      const rect = { x, y, w: size, h: size };
+      if (rect.y < camera.viewY || rect.y + rect.h > camera.viewY + camera.viewH || rect.x + rect.w < 0 || rect.x > W) continue;
+      out.push({ id: it.id, kind, rect, k });
+    }
+    return out;
+  }
+  // A wrench: a handle and an open-jawed head, drawn in white on the badge.
+  function wrench(ctx, cx, cy, s, color) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-Math.PI / 4);
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = s * 0.17;
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.05);
+    ctx.lineTo(0, s * 0.36);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, -s * 0.18, s * 0.17, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = color; // the jaw's opening
+    ctx.fillRect(-s * 0.06, -s * 0.38, s * 0.12, s * 0.16);
+    ctx.restore();
+  }
+  function drawWrenches(ctx) {
+    for (const b of wrenchRects()) {
+      const { rect: r, k } = b;
+      const look = BADGE[b.kind];
+      const cx = r.x + r.w / 2;
+      const cy = r.y + r.h / 2;
+      ctx.save();
+      ctx.fillStyle = look.color;
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 3 * k;
+      ctx.beginPath();
+      if (look.shape === 'triangle') {
+        ctx.moveTo(cx, r.y - 2 * k);
+        ctx.lineTo(r.x + r.w + 4 * k, r.y + r.h + 2 * k);
+        ctx.lineTo(r.x - 4 * k, r.y + r.h + 2 * k);
+        ctx.closePath();
+      } else ctx.arc(cx, cy, r.w / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      wrench(ctx, cx, look.shape === 'triangle' ? cy + r.h * 0.12 : cy, r.w * (look.shape === 'triangle' ? 0.62 : 0.7), look.color);
       ctx.restore();
     }
   }

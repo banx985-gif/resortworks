@@ -16,11 +16,17 @@
 //     cp.open (complaints of guests still here, oldest first) · cp.byId(id) · cp.forBooking(bid) · cp.history · cp.counts
 //     cp.force(bid, kind) · cp.setEnabled(on) (tests / debug) · cp.firstShown · cp.markFirstShown() · cp.at · serialize()
 //   On the bus: 'complaint:new' { complaint, first } · 'complaint:result' { complaint, ok, action } · 'complaint:change'
+// Milestone 8: with maintenance attached (attachMaintenance(mt), src/systems/maintenance.js) a room breaking with a party
+// in it gives them a breakdown complaint (onRoomBreakdown, no roll: they need a room change); Reception, the Pool or the
+// Café going offline is a rolled breakdown trigger for each party staying (onFacilityBreakdown; its category is the one
+// that facility feeds). Maintenance priority (best fit for a breakdown) puts the repair first in Maintenance's line. A
+// worn Reception slows the front desk (offline: check-ins take twice as long); a worn Café serves fewer covers.
 import { Rng } from '../../../../core/Rng.js';
 import { GUEST_TYPES, ROOM_TYPES } from '../../data/bookings.js';
 import { FACILITIES, roomById } from '../../data/lot.js';
 import { BANDS } from '../../data/calendar.js';
 import { COMPLAINT_TYPES, TRIGGERS, DESK, ACTIONS, ACTION_IDS, RECOVERY, HISTORY_MAX } from '../../data/complaints.js';
+import { FELT, CONDITION } from '../../data/maintenance.js';
 import { minuteOf, bandAtMinute } from './calendar.js';
 import { onShiftAtMinute } from './housekeeping.js';
 
@@ -59,6 +65,7 @@ function roleStat(team, role, stat) {
 export function createComplaints({ saved = null, bus = null, team = [], seed = 'resortworks', bookings = null, finance = null, facilities = FACILITIES } = {}) {
   const s = load(saved);
   let version = 0;
+  let mt = null; // (Milestone 8) the maintenance system, once attached
   const changed = () => {
     version++;
     bus?.emit('complaint:change', {});
@@ -72,16 +79,17 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
   const nowAt = () => at(s.at);
   const bump = (o, k) => (o[k] = (o[k] ?? 0) + 1);
 
-  // A trigger for one stay (each kind at most once a stay): rolled, and a complaint if it comes up.
+  // A trigger for one stay (each kind at most once a stay): rolled, and a complaint if it comes up. key: what counts as
+  // "the same trigger" and seeds its roll (the kind; Milestone 8: each facility breakdown its own, 'breakdown:F03').
   let enabled = true; // (?debug=1&complaints=0: the older milestones' browser runs switch triggers off)
-  function trigger(b, kind, minute, info = {}) {
+  function trigger(b, kind, minute, info = {}, key = kind) {
     if (!enabled || !COMPLAINT_TYPES[kind]?.on) return null;
     const seen = (s.seen[b.id] ??= {});
-    if (seen[kind]) return null;
-    seen[kind] = true;
+    if (seen[key]) return null;
+    seen[key] = true;
     s.stats.triggers++;
     bump(s.stats.triggersByKind, kind);
-    const roll = new Rng(`${seed}:complaint:${b.id}:${kind}`).next();
+    const roll = new Rng(`${seed}:complaint:${b.id}:${key}`).next();
     if (!(roll < complaintChance(b.type, kind))) return null;
     return raise(b, kind, minute, info);
   }
@@ -107,7 +115,8 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
     const onShift = people.some((m) => onShiftAtMinute(m.pattern, t));
     if (!onShift) return DESK.offShiftWait;
     const start = Math.max(t, s.desk.freeAt);
-    s.desk.freeAt = r2(start + DESK.checkInMinutes);
+    const desk = mt ? Math.max(CONDITION.halfFactor, mt.eff('F01')) : 1; // (Milestone 8) worn: slower; offline: twice as long
+    s.desk.freeAt = r2(start + DESK.checkInMinutes / desk);
     return r2(start - t);
   }
 
@@ -132,8 +141,15 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
       const best = t.best.includes(aid);
       const o = { id: aid, name: a.name, line: a.line, best, on: a.on, ok: true, why: null, chance: recoveryChance({ service: service(), best, bandsWaited: waited }), cost: 0, room: null };
       if (!a.on) return { ...o, ok: false, why: `Comes with ${a.from === 'later' ? 'a later update' : `Milestone ${a.from.slice(1)}`}.` };
+      if (a.only && a.only !== c.kind) return { ...o, on: false, hidden: true, ok: false, why: 'Only for a breakdown.' }; // (not shown for other complaints)
       if (closed) return { ...o, ok: false, why: c.status === 'recovered' ? 'Already sorted out.' : 'No more tries.' };
       if (aid === 'apology' && b?.priority) return { ...o, ok: false, why: 'They already have priority service.' };
+      if (aid === 'maintenance') {
+        const target = c.info?.target;
+        if (!mt || !target || !mt.isOffline(target)) return { ...o, ok: false, why: 'It’s already repaired.' };
+        if (mt.isPriority(target)) return { ...o, ok: false, why: 'Maintenance is already going there first.' };
+        o.target = target;
+      }
       if (aid === 'roomChange') {
         const r = roomChangeTo(c);
         if (!r) return { ...o, ok: false, why: 'No Ready room as good or better is free.' };
@@ -155,6 +171,7 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
     const w = nowAt();
     const day = w.day;
     if (actionId === 'apology') bookings?.setPriority(c.booking);
+    if (actionId === 'maintenance') mt?.prioritize(o.target); // (Milestone 8) the repair jumps Maintenance's line
     if (actionId === 'roomChange') {
       const r = bookings?.changeRoom(c.booking, o.room, s.at);
       if (!r?.ok) return { ok: false, why: r?.why ?? 'The room change didn’t work.' };
@@ -192,7 +209,7 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
       fx.penalty += RECOVERY.fail * c.tries.filter((x) => !x.ok).length;
       if (c.status === 'recovered') {
         fx.recovered++;
-        fx.cancel[COMPLAINT_TYPES[c.kind].category] = true;
+        fx.cancel[c.info?.category ?? COMPLAINT_TYPES[c.kind].category] = true;
         fx.bonus = Math.max(fx.bonus, RECOVERY.bonus + (c.sameBand ? RECOVERY.sameBand : 0)); // one Recovery Bonus a stay
       } else {
         c.status = 'unresolved';
@@ -229,13 +246,36 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
       const budget = GUEST_TYPES[b.type]?.budget;
       if (budget && b.rate > budget * (1 + TRIGGERS.valueOver)) trigger(b, 'value', minute, { rate: b.rate, budget });
     },
-    // A band begins: in the café's band, more guests than its covers → each party staying has a food trigger.
+    // A band begins: in the café's band, more guests than its covers → each party staying has a food trigger. (Milestone 8)
+    // A worn café serves covers × its working share; an offline one serves nobody (its breakdown is its own trigger).
     onEdge(day, band, bk) {
       const f = TRIGGERS.food;
       if (band !== BAND[f.band] || !facilities.some((x) => x.id === f.facility)) return;
+      const share = mt ? mt.eff(f.facility) : 1;
+      if (share <= 0) return;
       const stay = bk?.staying ?? [];
       const guests = stay.reduce((t, b) => t + (b.party ?? 1), 0);
-      if (guests > f.covers) for (const b of stay) trigger(b, 'food', minuteOf(day, band), { guests });
+      if (guests > Math.floor(f.covers * share)) for (const b of stay) trigger(b, 'food', minuteOf(day, band), { guests });
+    },
+    // (Milestone 8) a room breaks with this party in it: a breakdown complaint, no roll (they need a room change).
+    onRoomBreakdown(b, minute, roomId) {
+      if (!enabled) return null;
+      const seen = (s.seen[b.id] ??= {});
+      if (seen.breakdown) return null;
+      seen.breakdown = true;
+      s.stats.triggers++;
+      bump(s.stats.triggersByKind, 'breakdown');
+      if (minute > s.at) s.at = minute;
+      return raise(b, 'breakdown', minute, { target: roomId, category: COMPLAINT_TYPES.breakdown.category });
+    },
+    // (Milestone 8) Reception, the Pool or the Café goes offline: a rolled breakdown trigger for each party staying.
+    onFacilityBreakdown(id, minute) {
+      const category = FELT[id];
+      if (!category) return;
+      for (const b of bookings?.staying ?? []) trigger(b, 'breakdown', minute, { target: id, category }, `breakdown:${id}`);
+    },
+    attachMaintenance(m) {
+      mt = m;
     },
     closeStay,
     options,
@@ -302,5 +342,8 @@ function load(saved) {
 
 // "Late room · Road Trip Couple · Room 3" helpers for the sheets.
 export const complaintTitle = (c) => COMPLAINT_TYPES[c.kind]?.name ?? 'Complaint';
-export const complaintLine = (c) => COMPLAINT_TYPES[c.kind]?.line ?? '';
+export function complaintLine(c) {
+  const f = c.kind === 'breakdown' && FACILITIES.find((x) => x.id === c.info?.target); // (Milestone 8) a facility broke
+  return f ? `The ${f.name} broke down during their stay.` : COMPLAINT_TYPES[c.kind]?.line ?? '';
+}
 export const roomTypeRank = (roomId) => ROOM_TYPES[roomById(roomId)?.typeId]?.rank ?? 0;

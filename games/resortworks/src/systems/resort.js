@@ -9,6 +9,7 @@ import { minuteOf } from './calendar.js';
 import { freshReviews } from './reviews.js';
 import { freshFinance } from './finance.js';
 import { freshComplaints } from './complaints.js';
+import { freshMaintenance } from './maintenance.js';
 
 // A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
 // before the calendar existed (Milestone 2).
@@ -43,6 +44,7 @@ export function newCampaign(setup, now = Date.now()) {
     reviews: freshReviews(), // (Milestone 5) reviews, REP / Rank, the monthly star rating ("New" until the first month ends)
     finance: freshFinance({ day: 0 }), // (Milestone 6) 32,000 Credits, the ledger, no debt, Standard pricing
     complaints: freshComplaints(), // (Milestone 7) complaints, recovery actions and results
+    maintenance: freshMaintenance({ minute: minuteOf(0, 1) }), // (Milestone 8) Condition 90 everywhere, no jobs yet
     opal: { welcomed: false }, // (M6b) Dame Opal's welcome card is due (a save from before M6b has none: no welcome)
     playSec: 0,
     ngPlus: 0,
@@ -115,5 +117,12 @@ export const SAVE_MIGRATIONS = {
     const d = record.data;
     const at = d.bookings?.at ?? { day: d.calendar?.totalDays ?? 0, band: 1 };
     return { ...record, data: { ...d, complaints: d.complaints ?? { ...freshComplaints(), at: minuteOf(at.day, Math.max(0, Math.min(BANDS.length - 1, at.band))) } } };
+  },
+  // 7 → 8 (Milestone 8): every facility and room starts at Condition 90, no jobs, nothing offline; the maintenance clock
+  // starts at the save's last band edge.
+  7: (record) => {
+    const d = record.data;
+    const at = d.bookings?.at ?? { day: d.calendar?.totalDays ?? 0, band: 1 };
+    return { ...record, data: { ...d, maintenance: d.maintenance ?? freshMaintenance({ minute: minuteOf(at.day, Math.max(0, Math.min(BANDS.length - 1, at.band))) }) } };
   },
 };

@@ -1,7 +1,8 @@
 // Complaints / recovery numbers (Milestone 7, bible §18 / §27A / §27F / §27P). Plain data — src/systems/complaints.js
 // runs it. Picks the bible leaves open are Cowork's (M7 card) or Claude Code's, and are logged in docs/DECISIONS.md.
 
-// The complaint types (bible §18). on: can happen today (noise, breakdown and package failure wait for M9 / M8 / M18).
+// The complaint types (bible §18). on: can happen today (noise and package failure wait for M9 / M18; breakdown is on from
+// M8, severity 0.5 from its card — a room breaking with a party in it always gives them one, data/maintenance.js FELT).
 // severity: the trigger's weight — the chance a trigger becomes a complaint is (100 − Patience) / 100 × severity (Patience:
 // data/bookings.js GUEST_TYPES, bible §27F). Tuned (M7 card): the card's 1.0 / 0.8 / 0.6 / 0.5 / 0.5 gave 1 complaint
 // every 23 stays in a 90-day Standard-price run, so every severity is halved (same order): 1 every ~40 (bible §27P: 30–60).
@@ -14,7 +15,7 @@ export const COMPLAINT_TYPES = {
   value: { id: 'value', on: true, severity: 0.25, category: 'value', best: ['refund'], name: 'Too pricey', line: 'They think the room costs too much for what it is.' },
   food: { id: 'food', on: true, severity: 0.25, category: 'food', best: ['comp'], name: 'Slow café', line: 'The café was too busy to serve them.' },
   noise: { id: 'noise', on: false, from: 'M9', severity: 0.3, category: 'comfort', best: ['roomChange'], name: 'Too noisy', line: 'It was too noisy to sleep.' },
-  breakdown: { id: 'breakdown', on: false, from: 'M8', severity: 0.4, category: 'room', best: ['maintenance'], name: 'Something broke', line: 'Something in their room broke.' },
+  breakdown: { id: 'breakdown', on: true, severity: 0.5, category: 'comfort', best: ['maintenance'], name: 'Something broke', line: 'Something in their room broke. They need a room change.' },
   package: { id: 'package', on: false, from: 'M18', severity: 0.35, category: 'activities', best: ['refund', 'vip'], name: 'Package let them down', line: 'Their package wasn’t what they paid for.' },
 };
 export const COMPLAINT_IDS = Object.keys(COMPLAINT_TYPES);
@@ -32,13 +33,14 @@ export const TRIGGERS = { lateMinutes: 30, queueMinutes: 20, valueOver: 0.1, foo
 // alongside the stays (the check-in itself and the walkers keep their M3 / M4 timing).
 export const DESK = { role: 'FO', checkInMinutes: 8, offShiftWait: 30 };
 
-// The recovery actions (bible §18). on: works today (maintenance priority waits for M8, VIP escalation for later).
+// The recovery actions (bible §18). on: works today (maintenance priority from M8: only for a breakdown; VIP escalation
+// waits for later).
 export const ACTIONS = {
   apology: { id: 'apology', on: true, name: 'Apology & priority service', line: 'Say sorry. Their next check-in or clean jumps the queue.', free: true },
   roomChange: { id: 'roomChange', on: true, name: 'Room change', line: 'Move them to a Ready room as good or better.' },
   comp: { id: 'comp', on: true, name: 'Comped café meal', line: 'A free café meal for the party.', perGuest: 12, ledger: 'comps' },
   refund: { id: 'refund', on: true, name: 'Partial refund', line: 'A quarter of one night’s rate back.', share: 0.25, ledger: 'refunds' },
-  maintenance: { id: 'maintenance', on: false, from: 'M8', name: 'Maintenance priority', line: 'Send Maintenance first.' },
+  maintenance: { id: 'maintenance', on: true, only: 'breakdown', name: 'Maintenance priority', line: 'Maintenance fixes it before anything else.' },
   vip: { id: 'vip', on: false, from: 'later', name: 'VIP escalation', line: 'The manager looks after them in person.' },
 };
 export const ACTION_IDS = Object.keys(ACTIONS);

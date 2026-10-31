@@ -32,9 +32,15 @@
 //   complaintSheet  — what's wrong, how long it has waited, then each recovery action: its chance, cost, a "Best fit" hint,
 //                     or why it can't be used; what was tried and how it went.
 //   a guest         — their complaints.
-//   resortSheet(world, id, { accent, bookings, today, dateOf, act, hk, team, reviews, finance, complaints }) → a core/ui/BottomSheet menu (key: the id), or null
+// Milestone 8 (maintenance / Condition, src/systems/maintenance.js):
+//   every facility and room — a Condition bar with a plain line ("Good", "Worn: working at 80%", "Broken: offline"), the
+//                     job on it (repair / service, who, time left or place in the line) and a Service now button.
+//   Maintenance Shed (F05) — the Maintenance person, their job now and the line of jobs; the breakdowns so far.
+//   a staff member  — the Maintenance person also their current job and the line.
+//   complaintSheet  — Maintenance priority for a breakdown (not shown for other complaints).
+//   resortSheet(world, id, { accent, bookings, today, dateOf, act, hk, team, reviews, finance, complaints, mt }) → a core/ui/BottomSheet menu (key: the id), or null
 //     act: { accept(offerId), decline(offerId), pick(offerOrBookingId), open(id), setAuto(on), rates(), finance(),
-//            setBand(roomType, bandId) } — the screen's actions
+//            setBand(roomType, bandId), service(id) } — the screen's actions
 //   pickRoomSheet(bookings, forId, { accent, today, act: { choose(forId, roomId), open(id) } })
 import { stationSheet } from '../../../../core/ui/StationSheet.js';
 import { THEME } from '../../../../core/Theme.js';
@@ -52,30 +58,93 @@ import { credits, signed, bandRate, offerChance } from '../systems/finance.js';
 import { COMPLAINT_TYPES, ACTIONS, RECOVERY, REP_UNRESOLVED } from '../../data/complaints.js';
 import { bandsBetween } from '../systems/complaints.js';
 import { bandAtMinute } from '../systems/calendar.js';
+import { complaintLine } from '../systems/complaints.js';
+import { CONDITION, BADGE } from '../../data/maintenance.js';
+import { targetName } from '../systems/maintenance.js';
 
 const C = THEME.color;
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const partyWords = (n) => (n === 1 ? '1 person' : `${n} people`);
 const aOrAn = (w) => (/^[AEIOU]/i.test(w) ? 'an' : 'a');
 export const rateWords = (rate) => `${rate} Cr a night`;
-const NO_ACT = { accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {}, review() {}, scores() {}, rates() {}, finance() {}, setBand() {}, complaint() {}, recover() {} };
+const NO_ACT = { accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {}, review() {}, scores() {}, rates() {}, finance() {}, setBand() {}, complaint() {}, recover() {}, service() {} };
 // (Milestone 5) the star rating in a few characters: "3★", or "New" before the first month ends.
 export const starText = (stars) => (stars ? `${stars}★` : 'New');
 const starsLong = (n) => `${'★'.repeat(n)}${'☆'.repeat(5 - n)}`;
 const REVIEWS_SHOWN = 20;
 
-export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null, finance = null, complaints = null } = {}) {
+export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null, finance = null, complaints = null, mt = null } = {}) {
   const it = world?.byId(id);
   if (!it) return null;
   const now = [world.stateOf(it)];
   let spec;
   if (it.kind === 'guest') spec = guestSpec(world, it, { bookings, today, dateOf, complaints, act });
-  else if (it.kind === 'staff') spec = staffSpec(world, it, { hk, now });
+  else if (it.kind === 'staff') spec = staffSpec(world, it, { hk, now, mt });
   else if (it.kind === 'room') spec = roomSpec(world, it, { bookings, today, act, hk, finance });
   else if (it.id === 'F01' && bookings) spec = receptionSpec(it, { bookings, today, act, accent, reviews, dateOf, finance, complaints });
   else if (it.id === 'F04' && hk) spec = laundrySpec(it, { hk, now });
+  else if (it.id === 'F05' && mt) spec = shedSpec(it, { mt, now, team: world.team });
   else spec = { title: it.def.name, line: it.def.line, art: it.def.art, now };
+  // (Milestone 8) every facility and room: its Condition (Reception's goes after its lists)
+  if (mt && it.kind !== 'guest' && it.kind !== 'staff') {
+    const sec = conditionSection(mt, it.id, act);
+    spec.body = it.id === 'F01' ? [...(spec.body ?? []), sec] : [sec, ...(spec.body ?? [])];
+    if (mt.isOffline(it.id)) spec.tag = { text: 'BROKEN', color: BADGE.broken.color };
+  }
   return { ...stationSheet({ ...spec, accent, text: { now: 'Now' } }), key: id };
+}
+
+// --- (Milestone 8) Condition: the bar, the plain line, the job on it, Service now -------------------------------------
+const condColor = (mt, id) => (mt.isOffline(id) ? BADGE.broken.color : mt.isWorn(id) ? BADGE.worn.color : C.good);
+function jobWords(mt, id) {
+  const j = mt.jobFor(id);
+  if (!j) return null;
+  const what = j.kind === 'repair' ? 'Repair' : 'Service';
+  if (j.active) return { text: `${what}: ${j.who} ${j.phase === 'walk' ? 'is on the way' : `· ${minutesWords(j.left)} left`}`, color: C.actionDark };
+  return { text: `${what} ${j.priority ? 'first in line (priority)' : `queued · ${ordinal(j.place)} in Maintenance’s line`}`, color: C.textMuted };
+}
+export function conditionSection(mt, id, act = NO_ACT) {
+  const c = mt.condition(id);
+  const off = mt.isOffline(id);
+  const lines = [{ text: mt.words(id), color: condColor(mt, id) }];
+  const job = jobWords(mt, id);
+  if (job) lines.push(job);
+  if (off && !job?.text.startsWith('Repair:')) lines.push({ text: `Repair: back at ${mt.rules.repairTo} for ${credits(mt.costOf(id, 'repair'))}.`, color: C.textMuted });
+  const why = off ? 'Broken: the repair is in the line.' : mt.hasJob(id) ? 'Maintenance is already on it.' : c >= CONDITION.max ? 'In perfect condition.' : null;
+  return {
+    title: 'Condition',
+    std: 'condition',
+    lines,
+    bars: [{ label: 'Condition', value: Math.round(c), max: CONDITION.max, color: condColor(mt, id), text: off ? 'Offline' : String(Math.round(c)) }],
+    columns: 1,
+    buttons: [{ id: `service:${id}`, label: 'Service now', sub: why ?? `+${mt.rules.serviceAdd} Condition · after any repairs`, cost: credits(mt.costOf(id, 'service')), accent: why ? C.textMuted : C.progress, disabled: !!why, onTap: () => act.service(id) }],
+  };
+}
+// --- (Milestone 8) the Maintenance Shed: who works the line, their job now, the line, the breakdowns ------------------
+function jobLine(mt, j) {
+  const what = j.kind === 'repair' ? 'Repair' : j.auto ? 'Service (worn)' : 'Service (asked)';
+  return { text: `${what} · ${targetName(j.target)}`, right: j.priority ? 'Priority' : `${Math.round(mt.condition(j.target))}`, color: j.kind === 'repair' ? BADGE.broken.color : C.text };
+}
+function shedSpec(it, { mt, now }) {
+  const m = mt.workers[0];
+  const j = m ? mt.jobOf(m.id) : null;
+  const head = !m ? 'Nobody on the team works Maintenance.' : j ? `${m.name}: ${j.kind === 'repair' ? 'repairing' : 'servicing'} ${targetName(j.target)}${j.phase === 'walk' ? ' (on the way)' : ` · ${minutesWords(j.left)} left`}` : mt.onShift(m.id) ? `${m.name} is free` : `${m.name} is off shift`;
+  const q = mt.queue;
+  const st = mt.stats;
+  const body = [
+    { title: `Maintenance line (${q.length})`, std: 'mtQueue', lines: q.length ? q.slice(0, 8).map((x) => jobLine(mt, x)) : [{ text: `Nothing to do: everything is ${mt.rules.serviceBelow} or better.`, color: C.textMuted }] },
+    {
+      title: 'So far',
+      std: 'mtStats',
+      lines: [
+        { text: 'Breakdowns', right: String(st.breakdowns), color: st.breakdowns ? C.bad : C.text },
+        { text: 'Repairs', right: `${st.repairs} · ${credits(st.repairCost)}` },
+        { text: 'Services', right: `${st.services} · ${credits(st.partsCost)}` },
+        { text: `Repairs come first, then anything under ${mt.rules.serviceBelow}, lowest first. A service adds ${mt.rules.serviceAdd}; a repair brings it back at ${mt.rules.repairTo}.`, color: C.textMuted },
+      ],
+    },
+  ];
+  return { title: it.def.name, line: it.def.line, art: it.def.art, now: [head, ...now.map((x) => ({ text: x, color: C.textMuted }))], body };
 }
 
 // --- Reception: the Bookings list -----------------------------------------------------------------------------------
@@ -174,7 +243,7 @@ export function roomStateLine(bk, room, today) {
   if (st === 'occupied') return b ? `Occupied by ${aOrAn(tname)} ${tname} · ${nightsLeftWords(b.nightsLeft).toLowerCase()}` : 'Occupied';
   if (st === 'dirty') return 'Dirty — needs cleaning';
   if (st === 'cleaning') return 'Cleaning';
-  return 'Closed for maintenance';
+  return 'Broken — closed for repairs';
 }
 function roomSpec(world, it, { bookings: bk, today, act, hk = null, finance = null }) {
   const room = it.def;
@@ -212,7 +281,7 @@ const ordinal = (n) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 ===
 export const minutesWords = (m) => (m >= 60 ? `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, '0')} min` : `${Math.max(1, Math.ceil(m))} min`);
 
 // --- a staff member (Milestone 4) -----------------------------------------------------------------------------------
-function staffSpec(world, p, { hk, now }) {
+function staffSpec(world, p, { hk, now, mt = null }) {
   const m = p.member;
   const tag = p.founder ? { text: 'FOUNDER', color: C.purple } : { text: 'STAFF', color: C.progress };
   if (!m?.stats) return { title: p.name, line: ROLES[p.role]?.name ?? world.role.name, art: m?.art ?? world.founder.art, tag, now };
@@ -233,6 +302,18 @@ function staffSpec(world, p, { hk, now }) {
       ],
     });
   }
+  // (Milestone 8) the Maintenance person: their job now and the line
+  const mj = m.role === 'MG' ? mt?.jobOf(m.id) : null;
+  if (mj) nowLines[0] = `${mj.phase === 'walk' ? 'Walking to' : mj.kind === 'repair' ? 'Repairing' : 'Servicing'} ${targetName(mj.target)}${mj.phase === 'walk' ? '' : ` · ${minutesWords(mj.left)} left`}`;
+  if (m.role === 'MG' && mt)
+    body.push({
+      title: 'Maintenance',
+      lines: [
+        { text: 'Current job', right: mj ? `${mj.kind === 'repair' ? 'Repair' : 'Service'} · ${targetName(mj.target)}` : 'None' },
+        { text: 'Jobs in the line', right: String(mt.queue.length) },
+        { text: 'Shift', right: mt.onShift(m.id) ? 'On shift' : 'Off shift' },
+      ],
+    });
   return { title: m.name, line: ROLES[m.role].name, art: m.art, tag, now: nowLines, body };
 }
 
@@ -294,7 +375,7 @@ export function complaintSheet(cp, id, { accent = C.progress, act = NO_ACT, book
   const st = statusWords(c, cp);
   const room = roomById(c.room);
   const b = c.closed ? null : bookings?.byId(c.booking);
-  const now = [kind.line, { text: `${st.text} · came in ${bandWords(bandsBetween(c, bandAtMinute(cp.at)))}`, color: st.color }];
+  const now = [complaintLine(c), { text: `${st.text} · came in ${bandWords(bandsBetween(c, bandAtMinute(cp.at)))}`, color: st.color }];
   const last = c.tries[c.tries.length - 1];
   if (last) now.push(last.ok ? { text: `${ACTIONS[last.action].name} worked! They're happy again.`, color: C.good } : { text: `${ACTIONS[last.action].name} didn't work (−${-RECOVERY.fail} satisfaction).${c.status === 'open' ? ' You can try once more.' : ''}`, color: C.bad });
   const body = [];
@@ -306,7 +387,8 @@ export function complaintSheet(cp, id, { accent = C.progress, act = NO_ACT, book
       lines: c.status === 'open' ? [{ text: `Each band they wait takes ${RECOVERY.perBand}% off the chance. Front Office Service: ${Math.round(cp.serviceStat())}.`, color: C.textMuted }] : [],
       columns: 1,
       buttons: opts
-        .filter((o) => o.on)
+        .filter((o) => o.on && !o.hidden)
+        .sort((x, y) => (y.best ? 1 : 0) - (x.best ? 1 : 0)) // (Milestone 8) the best fit first, so it shows without scrolling
         .map((o) => ({
           id: `recover:${o.id}`,
           label: `${o.best ? '★ ' : ''}${o.name}${o.room ? ` → ${roomById(o.room).name}` : ''}`,
@@ -317,7 +399,7 @@ export function complaintSheet(cp, id, { accent = C.progress, act = NO_ACT, book
           onTap: () => act.recover(c.id, o.id),
         })),
     });
-    const later = opts.filter((o) => !o.on);
+    const later = opts.filter((o) => !o.on && !o.hidden);
     if (later.length) body.push({ title: 'Coming later', std: 'later', lines: later.map((o) => ({ text: `${o.name}: ${o.why}`, color: C.textMuted })) });
   }
   if (c.tries.length) body.push({ title: 'Tried', std: 'tries', lines: c.tries.map((x) => ({ text: `${ACTIONS[x.action].name}${x.cost ? ` (${credits(x.cost)})` : ''}`, right: `${x.ok ? 'Worked' : "Didn't work"} · ${x.chance}%`, color: x.ok ? C.good : C.bad })) });
@@ -462,6 +544,6 @@ export function financeSheet(fin, { today = 0, accent = C.progress } = {}) {
       { text: `If cash runs out, the bank lends what you need, up to 20,000 or a quarter of everything you have earned (at most 250,000). It costs ${CREDIT.interestPct}% a month and is paid back by itself once cash allows.`, color: C.textMuted },
     ],
   });
-  body.push({ title: 'When money moves', std: 'when', lines: [{ text: 'Rooms are paid at check-out. The Snack Café takes 12 Cr a guest each evening. Upkeep and supplies are paid each night, wages at the end of each month.', color: C.textMuted }] });
+  body.push({ title: 'When money moves', std: 'when', lines: [{ text: 'Rooms are paid at check-out. The Snack Café takes 12 Cr a guest each evening. Upkeep and supplies are paid each night, wages at the end of each month. Repairs and maintenance parts are paid when the job starts.', color: C.textMuted }] });
   return { ...stationSheet({ title: 'Finance', line: 'Cash, income, costs and profit.', art: 'facility_f01', accent, now, body, text: { now: 'Now' } }), key: 'finance' };
 }
