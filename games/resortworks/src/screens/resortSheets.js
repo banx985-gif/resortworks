@@ -19,8 +19,16 @@
 //   Reception       — a Reviews list, newest first (tap one for its card), and a Resort scores button.
 //   resortScoresSheet — the star rating ("New" before the first month ends), Rank and REP, the five headline scores with
 //                     one plain line each, last month's Roadside Guide marks.
-//   resortSheet(world, id, { accent, bookings, today, dateOf, act, hk, team, reviews }) → a core/ui/BottomSheet menu (key: the id), or null
-//     act: { accept(offerId), decline(offerId), pick(offerOrBookingId), open(id), setAuto(on) } — the screen's actions
+// Milestone 6 (finance / pricing, src/systems/finance.js):
+//   Reception       — Rates and Finance buttons; each offer shows its rate in its room type's pricing band.
+//   ratesSheet      — per room type (RM01, RM02): Value / Standard / Premium with the nightly rate of each, and how many
+//                     offers each guest type still sends at the current price.
+//   financeSheet    — cash and Emergency Credit, today's and this month's income and costs by line in plain words, the
+//                     last 6 months' profit as a bar chart.
+//   a room / the picker — the rate in the room type's current band.
+//   resortSheet(world, id, { accent, bookings, today, dateOf, act, hk, team, reviews, finance }) → a core/ui/BottomSheet menu (key: the id), or null
+//     act: { accept(offerId), decline(offerId), pick(offerOrBookingId), open(id), setAuto(on), rates(), finance(),
+//            setBand(roomType, bandId) } — the screen's actions
 //   pickRoomSheet(bookings, forId, { accent, today, act: { choose(forId, roomId), open(id) } })
 import { stationSheet } from '../../../../core/ui/StationSheet.js';
 import { THEME } from '../../../../core/Theme.js';
@@ -33,34 +41,36 @@ import { LINEN, LATE_BADGE } from '../../data/housekeeping.js';
 import { linenFor } from '../systems/housekeeping.js';
 import { patternWords } from '../systems/staff.js';
 import { HEADLINES, WINDOW_DAYS } from '../../data/reviews.js';
+import { PRICE_BANDS, LINES, INCOME_LINES, COST_LINES, CREDIT, HISTORY, bandById } from '../../data/finance.js';
+import { credits, signed, bandRate, offerChance } from '../systems/finance.js';
 
 const C = THEME.color;
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const partyWords = (n) => (n === 1 ? '1 person' : `${n} people`);
 const aOrAn = (w) => (/^[AEIOU]/i.test(w) ? 'an' : 'a');
 export const rateWords = (rate) => `${rate} Cr a night`;
-const NO_ACT = { accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {}, review() {}, scores() {} };
+const NO_ACT = { accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {}, review() {}, scores() {}, rates() {}, finance() {}, setBand() {} };
 // (Milestone 5) the star rating in a few characters: "3★", or "New" before the first month ends.
 export const starText = (stars) => (stars ? `${stars}★` : 'New');
 const starsLong = (n) => `${'★'.repeat(n)}${'☆'.repeat(5 - n)}`;
 const REVIEWS_SHOWN = 20;
 
-export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null } = {}) {
+export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null, finance = null } = {}) {
   const it = world?.byId(id);
   if (!it) return null;
   const now = [world.stateOf(it)];
   let spec;
   if (it.kind === 'guest') spec = guestSpec(world, it, { bookings, today, dateOf });
   else if (it.kind === 'staff') spec = staffSpec(world, it, { hk, now });
-  else if (it.kind === 'room') spec = roomSpec(world, it, { bookings, today, act, hk });
-  else if (it.id === 'F01' && bookings) spec = receptionSpec(it, { bookings, today, act, accent, reviews, dateOf });
+  else if (it.kind === 'room') spec = roomSpec(world, it, { bookings, today, act, hk, finance });
+  else if (it.id === 'F01' && bookings) spec = receptionSpec(it, { bookings, today, act, accent, reviews, dateOf, finance });
   else if (it.id === 'F04' && hk) spec = laundrySpec(it, { hk, now });
   else spec = { title: it.def.name, line: it.def.line, art: it.def.art, now };
   return { ...stationSheet({ ...spec, accent, text: { now: 'Now' } }), key: id };
 }
 
 // --- Reception: the Bookings list -----------------------------------------------------------------------------------
-function receptionSpec(it, { bookings: bk, today, act, reviews = null, dateOf = null }) {
+function receptionSpec(it, { bookings: bk, today, act, reviews = null, dateOf = null, finance = null }) {
   const offers = bk.offers;
   const up = bk.upcoming;
   const stay = bk.staying;
@@ -132,7 +142,7 @@ function receptionSpec(it, { bookings: bk, today, act, reviews = null, dateOf = 
     line: it.def.line,
     art: it.def.art,
     now: [summary],
-    more: [...(reviews ? [{ id: 'scores', label: `Resort scores · ${starText(reviews.stars)}`, sub: `Rank ${reviews.rank.id} · the five headline scores`, accent: C.progress, onTap: () => act.scores() }] : []), { id: 'auto', label: `Auto Assign: ${bk.autoAssign ? 'On' : 'Off'}`, sub: bk.autoAssign ? 'Accepted guests get the best-fitting room' : 'You pick a room for each booking', accent: bk.autoAssign ? C.progress : C.textMuted, onTap: () => act.setAuto(!bk.autoAssign) }],
+    more: [...(finance ? financeButtons(finance, act) : []), ...(reviews ? [{ id: 'scores', label: `Resort scores · ${starText(reviews.stars)}`, sub: `Rank ${reviews.rank.id} · the five headline scores`, accent: C.progress, onTap: () => act.scores() }] : []), { id: 'auto', label: `Auto Assign: ${bk.autoAssign ? 'On' : 'Off'}`, sub: bk.autoAssign ? 'Accepted guests get the best-fitting room' : 'You pick a room for each booking', accent: bk.autoAssign ? C.progress : C.textMuted, onTap: () => act.setAuto(!bk.autoAssign) }],
     body,
   };
 }
@@ -150,7 +160,7 @@ export function roomStateLine(bk, room, today) {
   if (st === 'cleaning') return 'Cleaning';
   return 'Closed for maintenance';
 }
-function roomSpec(world, it, { bookings: bk, today, act, hk = null }) {
+function roomSpec(world, it, { bookings: bk, today, act, hk = null, finance = null }) {
   const room = it.def;
   const rt = ROOM_TYPES[room.typeId];
   if (!bk) return { title: room.name, line: room.type, art: room.art, now: [world.stateOf(it)] };
@@ -178,7 +188,7 @@ function roomSpec(world, it, { bookings: bk, today, act, hk = null }) {
     tag: { text: st.name.toUpperCase(), color: st.color },
     now,
     main,
-    body: [{ title: 'Room', lines: [{ text: `${PRICE_BAND.name} rate`, right: rateWords(Math.round(rt.rate * PRICE_BAND.mult)) }] }],
+    body: [{ title: 'Room', lines: [finance ? { text: `${bandById(finance.bandOf(rt.id)).name} rate (Reception → Rates)`, right: rateWords(finance.rateOf(rt.id)) } : { text: `${PRICE_BAND.name} rate`, right: rateWords(Math.round(rt.rate * PRICE_BAND.mult)) }] }],
   };
 }
 
@@ -242,7 +252,7 @@ function guestSpec(world, p, { bookings: bk, today, dateOf }) {
 }
 
 // --- the room picker (manual pinning) ------------------------------------------------------------------------------
-export function pickRoomSheet(bk, forId, { accent = C.progress, today = 0, act = NO_ACT } = {}) {
+export function pickRoomSheet(bk, forId, { accent = C.progress, today = 0, act = NO_ACT, finance = null } = {}) {
   const x = bk.byId(forId);
   if (!x) return null;
   const t = GUEST_TYPES[x.type];
@@ -258,7 +268,7 @@ export function pickRoomSheet(bk, forId, { accent = C.progress, today = 0, act =
         id: `room:${r.id}`,
         label: `${r.name} · ${ROOM_TYPES[r.typeId].name}`,
         sub: current ? 'Their room now' : ok ? `Fit ${Math.round(fit)}${best?.id === r.id ? ' · Auto Assign’s pick' : ''}` : st.name,
-        cost: rateWords(ROOM_TYPES[r.typeId].rate),
+        cost: rateWords(finance ? finance.rateOf(r.typeId) : ROOM_TYPES[r.typeId].rate),
         accent: ok ? (best?.id === r.id ? C.action : C.progress) : C.textMuted,
         disabled: !ok,
         onTap: () => act.choose(forId, r.id),
@@ -280,7 +290,7 @@ export function pickRoomSheet(bk, forId, { accent = C.progress, today = 0, act =
 }
 
 // --- (Milestone 5) the Resort sheet: star rating, Rank / REP, the five headline scores ------------------------------
-export function resortScoresSheet(rv, { today = 0, accent = C.progress } = {}) {
+export function resortScoresSheet(rv, { today = 0, accent = C.progress, act = NO_ACT, finance = null } = {}) {
   const h = rv.headline(today);
   const last = rv.lastMonth;
   const next = rv.nextRank;
@@ -299,5 +309,82 @@ export function resortScoresSheet(rv, { today = 0, accent = C.progress } = {}) {
     },
   ];
   if (last) body.push({ title: `Last rating: Month ${last.n}`, lines: [...last.marks.map((m) => ({ text: `${m.name} (${m.area})`, right: `${m.mark.toFixed(1)}/10` })), { text: 'Quality', right: last.qi.toFixed(1) }, { text: 'Stars', right: starsLong(last.stars) }], std: 'lastMonth' });
-  return { ...stationSheet({ title: 'Resort scores', line: 'Your star rating, Rank and headline scores.', art: 'facility_f01', accent, now, body, text: { now: 'Now' } }), key: 'scores' };
+  const more = finance ? financeButtons(finance, act) : []; // (Milestone 6)
+  return { ...stationSheet({ title: 'Resort scores', line: 'Your star rating, Rank and headline scores.', art: 'facility_f01', accent, now, more, body, text: { now: 'Now' } }), key: 'scores' };
+}
+
+// --- (Milestone 6) Rates: a pricing band per room type ---------------------------------------------------------------
+const ratesSub = (fin) => Object.keys(ROOM_TYPES).map((rt) => `${ROOM_TYPES[rt].name.replace(' Room', '')}: ${bandById(fin.bandOf(rt)).name}`).join(' · ');
+function financeButtons(fin, act) {
+  return [
+    { id: 'rates', label: 'Rates', sub: ratesSub(fin), accent: C.progress, onTap: () => act.rates() },
+    { id: 'finance', label: `Finance · ${credits(fin.cash)}`, sub: fin.debt > 0 ? `Emergency Credit ${credits(fin.debt)}` : 'Income, costs and profit', accent: fin.debt > 0 ? C.bad : C.progress, onTap: () => act.finance() },
+  ];
+}
+const pct = (k) => `${Math.round(k * 100)}%`;
+// The guest types that ask for this room type (data/bookings.js wants), most likely first.
+const askers = (rt) => Object.values(GUEST_TYPES).filter((g) => (g.wants[rt] ?? 0) > 0).sort((a, b) => b.wants[rt] - a.wants[rt]);
+// service: the rolling 28-day Service (null before any review) — Premium under 70 loses more guests.
+export function ratesSheet(fin, { accent = C.progress, act = NO_ACT, service = null } = {}) {
+  const body = [];
+  for (const rt of Object.keys(ROOM_TYPES)) {
+    const t = ROOM_TYPES[rt];
+    const n = ROOMS.filter((r) => r.typeId === rt).length;
+    const cur = fin.bandOf(rt);
+    body.push({
+      title: `${t.name} · ${plural(n, 'room')} · ${rateWords(fin.rateOf(rt))}`,
+      std: `rates:${rt}`,
+      lines: askers(rt).map((g) => {
+        const k = offerChance({ type: g.id, rate: fin.rateOf(rt) }, { band: cur, service });
+        return { text: `${g.name} (spends about ${g.budget} a night)`, right: k >= 1 ? 'all book' : `${pct(k)} book`, color: k >= 1 ? C.good : k < 0.75 ? C.bad : C.text };
+      }),
+      columns: 3,
+      buttons: PRICE_BANDS.map((b) => ({ id: `band:${rt}:${b.id}`, label: b.id === cur ? `✓ ${b.name}` : b.name, sub: rateWords(bandRate(rt, b.id)), accent: b.id === cur ? C.action : C.textMuted, onTap: () => act.setBand(rt, b.id) })),
+    });
+  }
+  const how = PRICE_BANDS.map((b) => ({ text: `${b.name} (${Math.round(b.mult * 100)}%): ${b.line}`, color: C.textMuted }));
+  how.push({ text: 'A new price is used for new offers. Guests already booked keep the rate they booked at. Guests judge Value by the price they pay.', color: C.textMuted });
+  if (service != null && service < 70) how.push({ text: `Service is ${Math.round(service)} (under 70): Premium loses even more guests.`, color: C.bad });
+  body.push({ title: 'How prices work', std: 'how', lines: how });
+  return { ...stationSheet({ title: 'Rates', line: 'Pick a price for each kind of room.', art: 'facility_f01', accent, now: [ratesSub(fin)], body, text: { now: 'Now' } }), key: 'rates' };
+}
+
+// --- (Milestone 6) Finance: cash, Emergency Credit, income and costs by line, the last months' profit -----------------
+function linesSection(title, lines, std) {
+  const income = INCOME_LINES.reduce((a, k) => a + (lines[k] ?? 0), 0);
+  const costs = COST_LINES.reduce((a, k) => a + (lines[k] ?? 0), 0);
+  const rows = [
+    ...INCOME_LINES.filter((k) => lines[k]).map((k) => ({ text: LINES[k].name, right: signed(lines[k]), color: C.good })),
+    ...COST_LINES.filter((k) => lines[k]).map((k) => ({ text: LINES[k].name, right: signed(-lines[k]) })),
+  ];
+  if (!rows.length) rows.push({ text: 'Nothing yet.', color: C.textMuted });
+  else rows.push({ text: 'Profit', right: signed(income - costs), color: income - costs < 0 ? C.bad : C.good });
+  if (lines.creditDraw) rows.push({ text: LINES.creditDraw.name, right: signed(lines.creditDraw), color: C.textMuted });
+  if (lines.creditRepay) rows.push({ text: LINES.creditRepay.name, right: signed(-lines.creditRepay), color: C.textMuted });
+  return { title, lines: rows, std };
+}
+export function financeSheet(fin, { today = 0, accent = C.progress } = {}) {
+  const m = fin.month;
+  const cr = fin.credit;
+  const now = [`Cash: ${credits(fin.cash)}`, fin.debt > 0 ? { text: `Emergency Credit: ${credits(fin.debt)} owed (limit ${credits(cr.ceiling)}) · ${CREDIT.interestPct}% a month`, color: C.bad } : { text: 'No debt', color: C.good }];
+  const body = [linesSection('Today so far', fin.dayLines(today), 'today'), linesSection(`This month (Month ${m.n})`, m.lines, 'month')];
+  const shown = fin.months.slice(-HISTORY.chartMonths);
+  const top = Math.max(1, ...shown.map((x) => Math.abs(x.profit)));
+  body.push({
+    title: `Profit, last ${HISTORY.chartMonths} months`,
+    std: 'chart',
+    lines: shown.length ? [] : [{ text: 'Each month’s profit shows here when the month ends.', color: C.textMuted }],
+    bars: shown.map((x) => ({ label: `Month ${x.n}`, value: Math.abs(x.profit), max: top, color: x.profit < 0 ? C.bad : C.good, text: signed(x.profit) })),
+  });
+  body.push({
+    title: 'Emergency Credit',
+    std: 'credit',
+    lines: [
+      { text: 'Owed now', right: credits(fin.debt), color: fin.debt > 0 ? C.bad : C.text },
+      { text: 'The most you can owe', right: credits(cr.ceiling) },
+      { text: `If cash runs out, the bank lends what you need, up to 20,000 or a quarter of everything you have earned (at most 250,000). It costs ${CREDIT.interestPct}% a month and is paid back by itself once cash allows.`, color: C.textMuted },
+    ],
+  });
+  body.push({ title: 'When money moves', std: 'when', lines: [{ text: 'Rooms are paid at check-out. The Snack Café takes 12 Cr a guest each evening. Upkeep and supplies are paid each night, wages at the end of each month.', color: C.textMuted }] });
+  return { ...stationSheet({ title: 'Finance', line: 'Cash, income, costs and profit.', art: 'facility_f01', accent, now, body, text: { now: 'Now' } }), key: 'finance' };
 }

@@ -7,6 +7,7 @@ import { makeTeam } from './staff.js';
 import { freshHousekeeping } from './housekeeping.js';
 import { minuteOf } from './calendar.js';
 import { freshReviews } from './reviews.js';
+import { freshFinance } from './finance.js';
 
 // A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
 // before the calendar existed (Milestone 2).
@@ -39,6 +40,7 @@ export function newCampaign(setup, now = Date.now()) {
     staff: makeTeam(seed, founder.id), // (Milestone 4) the opening team: the Founder + the four other Start staff
     housekeeping: freshHousekeeping({ minute: minuteOf(0, 1) }), // (Milestone 4) cleaning jobs, queue, linen
     reviews: freshReviews(), // (Milestone 5) reviews, REP / Rank, the monthly star rating ("New" until the first month ends)
+    finance: freshFinance({ day: 0 }), // (Milestone 6) 32,000 Credits, the ledger, no debt, Standard pricing
     playSec: 0,
     ngPlus: 0,
   };
@@ -61,6 +63,7 @@ export function slotSummary(data) {
     month: data.date.month,
     stage: data.stage ?? null,
     stars: data.reviews?.stars ?? data.stars ?? 0, // (Milestone 5) 0 = New
+    cash: data.finance?.econ?.balances?.credits ?? null, // (Milestone 6)
     prestige: data.prestige ?? 0,
     ngPlus: data.ngPlus ?? 0,
     playSec: data.playSec ?? 0,
@@ -101,4 +104,6 @@ export const SAVE_MIGRATIONS = {
   },
   // 4 → 5 (Milestone 5): no reviews yet, REP 0 (Rank E) and the star rating "New" — stays already over left no review.
   4: (record) => ({ ...record, data: { ...record.data, reviews: record.data.reviews ?? freshReviews() } }),
+  // 5 → 6 (Milestone 6): 32,000 Credits from the save's day, no debt, Standard pricing (no money was kept before).
+  5: (record) => ({ ...record, data: { ...record.data, finance: record.data.finance ?? freshFinance({ day: record.data.calendar?.totalDays ?? 0 }) } }),
 };

@@ -24,8 +24,12 @@
 // the Resort sheet (rating, Rank / REP, the five headline scores). A toast for each new review (one tap opens its card);
 // Reception lists the reviews, newest first. Each review card and the monthly Roadside Guide are core MajorFeedback
 // moments (src/screens/reviewMoments.js). ?debug=1 adds "Next Rank" to the skip row (REP straight to the next Rank).
+// Milestone 6: the top bar shows the Credits first (red chip while the Emergency Credit is owed); tapping the Credits opens
+// the Finance sheet, the rest of the chip still opens Resort scores. Reception has Rates (a pricing band per room type)
+// and Finance. A small "+N" floats up over the room at each check-out and over the Snack Café each Evening (core
+// FloatFeed — never piled up; gentler with Reduced flashes; held while a sheet or a moment is up).
 //   createResortScreen({ renderer, layout, assets, bus, sheet, feedback, run, onMenu, debug, reducedFlashes, onSkip, onRep })
-//     run() → the open campaign { n, data, calendar, bookings, team, housekeeping, reviews } or null    onSkip(days) → the debug skip
+//     run() → the open campaign { n, data, calendar, bookings, team, housekeeping, reviews, finance } or null    onSkip(days) → the debug skip
 //     feedback: core MajorFeedback (main draws it and gives it the taps)    onRep() → the debug REP skip
 import { THEME, font } from '../../../../core/Theme.js';
 import { IsoProjection } from '../../../../core/IsoProjection.js';
@@ -48,7 +52,10 @@ import { BANDS, TINT_FADE } from '../../data/calendar.js';
 import { founderById, paletteById } from '../../data/setup.js';
 import { LOT, ART_LOOK, ART_TWEAK, PERSON, LOOK, roomById } from '../../data/lot.js';
 import { createResortWorld } from '../systems/resortWorld.js';
-import { resortSheet, pickRoomSheet, resortScoresSheet, starText } from './resortSheets.js';
+import { resortSheet, pickRoomSheet, resortScoresSheet, starText, ratesSheet, financeSheet } from './resortSheets.js';
+import { credits } from '../systems/finance.js';
+import { VfxSystem } from '../../../../core/VfxSystem.js';
+import { FloatFeed } from '../../../../core/FloatFeed.js';
 import { reviewMoment, guideMoment, starWords } from './reviewMoments.js';
 import { managerLine } from '../systems/resort.js';
 
@@ -166,11 +173,29 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     dateOf: (d) => calendar()?.clock.dateOf(d) ?? { year: 1, month: 1, day: 1 },
   };
   let note = null; // { text, t } — why a locked speed was refused, under the bar for a moment
-  // (Milestone 5) the star rating and the Rank, then the band's short name (the last one squeezes)
+  // (Milestone 5) the star rating and the Rank (Milestone 6: after the Credits; the band's name is on the date line)
+  // (Milestone 6) the Credits come first
+  const CASH_GAP = 28;
+  const cashStat = () => {
+    const fin = run()?.finance;
+    return fin ? [{ text: credits(fin.cash), color: fin.debt > 0 ? C.bad : C.good, gap: CASH_GAP }] : [];
+  };
   const barStats = () => {
     const rv = run()?.reviews;
-    if (!rv) return [{ text: calendar()?.band.label ?? '' }];
-    return [{ text: starText(rv.stars), color: rv.stars ? C.gold : undefined, gap: 28 }, { text: `Rank ${rv.rank.id}`, gap: 28 }, { text: calendar()?.band.name ?? '' }];
+    if (!rv) return [...cashStat(), { text: calendar()?.band.label ?? '' }];
+    return [...cashStat(), { text: starText(rv.stars), color: rv.stars ? C.gold : undefined, gap: 28 }, { text: `Rank ${rv.rank.id}` }]; // (M6: the band's name moved onto the date line)
+  };
+  // The Credits' part of the chip (a tap there opens Finance; the rest opens Resort scores).
+  const creditsRect = () => {
+    const chip = topBar.statsRect();
+    const c = cashStat()[0];
+    if (!c) return null;
+    return { x: chip.x, y: chip.y, w: 12 + textW(c.text, S.body) + CASH_GAP / 2, h: chip.h };
+  };
+  const scoresRect = () => {
+    const chip = topBar.statsRect();
+    const c = creditsRect();
+    return c ? { x: c.x + c.w, y: chip.y, w: chip.w - c.w, h: chip.h } : chip;
   };
   const topBar = createTopBar({
     layout,
@@ -180,8 +205,9 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     back: { label: '‹ Menu', onTap: () => onMenu() },
     showInbox: false,
     showHelp: false,
-    dateLabel: (d) => `Y${d.year} · Month ${d.month} · Day ${d.day}`,
+    dateLabel: (d) => `Y${d.year} · Month ${d.month} · Day ${d.day}${calendar() ? ` · ${calendar().band.name}` : ''}`, // (M6) + the band's name
     stats: () => barStats(),
+    statsBad: () => (run()?.finance?.debt ?? 0) > 0, // (M6) in debt
     onStats: () => openScores('bar'),
     accent: () => palette.hex,
     onLockedSpeed: (s) => {
@@ -240,10 +266,45 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   function openScores(via = 'sheet') {
     const rv = run()?.reviews;
     if (!rv) return;
-    sheet.open(() => resortScoresSheet(rv, { today: today(), accent: palette.hex, act }));
+    sheet.open(() => resortScoresSheet(rv, { today: today(), accent: palette.hex, act, finance: run()?.finance ?? null }));
     opened = { id: 'scores', via };
     debug?.log(`sheet: resort scores (${via})`);
   }
+  // (Milestone 6) the Finance and Rates sheets
+  function openFinance(via = 'sheet') {
+    const fin = run()?.finance;
+    if (!fin) return;
+    sheet.open(() => financeSheet(fin, { today: today(), accent: palette.hex }));
+    opened = { id: 'finance', via };
+    debug?.log(`sheet: finance (${via})`);
+  }
+  function openRates(via = 'sheet') {
+    const fin = run()?.finance;
+    if (!fin) return;
+    sheet.open(() => ratesSheet(fin, { accent: palette.hex, act, service: run()?.reviews?.headline(today()).service ?? null }));
+    opened = { id: 'rates', via };
+    debug?.log(`sheet: rates (${via})`);
+  }
+
+  // --- (Milestone 6) money floats up from where it was earned: "+210" over the room, "+48" over the café -------------
+  const vfx = new VfxSystem({ assets, width: W, height: renderer.height, font: THEME.family, maxTexts: 6, maxEffects: 4 });
+  const floats = new FloatFeed({
+    vfx,
+    where: (source, lane) => {
+      const p = source ? screen.pointOf(source) : null;
+      if (!p || !inView(p.x, p.y) || p.x < 60 || p.x > W - 60) return null;
+      return { x: p.x, y: p.y - 60 - lane * 56 };
+    },
+    fallback: (lane) => {
+      const c = creditsRect() ?? topBar.statsRect();
+      return { x: c.x + c.w / 2, y: c.y + c.h + 60 + lane * 56 };
+    },
+  });
+  bus.on('finance:income', ({ amount, source }) => {
+    if (!active) return;
+    const calm = reducedFlashes();
+    floats.push({ key: 'credits', amount, source, label: (a) => `+${a.toLocaleString('en-GB')}`, color: C.good, size: calm ? 38 : 44, life: calm ? 2.2 : 1.9, rise: calm ? 26 : 64 });
+  });
 
   // --- screen rects ------------------------------------------------------------------------------------------------
   const menuRect = () => topBar.backRect();
@@ -367,6 +428,11 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     open: (id) => openSheet(id, 'sheet'),
     review: (id) => showReview(id), // (Milestone 5)
     scores: () => openScores('sheet'),
+    rates: () => openRates('sheet'), // (Milestone 6)
+    finance: () => openFinance('sheet'),
+    setBand(rt, id) {
+      if (run()?.finance?.setBand(rt, id)) debug?.log(`rates: ${rt} → ${id}`); // (finance:band asks for a save)
+    },
     setAuto(on) {
       bookings()?.setAutoAssign(on);
       acted(`auto assign ${on ? 'on' : 'off'}`);
@@ -376,7 +442,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     const x = calendar()?.clock.dateOf(d);
     return x ? `Y${x.year} · Month ${x.month} · Day ${x.day}` : `Day ${d + 1}`;
   };
-  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null });
+  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null, finance: run()?.finance ?? null });
   function openSheet(id, via = 'art') {
     if (!world?.byId(id)) return;
     sheet.open(() => resortSheet(world, id, sheetOpts()));
@@ -503,6 +569,10 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         }
       }
       notes.update(dt, { hold: sheet.active || !active || !!feedback?.active });
+      vfx.reducedFlashes = reducedFlashes(); // (Milestone 6) the "+N" money floats
+      vfx.height = renderer.height;
+      floats.update(dt, { hold: sheet.active || !active || !!feedback?.active || buildMode });
+      vfx.update(dt);
       // (Milestone 5) the month just rated: its Roadside Guide moment (only the newest after a debug skip)
       if (monthsDue.length && feedback) {
         const m = monthsDue[monthsDue.length - 1];
@@ -548,6 +618,11 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         return log(hitRect(p, doneRect()) ? 'done' : null);
       }
       if (topBar.contains(p)) {
+        const cr = creditsRect();
+        if (cr && hitRect(p, cr)) {
+          openFinance('bar'); // (Milestone 6) the Credits → Finance
+          return log('credits');
+        }
         const b = topBar.buttons().find((x) => hitRect(p, x.rect));
         topBar.handleTap(p); // ‹ Menu, Pause, the speeds (a locked one explains itself)
         return log(b?.id ?? 'bar');
@@ -619,6 +694,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       camera.restore(ctx);
       drawTint(ctx);
       if (!buildMode) drawBadges(ctx);
+      if (!buildMode) vfx.render(ctx, 'screen'); // (M6) the "+N" money floats, under the bar and the sheets
       if (buildMode) drawBanner(ctx);
       else {
         topBar.render(ctx);
@@ -684,7 +760,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       const bar = Object.fromEntries(topBar.buttons().map((b) => [b.id, b.rect])); // 'pause', 'speed1', 'speed2', 'speed4'
       const skip = Object.fromEntries(SKIPS.map((s, i) => [s.id, debugSkips() ? skipRect(i) : null]));
       if (id?.startsWith?.('badge:')) return badgeRects().find((b) => b.id === id.slice(6))?.rect ?? null;
-      return { menu: menuRect(), shortcut: shortcutRect(), done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), note: note ? noteRect() : null, toast: toastRect(), stats: topBar.statsRect(), skipMoment: feedback?.current?.skipRect?.() ?? null, ...bar, ...skip }[id] ?? null;
+      return { menu: menuRect(), shortcut: shortcutRect(), done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), note: note ? noteRect() : null, toast: toastRect(), stats: scoresRect(), credits: creditsRect(), skipMoment: feedback?.current?.skipRect?.() ?? null, ...bar, ...skip }[id] ?? null;
     },
     // (Milestone 4) the word on a room's badge now — Ready / Dirty / Cleaning / Late … (tests).
     badgeOf: (id) => badgeRects().find((b) => b.id === id)?.st.name ?? null,
@@ -697,6 +773,9 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     openPicker,
     showReview,
     openScores,
+    openFinance,
+    openRates,
+    floats,
     barStats: () => barStats().map((x) => x.text),
     get note() {
       return note?.text ?? null;

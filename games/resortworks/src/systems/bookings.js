@@ -22,6 +22,10 @@
 //   'booking:late' { bookings } · 'booking:change' (any change: the sheets and the map redraw from it)
 // Milestone 5: with reviews attached (attachReviews(rv), src/systems/reviews.js) each check-out is scored at once (the
 // booking keeps its review id) and every band edge is passed on after it happens (the month's star rating).
+// Milestone 6: with finance attached (attachFinance(fin), src/systems/finance.js) each new offer takes its room type's
+// rate in the current pricing band, and is kept only with the chance finance gives for that rate and the rolling Service
+// (drawn from its own seeded Rng, seed + day, so the offers themselves never change with the price — only which come in);
+// each check-out books the room's revenue, and every band edge is passed on after the reviews (café, bills, wages).
 import { Rng } from '../../../../core/Rng.js';
 import { BANDS } from '../../data/calendar.js';
 import { LATE } from '../../data/housekeeping.js';
@@ -53,7 +57,7 @@ export function firstBookings({ seed, day = 0, band = 'morning' }) {
   return s;
 }
 
-const STATS0 = { offered: 0, accepted: 0, declined: 0, expired: 0, checkIns: 0, checkOuts: 0, lateRooms: 0, lateMinutes: 0 };
+const STATS0 = { offered: 0, accepted: 0, declined: 0, expired: 0, checkIns: 0, checkOuts: 0, lateRooms: 0, lateMinutes: 0, pricedOut: 0 };
 const HOLDS = new Set(['upcoming', 'waiting', 'staying']); // a booking in one of these holds its room
 const rateOf = (roomType) => Math.round(ROOM_TYPES[roomType].rate * PRICE_BAND.mult);
 function weighted(rng, entries) {
@@ -63,7 +67,9 @@ function weighted(rng, entries) {
   return entries[entries.length - 1][0];
 }
 // One day's offers: 2–4, each its own guest type, party, nights, arrival day and the room type they want.
-export function makeOffers(seed, day, stats = null) {
+// (Milestone 6) pricing: { rateOf(roomType), chance(offer) → 0–1 } — the offer's rate in its pricing band, and how likely
+// it is to come in at that rate (one that doesn't is counted as priced out). Without it: Standard, and all come in.
+export function makeOffers(seed, day, stats = null, pricing = null) {
   const rng = new Rng(`${seed}:offers:${day}`);
   const n = rng.int(OFFERS.perMorning[0], OFFERS.perMorning[1]);
   const out = [];
@@ -72,10 +78,16 @@ export function makeOffers(seed, day, stats = null) {
     const nights = rng.int(t.nights[0], t.nights[1]);
     const arrival = day + rng.int(OFFERS.arriveWithin[0], OFFERS.arriveWithin[1]);
     const roomType = weighted(rng, Object.entries(t.wants));
-    out.push({ id: `O${day}-${k}`, day, type: t.id, party: t.party, nights, arrival, roomType, rate: rateOf(roomType) });
+    out.push({ id: `O${day}-${k}`, day, type: t.id, party: t.party, nights, arrival, roomType, rate: pricing ? pricing.rateOf(roomType) : rateOf(roomType) });
   }
-  if (stats) stats.offered += out.length;
-  return out;
+  let kept = out;
+  if (pricing) {
+    const roll = new Rng(`${seed}:demand:${day}`); // one roll per offer, always drawn, so one price never shifts the others
+    kept = out.filter((o) => roll.next() < pricing.chance(o));
+    if (stats) stats.pricedOut = (stats.pricedOut ?? 0) + out.length - kept.length;
+  }
+  if (stats) stats.offered += kept.length;
+  return kept;
 }
 
 // Fit (bible §27B) of a room for an offer or booking, 0–100.
@@ -96,6 +108,8 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   let version = 0;
   let hk = null; // (Milestone 4) the housekeeping system, once attached
   let rv = null; // (Milestone 5) the reviews system, once attached
+  let fin = null; // (Milestone 6) the finance system, once attached
+  const pricing = (day) => (fin ? { rateOf: fin.rateOf, chance: (o) => fin.offerChance(o, rv?.headline(day).service ?? null) } : null);
   const changed = () => {
     version++;
     bus?.emit('booking:change', {});
@@ -181,11 +195,12 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
           s.stats.checkOuts++;
           const v = rv?.checkout(b, day); // (Milestone 5) the stay is scored and leaves a review
           if (v) b.review = v.id;
+          fin?.checkout(b, day); // (Milestone 6) the room's revenue: rate × nights
           outs.push(b);
         }
       s.at = { day, band };
       if (outs.length) hk?.enqueue(outs.map((b) => b.room));
-      fresh = makeOffers(seed, day, s.stats);
+      fresh = makeOffers(seed, day, s.stats, pricing(day));
       s.offers.push(...fresh);
     }
     const late = [];
@@ -233,6 +248,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
         hk?.onEdge(next.day, next.band);
         edge(next.day, next.band);
         rv?.onEdge(next.day, next.band); // (Milestone 5) a new month rates the month just ended
+        fin?.onEdge(next.day, next.band, api); // (Milestone 6) the café at Evening, the bills at the day change
         n++;
       }
       if (n) changed();
@@ -311,6 +327,10 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     // (Milestone 5) the reviews system: every check-out is scored, every band edge passed on.
     attachReviews(r) {
       rv = r;
+    },
+    // (Milestone 6) the finance system: offer rates and demand, check-out revenue, every band edge passed on.
+    attachFinance(f) {
+      fin = f;
     },
     // A party arriving today (or earlier and waiting) holds this room: its cleaning jumps the queue.
     arrivalDue: (id, day) => s.bookings.some((b) => b.room === id && (b.status === 'waiting' || (b.status === 'upcoming' && b.arrival <= day))),
