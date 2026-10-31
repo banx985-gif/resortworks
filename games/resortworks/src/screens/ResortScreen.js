@@ -20,8 +20,13 @@
 // Motel Service Block otherwise); the housekeeper walks to each Dirty room and cleans it in the cleaning pose. A room
 // whose party is waiting at Reception shows "Late" on its badge, and a toast says so. The staff, Laundry, room and
 // Reception sheets show the cleaning (src/screens/resortSheets.js).
-//   createResortScreen({ renderer, layout, assets, bus, sheet, run, onMenu, debug, reducedFlashes, onSkip })
-//     run() → the open campaign { n, data, calendar, bookings, team, housekeeping } or null    onSkip(days) → the debug skip
+// Milestone 5: the top bar shows the star rating ("New" before the first month ends) and the Rank letter; tapping them opens
+// the Resort sheet (rating, Rank / REP, the five headline scores). A toast for each new review (one tap opens its card);
+// Reception lists the reviews, newest first. Each review card and the monthly Roadside Guide are core MajorFeedback
+// moments (src/screens/reviewMoments.js). ?debug=1 adds "Next Rank" to the skip row (REP straight to the next Rank).
+//   createResortScreen({ renderer, layout, assets, bus, sheet, feedback, run, onMenu, debug, reducedFlashes, onSkip, onRep })
+//     run() → the open campaign { n, data, calendar, bookings, team, housekeeping, reviews } or null    onSkip(days) → the debug skip
+//     feedback: core MajorFeedback (main draws it and gives it the taps)    onRep() → the debug REP skip
 import { THEME, font } from '../../../../core/Theme.js';
 import { IsoProjection } from '../../../../core/IsoProjection.js';
 import { Camera } from '../../../../core/Camera.js';
@@ -43,7 +48,8 @@ import { BANDS, TINT_FADE } from '../../data/calendar.js';
 import { founderById, paletteById } from '../../data/setup.js';
 import { LOT, ART_LOOK, ART_TWEAK, PERSON, LOOK, roomById } from '../../data/lot.js';
 import { createResortWorld } from '../systems/resortWorld.js';
-import { resortSheet, pickRoomSheet } from './resortSheets.js';
+import { resortSheet, pickRoomSheet, resortScoresSheet, starText } from './resortSheets.js';
+import { reviewMoment, guideMoment, starWords } from './reviewMoments.js';
 import { managerLine } from '../systems/resort.js';
 
 const C = THEME.color;
@@ -57,7 +63,7 @@ const DETAIL_STEPS = [0.35, 0.5, 0.7, 1.0, 1.4];
 const detailFor = (zoom) => DETAIL_STEPS.find((d) => d >= zoom - 1e-3) ?? DETAIL_STEPS[DETAIL_STEPS.length - 1];
 const PEOPLE_FIRST = 1e6; // people are picked over the building behind them
 
-export function createResortScreen({ renderer, layout, assets, bus, sheet, run, onMenu, debug = null, reducedFlashes = () => false, onSkip = () => {} }) {
+export function createResortScreen({ renderer, layout, assets, bus, sheet, feedback = null, run, onMenu, debug = null, reducedFlashes = () => false, onSkip = () => {}, onRep = () => {} }) {
   const W = renderer.width;
   const iso = new IsoProjection({ tileSize: CELL, halfW: HW, halfH: HH, originX: LOT.margin + ROWS_DRAWN * HW, originY: LOT.margin + LOT.topOverhang });
   const worldW = (LOT.cols + ROWS_DRAWN) * HW + LOT.margin * 2;
@@ -160,6 +166,12 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     dateOf: (d) => calendar()?.clock.dateOf(d) ?? { year: 1, month: 1, day: 1 },
   };
   let note = null; // { text, t } — why a locked speed was refused, under the bar for a moment
+  // (Milestone 5) the star rating and the Rank, then the band's short name (the last one squeezes)
+  const barStats = () => {
+    const rv = run()?.reviews;
+    if (!rv) return [{ text: calendar()?.band.label ?? '' }];
+    return [{ text: starText(rv.stars), color: rv.stars ? C.gold : undefined, gap: 28 }, { text: `Rank ${rv.rank.id}`, gap: 28 }, { text: calendar()?.band.name ?? '' }];
+  };
   const topBar = createTopBar({
     layout,
     assets,
@@ -169,7 +181,8 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     showInbox: false,
     showHelp: false,
     dateLabel: (d) => `Y${d.year} · Month ${d.month} · Day ${d.day}`,
-    stats: () => [{ text: calendar()?.band.label ?? '' }],
+    stats: () => barStats(),
+    onStats: () => openScores('bar'),
     accent: () => palette.hex,
     onLockedSpeed: (s) => {
       note = { text: calendar()?.lockedLine(s) ?? '', t: 3 };
@@ -178,13 +191,13 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
   });
 
   // --- toasts (Milestone 3): one at a time, one tap closes it, the rest wait their turn ---------------------------------
-  const notes = new NotificationSystem({ maxToasts: 1, toastQueueMax: 5, toastSec: 3 });
+  const notes = new NotificationSystem({ maxToasts: 1, toastQueueMax: 12, toastSec: 3 });
   const roomList = (ids) => {
     const n = ids.map((id) => roomById(id)?.number ?? '?');
     return n.length === 1 ? `Room ${n[0]}` : `Rooms ${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}`;
   };
   const aOrAn = (w) => (/^[AEIOU]/i.test(w) ? 'An' : 'A');
-  const toast = (title, body, art) => notes.post({ kind: 'booking', title, body, art, toast: true });
+  const toast = (title, body, art, data = null) => notes.post({ kind: data?.review ? 'review' : 'booking', title, body, art, data, toast: true });
   bus.on('booking:offers', ({ offers }) => {
     if (!active) return;
     toast(offers.length === 1 ? 'A new booking offer' : `${offers.length} new booking offers`, 'See them at Reception.', GUEST_TYPES[offers[0].type]?.art);
@@ -204,6 +217,33 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     const one = bookings.length === 1 ? bookings[0] : null;
     toast(one ? `${GUEST_TYPES[one.type].name} checked out` : `${bookings.length} parties checked out`, `${roomList(bookings.map((b) => b.room))} ${one ? 'is' : 'are'} Dirty — ${one ? 'needs' : 'need'} cleaning.`, GUEST_TYPES[bookings[0].type]?.art);
   });
+
+  // (Milestone 5) a toast for each new review (one tap opens its card); a Rank up; the month's Roadside Guide moment.
+  bus.on('review:new', ({ review: v }) => {
+    if (!active) return;
+    toast(`New review: ${starWords(v.stars)}`, `${GUEST_TYPES[v.type].name} · ${roomList([v.room])}. Tap to read it.`, GUEST_TYPES[v.type]?.art, { review: v.id });
+  });
+  bus.on('reputation:rankUp', ({ rank }) => {
+    if (!active) return;
+    toast(`Rank ${rank.id} reached!`, `Your resort is now ${rank.name}.`, null);
+  });
+  const monthsDue = []; // months rated since the last frame (a debug skip can rate several: only the newest is shown)
+  bus.on('review:month', ({ month }) => active && monthsDue.push(month));
+  function showReview(id) {
+    const v = run()?.reviews?.byId(id);
+    if (!v || !feedback) return false;
+    sheet.close();
+    feedback.show(reviewMoment(v, { assets, layout }));
+    debug?.log(`review card ${id}`);
+    return true;
+  }
+  function openScores(via = 'sheet') {
+    const rv = run()?.reviews;
+    if (!rv) return;
+    sheet.open(() => resortScoresSheet(rv, { today: today(), accent: palette.hex, act }));
+    opened = { id: 'scores', via };
+    debug?.log(`sheet: resort scores (${via})`);
+  }
 
   // --- screen rects ------------------------------------------------------------------------------------------------
   const menuRect = () => topBar.backRect();
@@ -229,6 +269,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     { id: 'skipMonth', label: '+1 month', days: 28 },
     { id: 'skipYear', label: '+1 year', days: 336 },
     { id: 'readyRooms', label: 'Rooms Ready', days: null }, // (Milestone 3) every Dirty room back to Ready
+    { id: 'nextRank', label: 'Next Rank', days: null, rep: true }, // (Milestone 5) REP straight to the next Rank
   ];
   const skipRect = (i) => {
     const s = shortcutRect();
@@ -324,6 +365,8 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
       openSheet('F01', 'picker');
     },
     open: (id) => openSheet(id, 'sheet'),
+    review: (id) => showReview(id), // (Milestone 5)
+    scores: () => openScores('sheet'),
     setAuto(on) {
       bookings()?.setAutoAssign(on);
       acted(`auto assign ${on ? 'on' : 'off'}`);
@@ -333,7 +376,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     const x = calendar()?.clock.dateOf(d);
     return x ? `Y${x.year} · Month ${x.month} · Day ${x.day}` : `Day ${d + 1}`;
   };
-  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null });
+  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null });
   function openSheet(id, via = 'art') {
     if (!world?.byId(id)) return;
     sheet.open(() => resortSheet(world, id, sheetOpts()));
@@ -459,7 +502,14 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
           syncSelection();
         }
       }
-      notes.update(dt, { hold: sheet.active || !active });
+      notes.update(dt, { hold: sheet.active || !active || !!feedback?.active });
+      // (Milestone 5) the month just rated: its Roadside Guide moment (only the newest after a debug skip)
+      if (monthsDue.length && feedback) {
+        const m = monthsDue[monthsDue.length - 1];
+        feedback.show(guideMoment(m, { layout, earlier: monthsDue.length - 1 }));
+        debug?.log(`roadside guide: month ${m.n} · ${m.stars} stars (QI ${m.qi})`);
+        monthsDue.length = 0;
+      }
       updateTint(dt);
       if (note && (note.t -= dt) <= 0) note = null;
     },
@@ -504,12 +554,14 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
       }
       const tr = toastRect();
       if (tr && hitRect(p, tr)) {
-        notes.toasts.shift(); // one tap closes it; the next one waiting shows after
+        const t0 = notes.toasts.shift(); // one tap closes it; the next one waiting shows after
+        if (t0?.entry.data?.review) showReview(t0.entry.data.review); // (M5) a review toast opens its card
         return log('toast');
       }
       const sk = debugSkips() ? SKIPS.findIndex((_, i) => hitRect(p, skipRect(i))) : -1;
       if (sk >= 0) {
         if (SKIPS[sk].days) onSkip(SKIPS[sk].days);
+        else if (SKIPS[sk].rep) onRep();
         else {
           const n = bookings()?.makeAllReady() ?? 0;
           acted(`rooms ready (${n})`);
@@ -632,7 +684,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
       const bar = Object.fromEntries(topBar.buttons().map((b) => [b.id, b.rect])); // 'pause', 'speed1', 'speed2', 'speed4'
       const skip = Object.fromEntries(SKIPS.map((s, i) => [s.id, debugSkips() ? skipRect(i) : null]));
       if (id?.startsWith?.('badge:')) return badgeRects().find((b) => b.id === id.slice(6))?.rect ?? null;
-      return { menu: menuRect(), shortcut: shortcutRect(), done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), note: note ? noteRect() : null, toast: toastRect(), ...bar, ...skip }[id] ?? null;
+      return { menu: menuRect(), shortcut: shortcutRect(), done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), note: note ? noteRect() : null, toast: toastRect(), stats: topBar.statsRect(), skipMoment: feedback?.current?.skipRect?.() ?? null, ...bar, ...skip }[id] ?? null;
     },
     // (Milestone 4) the word on a room's badge now — Ready / Dirty / Cleaning / Late … (tests).
     badgeOf: (id) => badgeRects().find((b) => b.id === id)?.st.name ?? null,
@@ -643,6 +695,9 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, run, 
     notes,
     act,
     openPicker,
+    showReview,
+    openScores,
+    barStats: () => barStats().map((x) => x.text),
     get note() {
       return note?.text ?? null;
     },

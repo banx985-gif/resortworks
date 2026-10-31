@@ -20,6 +20,8 @@
 //     attach(hk) · arrivalDue(roomId, day) · waitingFor(roomId) · roomCleaning(id) · roomReady(id, minute) (housekeeping)
 //   On the bus: 'booking:offers' { day, offers } · 'booking:checkin' { bookings } · 'booking:checkout' { bookings } ·
 //   'booking:late' { bookings } · 'booking:change' (any change: the sheets and the map redraw from it)
+// Milestone 5: with reviews attached (attachReviews(rv), src/systems/reviews.js) each check-out is scored at once (the
+// booking keeps its review id) and every band edge is passed on after it happens (the month's star rating).
 import { Rng } from '../../../../core/Rng.js';
 import { BANDS } from '../../data/calendar.js';
 import { LATE } from '../../data/housekeeping.js';
@@ -93,6 +95,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   let s = saved ? load(saved) : freshBookings({ seed, day, band });
   let version = 0;
   let hk = null; // (Milestone 4) the housekeeping system, once attached
+  let rv = null; // (Milestone 5) the reviews system, once attached
   const changed = () => {
     version++;
     bus?.emit('booking:change', {});
@@ -176,6 +179,8 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
           b.outDay = day;
           setRoom(b.room, 'dirty');
           s.stats.checkOuts++;
+          const v = rv?.checkout(b, day); // (Milestone 5) the stay is scored and leaves a review
+          if (v) b.review = v.id;
           outs.push(b);
         }
       s.at = { day, band };
@@ -227,6 +232,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
         hk?.advance(minuteOf(next.day, next.band)); // cleaning up to this edge first, then the edge
         hk?.onEdge(next.day, next.band);
         edge(next.day, next.band);
+        rv?.onEdge(next.day, next.band); // (Milestone 5) a new month rates the month just ended
         n++;
       }
       if (n) changed();
@@ -301,6 +307,10 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     },
     attach(h) {
       hk = h;
+    },
+    // (Milestone 5) the reviews system: every check-out is scored, every band edge passed on.
+    attachReviews(r) {
+      rv = r;
     },
     // A party arriving today (or earlier and waiting) holds this room: its cleaning jumps the queue.
     arrivalDue: (id, day) => s.bookings.some((b) => b.room === id && (b.status === 'waiting' || (b.status === 'upcoming' && b.arrival <= day))),

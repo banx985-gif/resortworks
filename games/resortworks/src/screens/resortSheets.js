@@ -15,7 +15,11 @@
 //   Laundry (F04)   — linen units left today, what's been used and any short cleans.
 //   a room          — Dirty (its place in the queue) / Cleaning (who, time left) / Ready, short on linen, Late.
 //   Reception       — a Waiting list flags every party waiting for a late room.
-//   resortSheet(world, id, { accent, bookings, today, dateOf, act, hk, team }) → a core/ui/BottomSheet menu (key: the id), or null
+// Milestone 5 (reviews, src/systems/reviews.js):
+//   Reception       — a Reviews list, newest first (tap one for its card), and a Resort scores button.
+//   resortScoresSheet — the star rating ("New" before the first month ends), Rank and REP, the five headline scores with
+//                     one plain line each, last month's Roadside Guide marks.
+//   resortSheet(world, id, { accent, bookings, today, dateOf, act, hk, team, reviews }) → a core/ui/BottomSheet menu (key: the id), or null
 //     act: { accept(offerId), decline(offerId), pick(offerOrBookingId), open(id), setAuto(on) } — the screen's actions
 //   pickRoomSheet(bookings, forId, { accent, today, act: { choose(forId, roomId), open(id) } })
 import { stationSheet } from '../../../../core/ui/StationSheet.js';
@@ -28,15 +32,20 @@ import { STAT_KEYS, STAT_NAMES, TIERS } from '../../data/staff.js';
 import { LINEN, LATE_BADGE } from '../../data/housekeeping.js';
 import { linenFor } from '../systems/housekeeping.js';
 import { patternWords } from '../systems/staff.js';
+import { HEADLINES, WINDOW_DAYS } from '../../data/reviews.js';
 
 const C = THEME.color;
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const partyWords = (n) => (n === 1 ? '1 person' : `${n} people`);
 const aOrAn = (w) => (/^[AEIOU]/i.test(w) ? 'an' : 'a');
 export const rateWords = (rate) => `${rate} Cr a night`;
-const NO_ACT = { accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {} };
+const NO_ACT = { accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {}, review() {}, scores() {} };
+// (Milestone 5) the star rating in a few characters: "3★", or "New" before the first month ends.
+export const starText = (stars) => (stars ? `${stars}★` : 'New');
+const starsLong = (n) => `${'★'.repeat(n)}${'☆'.repeat(5 - n)}`;
+const REVIEWS_SHOWN = 20;
 
-export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null } = {}) {
+export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null } = {}) {
   const it = world?.byId(id);
   if (!it) return null;
   const now = [world.stateOf(it)];
@@ -44,14 +53,14 @@ export function resortSheet(world, id, { accent = C.progress, bookings = null, t
   if (it.kind === 'guest') spec = guestSpec(world, it, { bookings, today, dateOf });
   else if (it.kind === 'staff') spec = staffSpec(world, it, { hk, now });
   else if (it.kind === 'room') spec = roomSpec(world, it, { bookings, today, act, hk });
-  else if (it.id === 'F01' && bookings) spec = receptionSpec(it, { bookings, today, act, accent });
+  else if (it.id === 'F01' && bookings) spec = receptionSpec(it, { bookings, today, act, accent, reviews, dateOf });
   else if (it.id === 'F04' && hk) spec = laundrySpec(it, { hk, now });
   else spec = { title: it.def.name, line: it.def.line, art: it.def.art, now };
   return { ...stationSheet({ ...spec, accent, text: { now: 'Now' } }), key: id };
 }
 
 // --- Reception: the Bookings list -----------------------------------------------------------------------------------
-function receptionSpec(it, { bookings: bk, today, act }) {
+function receptionSpec(it, { bookings: bk, today, act, reviews = null, dateOf = null }) {
   const offers = bk.offers;
   const up = bk.upcoming;
   const stay = bk.staying;
@@ -104,12 +113,26 @@ function receptionSpec(it, { bookings: bk, today, act }) {
         return { id: `guest:${b.id}`, icon: t.art, label: `${t.name} · ${roomById(b.room).name}`, sub: `${nightsLeftWords(b.nightsLeft)} · ${partyWords(b.party)}`, accent: C.progress, onTap: () => act.open(b.id) };
       }),
     });
+  // (Milestone 5) the reviews, newest first
+  if (reviews) {
+    const list = reviews.list;
+    body.push({ title: `Reviews (${reviews.counts.reviews})`, lines: list.length ? (list.length > REVIEWS_SHOWN ? [{ text: `The newest ${REVIEWS_SHOWN}.`, color: C.textMuted }] : []) : ['Every guest leaves a review when they check out.'], std: 'reviews' });
+    if (list.length)
+      body.push({
+        columns: 1,
+        buttons: list.slice(0, REVIEWS_SHOWN).map((v) => {
+          const t = GUEST_TYPES[v.type];
+          const when = v.day === today ? 'today' : dateOf ? dateOf(v.day) : `Day ${v.day + 1}`;
+          return { id: `review:${v.id}`, icon: t.art, label: `${starsLong(v.stars)} ${t.name}`, sub: `${roomById(v.room)?.name ?? ''} · left ${when} · ${Math.round(v.sat)}/100`, accent: v.stars >= 4 ? C.good : v.stars <= 2 ? C.bad : C.progress, onTap: () => act.review(v.id) };
+        }),
+      });
+  }
   return {
     title: it.def.name,
     line: it.def.line,
     art: it.def.art,
     now: [summary],
-    more: [{ id: 'auto', label: `Auto Assign: ${bk.autoAssign ? 'On' : 'Off'}`, sub: bk.autoAssign ? 'Accepted guests get the best-fitting room' : 'You pick a room for each booking', accent: bk.autoAssign ? C.progress : C.textMuted, onTap: () => act.setAuto(!bk.autoAssign) }],
+    more: [...(reviews ? [{ id: 'scores', label: `Resort scores · ${starText(reviews.stars)}`, sub: `Rank ${reviews.rank.id} · the five headline scores`, accent: C.progress, onTap: () => act.scores() }] : []), { id: 'auto', label: `Auto Assign: ${bk.autoAssign ? 'On' : 'Off'}`, sub: bk.autoAssign ? 'Accepted guests get the best-fitting room' : 'You pick a room for each booking', accent: bk.autoAssign ? C.progress : C.textMuted, onTap: () => act.setAuto(!bk.autoAssign) }],
     body,
   };
 }
@@ -254,4 +277,27 @@ export function pickRoomSheet(bk, forId, { accent = C.progress, today = 0, act =
       { columns: 1, buttons: [{ id: 'back', label: '‹ Back to Reception', accent: C.textMuted, onTap: () => act.open('F01') }] },
     ],
   };
+}
+
+// --- (Milestone 5) the Resort sheet: star rating, Rank / REP, the five headline scores ------------------------------
+export function resortScoresSheet(rv, { today = 0, accent = C.progress } = {}) {
+  const h = rv.headline(today);
+  const last = rv.lastMonth;
+  const next = rv.nextRank;
+  const rank = rv.rank;
+  const score = (k) => (h[k] == null ? '—' : String(Math.round(h[k])));
+  const now = [
+    rv.stars ? `Star rating: ${starsLong(rv.stars)} (${plural(rv.stars, 'star')})` : 'Star rating: New — the first rating comes at the end of Month 1.',
+    `Rank ${rank.id} · ${rank.name} · ${rv.repValue} REP${next ? ` (Rank ${next.id} at ${next.min})` : ''}`,
+  ];
+  const body = [
+    { title: `Headline scores (last ${WINDOW_DAYS} days)`, lines: HEADLINES.flatMap((x) => [{ text: x.name, right: score(x.id) }, { text: x.line, color: C.textMuted }]), std: 'headlines' },
+    {
+      title: 'How the stars are worked out',
+      lines: ['At the end of each month the Roadside Guide rates the resort from these scores and the guests’ Value. 5 stars also needs every score but Prestige at 72 or more.', 'Reviews give REP: +1 a stay, +3 for 4 stars, +7 for 5 stars, −12 for 1 star. REP never drops below your Rank.'],
+      std: 'how',
+    },
+  ];
+  if (last) body.push({ title: `Last rating: Month ${last.n}`, lines: [...last.marks.map((m) => ({ text: `${m.name} (${m.area})`, right: `${m.mark.toFixed(1)}/10` })), { text: 'Quality', right: last.qi.toFixed(1) }, { text: 'Stars', right: starsLong(last.stars) }], std: 'lastMonth' });
+  return { ...stationSheet({ title: 'Resort scores', line: 'Your star rating, Rank and headline scores.', art: 'facility_f01', accent, now, body, text: { now: 'Now' } }), key: 'scores' };
 }

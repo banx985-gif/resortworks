@@ -20,6 +20,10 @@
 // Milestone 4: each open resort has its opening team (src/systems/staff.js: the Founder + four Start staff) and its
 // housekeeping (src/systems/housekeeping.js: cleaning jobs, queue, linen, late rooms), moved on in game minutes each step
 // and at every band edge before it; both are saved in the campaign save.
+// Milestone 5: each open resort has its reviews (src/systems/reviews.js: the seven stay categories, guest weighting, a
+// review per stay, REP / Rank, the rolling headline scores and the monthly star rating), moved on by the booking edges and
+// saved with the rest. The review card and the monthly Roadside Guide are core MajorFeedback moments (the calendar stands
+// still while one shows; a tap first shows every part, the next closes it).
 // Add ?debug=1 for the FPS/state overlay and the setup-data check, ?screen=test for the scaling / tap / asset-loader test
 // screen. With ?debug=1, &safe=phone|tablet stands in a notch and home bar (safe-area insets) on any screen, and
 // &reset=1 empties all four slots.
@@ -47,6 +51,9 @@ import { createCalendar } from './systems/calendar.js';
 import { createBookingSystem } from './systems/bookings.js';
 import { createHousekeeping } from './systems/housekeeping.js';
 import { loadTeam, saveTeam } from './systems/staff.js';
+import { createReviews } from './systems/reviews.js';
+import { MajorFeedback } from '../../../core/MajorFeedback.js';
+import { skipMoment } from './screens/reviewMoments.js';
 import { FrameGovernor } from '../../../core/FrameGovernor.js';
 import { Haptics } from '../../../core/Haptics.js';
 import { settingsSheet } from '../../../core/ui/SettingsSheet.js';
@@ -84,6 +91,18 @@ watchCanvasLoss(renderer.canvas ?? document.getElementById('game')); // a wiped 
 const router = new ScreenRouter(bus, { roots: ['menu', 'test', 'resort'] });
 const dialog = new Dialog({ layout, assets }); // confirm boxes (delete / replace a slot)
 const sheet = new BottomSheet({ layout, assets });
+// (Milestone 5) the review card and the monthly Roadside Guide: the calendar stands still while one shows.
+const feedback = new MajorFeedback({ layout, width: W, height: renderer.height, minShowSec: 0.5 });
+bus.on('renderer:resize', () => (feedback.height = renderer.height));
+bus.on('screen:change', ({ to } = {}) => to !== 'resort' && clearMoments());
+function clearMoments() {
+  feedback.queue.length = 0;
+  feedback.current = null;
+}
+// A tap: while the parts are still coming it shows them all (Skip); once they are all shown it closes the moment.
+function tapMoment() {
+  if (!skipMoment(feedback)) feedback.acknowledge();
+}
 const textPrompt = new TextPrompt({ renderer });
 bus.on('screen:change', () => textPrompt.close());
 bus.on('screen:change', () => sheet.close());
@@ -107,7 +126,8 @@ const loop = new FixedStepLoop({
   stepHz: 60,
   bus,
   update: (dt) => {
-    if (open && router.currentName === 'resort') {
+    feedback.update(dt);
+    if (open && router.currentName === 'resort' && !feedback.active) {
       open.calendar.update(dt); // the calendar runs only while the hub is on screen
       open.housekeeping.advance(open.calendar.minute); // (M4) cleaning, in game minutes, up to now
     }
@@ -123,6 +143,7 @@ const loop = new FixedStepLoop({
     const ctx = renderer.begin(COL.bg);
     router.render(ctx, alpha);
     sheet.render(ctx);
+    feedback.render(ctx);
     dialog.render(ctx);
     if (onTestScreen()) drawButton(ctx, pauseButton(), loop.paused ? 'RESUME' : 'PAUSE', { selected: loop.paused });
     if (loop.paused) drawPaused(ctx);
@@ -157,12 +178,12 @@ debug.log(`seeded rng check: ${rng.int(0, 9999)} (same every reload)`);
 const pauseButton = () => layout.anchor('top-right', 240, THEME.button.minH, 80);
 router.modal = {
   get active() {
-    return loop.paused || dialog.active;
+    return loop.paused || dialog.active || feedback.active;
   },
-  onTap: (p) => (loop.paused ? loop.resume('tap') : dialog.onTap(p)),
+  onTap: (p) => (loop.paused ? loop.resume('tap') : dialog.active ? dialog.onTap(p) : tapMoment()),
   onDown: (p) => dialog.active && dialog.onDown?.(p),
   onUp: (p) => dialog.active && dialog.onUp?.(p),
-  onBack: () => (loop.paused ? loop.resume('back') : dialog.onBack()),
+  onBack: () => (loop.paused ? loop.resume('back') : dialog.active ? dialog.onBack() : tapMoment()),
 };
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'p' && e.key !== 'P' && e.key !== ' ') return;
@@ -222,19 +243,22 @@ bus.on('input:up', () => systemBack.rearm()); // re-arm after any tap, in case a
 // ---------------------------------------------------------------------------
 // The four campaign slots.
 let campaigns = null;
-let open = null; // { n, data, calendar, bookings, team, housekeeping } — the resort on screen
+let open = null; // { n, data, calendar, bookings, team, housekeeping, reviews } — the resort on screen
 let account = {}; // the account store (core/CampaignSlots): empty until achievements / tokens / NG+ exist
 
 // A campaign on screen: its save plus its calendar (Milestone 2) and its bookings (Milestone 3), put back exactly where
 // the save left them.
 function openRun(n, data) {
-  const run = { n, data, calendar: null, bookings: null, team: null, housekeeping: null };
-  run.calendar = createCalendar({ bus, saved: data.calendar ?? null, run: () => run.data });
+  const run = { n, data, calendar: null, bookings: null, team: null, housekeeping: null, reviews: null };
+  // (Milestone 5) the speed unlocks read the live Rank
+  run.calendar = createCalendar({ bus, saved: data.calendar ?? null, run: () => ({ ...run.data, reviews: run.reviews?.live ?? run.data.reviews }) });
   const c = run.calendar;
   run.bookings = createBookingSystem({ seed: data.seed, saved: data.bookings ?? null, bus, day: c.today, band: c.band.id });
   run.team = loadTeam(data.staff ?? null, data.seed, data.resort.founder.id); // (Milestone 4)
   run.housekeeping = createHousekeeping({ saved: data.housekeeping ?? null, team: run.team, bookings: run.bookings, bus });
   run.bookings.attach(run.housekeeping);
+  run.reviews = createReviews({ saved: data.reviews ?? null, bus, team: run.team, seed: data.seed }); // (Milestone 5)
+  run.bookings.attachReviews(run.reviews);
   open = run;
   run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;
@@ -244,20 +268,22 @@ bus.on('band:change', () => open && open.bookings.sync(open.calendar.today, open
 // The campaign save: the calendar as it stands, the date the slot card shows, then the slot (save + summary record).
 async function saveRun() {
   if (!open) return;
-  const { n, data, calendar, bookings, team, housekeeping } = open;
+  const { n, data, calendar, bookings, team, housekeeping, reviews } = open;
   data.calendar = calendar.serialize();
   data.bookings = bookings.serialize();
   data.staff = saveTeam(team);
   data.housekeeping = housekeeping.serialize();
+  data.reviews = reviews.serialize();
+  data.stars = reviews.stars ?? 0;
   const c = calendar.clock;
   data.date = { year: c.year, month: c.month, day: c.day };
   await campaigns.save(n, data);
 }
 const autosave = new Autosave({
   bus,
-  triggers: ['clock:month', 'booking:action'],
+  triggers: ['clock:month', 'booking:action', 'review:month'],
   save: () => saveRun(),
-  stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize()]) : null),
+  stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize()]) : null),
   enabled: () => !!open,
 });
 autosave.installBackground(); // the app going to the background (or the page closing) saves at once
@@ -272,6 +298,14 @@ function skipDays(days) {
   open.bookings.sync(open.calendar.today, open.calendar.bandIndex); // every band edge on the way, in order
   open.housekeeping.advance(open.calendar.minute);
   debug.log(`skipped ${days} day(s): ${open.calendar.dateText()}`);
+}
+
+// ?debug=1: REP straight to the next Rank (so 4× at Rank C can be tested).
+function addRep() {
+  if (!open) return;
+  open.reviews.addRep();
+  debug.log(`REP ${open.reviews.repValue} · Rank ${open.reviews.rank.id}`);
+  autosave.request('booking:action');
 }
 
 async function prepareSaves() {
@@ -412,7 +446,7 @@ async function leaveResort() {
   await campaigns.refresh();
   open = null;
 }
-const resortScreen = createResortScreen({ renderer, layout, assets, bus, sheet, run: () => open, onMenu: () => leaveResort(), debug, reducedFlashes: () => settings.get('reducedFlashes') === true, onSkip: (days) => skipDays(days) });
+const resortScreen = createResortScreen({ renderer, layout, assets, bus, sheet, feedback, run: () => open, onMenu: () => leaveResort(), debug, reducedFlashes: () => settings.get('reducedFlashes') === true, onSkip: (days) => skipDays(days), onRep: () => addRep() });
 
 // Settings: the series list in bible §36 order and names, then Help / Privacy / Credits, then the display test.
 // Reachable from the Main Menu (always).
@@ -487,7 +521,7 @@ const testSheet = () => ({
 
 // ?debug=1: a test hook for automated checks.
 if (debug.enabled) {
-  window.__rw = { bus, renderer, layout, input, loop, router, assets, sheet, dialog, systemBack, textPrompt, settings, governor, haptics, splashScreen, menuScreen, slotsScreen, setupScreen, resortScreen, playSlot, startResort, deleteSlot, newGame, openSettings, booting, autosave, saveRun, skipDays, taps: [], get booted() { return booted; }, get account() { return account; }, get campaigns() { return campaigns; }, get open() { return open; } };
+  window.__rw = { bus, renderer, layout, input, loop, router, assets, sheet, dialog, systemBack, textPrompt, settings, governor, haptics, splashScreen, menuScreen, slotsScreen, setupScreen, resortScreen, feedback, addRep, playSlot, startResort, deleteSlot, newGame, openSettings, booting, autosave, saveRun, skipDays, taps: [], get booted() { return booted; }, get account() { return account; }, get campaigns() { return campaigns; }, get open() { return open; } };
 }
 
 router.go('boot');

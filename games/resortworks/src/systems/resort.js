@@ -6,6 +6,7 @@ import { firstBookings } from './bookings.js';
 import { makeTeam } from './staff.js';
 import { freshHousekeeping } from './housekeeping.js';
 import { minuteOf } from './calendar.js';
+import { freshReviews } from './reviews.js';
 
 // A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
 // before the calendar existed (Milestone 2).
@@ -37,6 +38,7 @@ export function newCampaign(setup, now = Date.now()) {
     bookings: firstBookings({ seed, day: 0, band: 'morning' }), // (Milestone 3) offers, bookings, stays, room states
     staff: makeTeam(seed, founder.id), // (Milestone 4) the opening team: the Founder + the four other Start staff
     housekeeping: freshHousekeeping({ minute: minuteOf(0, 1) }), // (Milestone 4) cleaning jobs, queue, linen
+    reviews: freshReviews(), // (Milestone 5) reviews, REP / Rank, the monthly star rating ("New" until the first month ends)
     playSec: 0,
     ngPlus: 0,
   };
@@ -58,7 +60,7 @@ export function slotSummary(data) {
     year: data.date.year,
     month: data.date.month,
     stage: data.stage ?? null,
-    stars: data.stars ?? 0,
+    stars: data.reviews?.stars ?? data.stars ?? 0, // (Milestone 5) 0 = New
     prestige: data.prestige ?? 0,
     ngPlus: data.ngPlus ?? 0,
     playSec: data.playSec ?? 0,
@@ -97,4 +99,6 @@ export const SAVE_MIGRATIONS = {
     if (at.band === 0) hk.linen.day = at.day - 1; // (Night: today's linen arrives with the Morning)
     return { ...record, data: { ...d, bookings: d.bookings ? { ...d.bookings, rooms } : d.bookings, staff: d.staff ?? makeTeam(seed, d.resort?.founder?.id ?? 'S01'), housekeeping: d.housekeeping ?? hk } };
   },
+  // 4 → 5 (Milestone 5): no reviews yet, REP 0 (Rank E) and the star rating "New" — stays already over left no review.
+  4: (record) => ({ ...record, data: { ...record.data, reviews: record.data.reviews ?? freshReviews() } }),
 };
