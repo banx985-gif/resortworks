@@ -21,6 +21,8 @@
 // Café going offline is a rolled breakdown trigger for each party staying (onFacilityBreakdown; its category is the one
 // that facility feeds). Maintenance priority (best fit for a breakdown) puts the repair first in Maintenance's line. A
 // worn Reception slows the front desk (offline: check-ins take twice as long); a worn Café serves fewer covers.
+// Milestone 9: noise in a party's room over their Noise tolerance (src/systems/layout.js passes it on: onNoise) is a
+// rolled noise trigger, once a stay; a recovered one cancels the stay's Comfort losses.
 import { Rng } from '../../../../core/Rng.js';
 import { GUEST_TYPES, ROOM_TYPES } from '../../data/bookings.js';
 import { FACILITIES, roomById } from '../../data/lot.js';
@@ -273,6 +275,11 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
       const category = FELT[id];
       if (!category) return;
       for (const b of bookings?.staying ?? []) trigger(b, 'breakdown', minute, { target: id, category }, `breakdown:${id}`);
+    },
+    // (Milestone 9) noise in their room over their tolerance this band (a rolled trigger, once a stay).
+    onNoise(b, minute, noise) {
+      if (minute > s.at) s.at = minute;
+      return trigger(b, 'noise', minute, { noise, category: COMPLAINT_TYPES.noise.category });
     },
     attachMaintenance(m) {
       mt = m;

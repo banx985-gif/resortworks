@@ -20,7 +20,8 @@ export const CATEGORY_IDS = CATEGORIES.map((c) => c.id);
 //   service:    base − the stay's Service-loss (M4 late rooms) + (Front Office Service − 50) / div
 //   food:       base + the Snack Café + (Hospitality Skill − 50) / div, capped by the food tier (Basic 78, bible §27N)
 //   activities: base + the Small Pool + (Activities Charm − 50) / div
-//   comfort:    by room type (noise arrives in M9)
+//   comfort:    by room type (M8: × its Condition share; M9: − the Convenience penalty and the stay's noise loss)
+//   (M9: room is × (1 + the room's view % / 100), data/layout.js)
 //   value:      base + span × (guest budget − nightly rate) / budget
 // facility: the bonus only counts while that facility stands on the lot. role / stat: whose stat counts (the best one
 // on the team in that role).
@@ -62,14 +63,15 @@ export const RANKS = [
   { id: 'S', min: 18000, name: 'Prestige / postgame eligibility' },
 ];
 
-// Headline scores (bible §7) and their rolling window. Appeal, Staff Wellbeing and Prestige are fixed for now (M5 card):
-// Appeal = base + the Garden Strip (layout effects come in M9), Wellbeing 75 (fatigue in M10), Prestige 0.
+// Headline scores (bible §7) and their rolling window. Staff Wellbeing and Prestige are fixed for now (M5 card): Wellbeing
+// 75 (fatigue in M10), Prestige 0. Appeal: base + the Garden Strip until M9; from M9 it is live (data/layout.js APPEAL:
+// the Garden by its Condition and the rooms' views) — this is only the fallback without a layout.
 export const WINDOW_DAYS = 28;
 export const HEADLINE_FIXED = { appeal: { base: 60, facility: { id: 'F08', add: 6 } }, wellbeing: 75, prestige: 0 };
 export const HEADLINES = [
   { id: 'satisfaction', name: 'Guest Satisfaction', line: 'How happy guests leave, on average over the last 28 days.' },
   { id: 'service', name: 'Service Quality', line: 'How well the desk looks after them. Late rooms pull it down.' },
-  { id: 'appeal', name: 'Resort Appeal', line: 'How good the resort looks. The Garden Strip adds 6.' },
+  { id: 'appeal', name: 'Resort Appeal', line: 'How good the resort looks: the Garden (kept in good repair) and the views from the rooms.' },
   { id: 'wellbeing', name: 'Staff Wellbeing', line: 'How rested and happy your team is.' },
   { id: 'prestige', name: 'Prestige', line: 'Fame from awards and famous guests. It comes later.' },
 ];

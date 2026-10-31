@@ -21,6 +21,11 @@
 // Milestone 8: the stay's Condition inputs (bible §12) — the worst working share the party saw (src/systems/maintenance.js
 // keeps it on the booking: b.cond) scales the Café's +6 Food, the Pool's +8 Activity and the room's Comfort; the Garden's
 // +6 Appeal follows its working share (attachMaintenance(mt)). A recovered breakdown complaint cancels its loss.
+// Milestone 9: with the layout attached (attachLayout(ly), src/systems/layout.js) the room's view % (capped ±12) scales
+// the Room category, and Comfort loses the room's Convenience penalty (long walks, at most 8) and the stay's noise loss
+// (booking.noise.loss, at most 12; a recovered noise or breakdown complaint cancels it). Resort Appeal is live (ly.appeal:
+// 60 + the Garden × its working share + 2 × the average room view %). The comment can name the view or the noise when
+// it is the guest's best or worst part.
 import { ReputationSystem } from '../../../../core/ReputationSystem.js';
 import { rankAtLeast as reached } from '../../../../core/CompanyRank.js';
 import { writeReview } from '../../../../core/ReviewText.js';
@@ -29,6 +34,7 @@ import { ROOM_TYPES, GUEST_TYPES } from '../../data/bookings.js';
 import { CATEGORY_IDS, STAY_INPUTS, GUEST_WEIGHTS, REVIEW_STARS, REP, RANKS, WINDOW_DAYS, HEADLINE_FIXED, QUALITY, STAR_TABLE, FIVE_STAR_HEADLINES, FIVE_STAR_MIN, GUIDE, REVIEW_TEXT } from '../../data/reviews.js';
 import { BANDS } from '../../data/calendar.js';
 import { REP_UNRESOLVED, COMPLAINT_TEXT, SAVED_MEMORY } from '../../data/complaints.js';
+import { PLACE_REVIEW } from '../../data/layout.js';
 import { Rng } from '../../../../core/Rng.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -49,21 +55,23 @@ function roleStat(team, role, stat) {
 // rate, shortLinen, late), roomType: the room type they got. (Milestone 7) cancel: { service, clean, value } — a recovered
 // complaint's category: its loss doesn't count (the late Service loss, the short-linen Clean loss, Value under its base).
 // (Milestone 8) b.cond: { room, F03, F06 } — the worst working share of their room, the Pool and the Café during the stay
-// (1 when missing); a recovered breakdown cancels comfort / activities / food's share.
-export function stayCategories(b, { team = [], facilities = FACILITIES, roomType = null, cancel = {} } = {}) {
+// (1 when missing); a recovered breakdown cancels comfort / activities / food's share. (Milestone 9) place: { view,
+// convenience } of their room (src/systems/layout.js place()) — Room × (1 + view / 100); Comfort − convenience − the
+// stay's noise loss (b.noise.loss; cancelled with comfort).
+export function stayCategories(b, { team = [], facilities = FACILITIES, roomType = null, cancel = {}, place = null } = {}) {
   const I = STAY_INPUTS;
   const got = roomType ?? b.roomType;
   const want = ROOM_TYPES[b.roomType];
   const have = ROOM_TYPES[got];
   const budget = GUEST_TYPES[b.type]?.budget ?? b.rate;
-  const room = I.room.base[got] + (have.id === want.id ? I.room.wanted : have.rank < want.rank ? I.room.worse : 0);
+  const room = (I.room.base[got] + (have.id === want.id ? I.room.wanted : have.rank < want.rank ? I.room.worse : 0)) * (1 + (place?.view ?? 0) / 100);
   const clean = Math.min(I.clean.cap, I.clean.base + (b.shortLinen && !cancel.clean ? I.clean.short : 0));
   const service = I.service.base - (cancel.service ? 0 : b.late?.serviceLoss ?? 0) + (roleStat(team, I.service.role, I.service.stat) - 50) / I.service.div;
   const share = (id, key) => (cancel[key] ? 1 : b.cond?.[id] ?? 1);
   const fac = (x, key) => (hasFacility(x.facility.id, facilities) ? x.facility.add * share(x.facility.id, key) : 0);
   const food = Math.min(I.food.cap, I.food.base + fac(I.food, 'food') + (roleStat(team, I.food.role, I.food.stat) - 50) / I.food.div);
   const activities = I.activities.base + fac(I.activities, 'activities') + (roleStat(team, I.activities.role, I.activities.stat) - 50) / I.activities.div;
-  const comfort = I.comfort.base[got] * share('room', 'comfort');
+  const comfort = I.comfort.base[got] * share('room', 'comfort') - (place?.convenience ?? 0) - (cancel.comfort ? 0 : b.noise?.loss ?? 0);
   const value = cancel.value ? Math.max(I.value.base, I.value.base + (I.value.span * (budget - b.rate)) / budget) : I.value.base + (I.value.span * (budget - b.rate)) / budget;
   const raw = { room, clean, service, food, activities, comfort, value };
   return Object.fromEntries(CATEGORY_IDS.map((k) => [k, Math.round(clamp(raw[k]))]));
@@ -79,9 +87,10 @@ export const reviewStars = (sat) => REVIEW_STARS.find((s) => sat >= s.min)?.star
 export const repFor = (stars) => REP.stay + (REP.stars[stars] ?? 0);
 
 // The headline scores over the reviews of days [from, to] (inclusive). Satisfaction / Service / ValueIndex are the
-// averages (null with no reviews); Appeal, Staff Wellbeing and Prestige are fixed for now. (Milestone 8) effOf(id): a
-// facility's working share (the Garden's +6 Appeal follows it).
-export function headlineFrom(reviews, from, to, facilities = FACILITIES, effOf = () => 1) {
+// averages (null with no reviews); Staff Wellbeing and Prestige are fixed for now. (Milestone 8) effOf(id): a
+// facility's working share (the Garden's +6 Appeal follows it). (Milestone 9) appeal: the live Resort Appeal (the layout's)
+// — without it, the M5 base + the Garden.
+export function headlineFrom(reviews, from, to, facilities = FACILITIES, effOf = () => 1, appeal = null) {
   const inside = reviews.filter((v) => v.day >= from && v.day <= to);
   const avg = (f) => (inside.length ? r2(inside.reduce((t, v) => t + f(v), 0) / inside.length) : null);
   const ap = HEADLINE_FIXED.appeal;
@@ -89,7 +98,7 @@ export function headlineFrom(reviews, from, to, facilities = FACILITIES, effOf =
     satisfaction: avg((v) => v.sat),
     service: avg((v) => v.cats.service),
     value: avg((v) => v.cats.value),
-    appeal: r2(ap.base + (hasFacility(ap.facility.id, facilities) ? ap.facility.add * effOf(ap.facility.id) : 0)),
+    appeal: appeal ?? r2(ap.base + (hasFacility(ap.facility.id, facilities) ? ap.facility.add * effOf(ap.facility.id) : 0)),
     wellbeing: HEADLINE_FIXED.wellbeing,
     prestige: HEADLINE_FIXED.prestige,
     count: inside.length,
@@ -122,6 +131,8 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
   let cp = null; // (Milestone 7) the complaints system, once attached
   let mt = null; // (Milestone 8) the maintenance system, once attached
   const effOf = (id) => mt?.eff(id) ?? 1;
+  let ly = null; // (Milestone 9) the layout, once attached
+  const appealNow = () => ly?.appeal() ?? null;
 
   function prune(today) {
     s.list = s.list.filter((v, i) => i < LIST_MAX || v.day > today - WINDOW_DAYS - 1);
@@ -129,16 +140,18 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
 
   function checkout(b, day) {
     const fx = cp?.closeStay(b, day) ?? null; // (Milestone 7) the stay's complaints, settled
-    const cats = stayCategories(b, { team, facilities, roomType: roomTypeOf(b), cancel: fx?.cancel ?? {} });
+    const place = ly?.place(b.room) ?? null; // (Milestone 9) the room's view and walks
+    const cats = stayCategories(b, { team, facilities, roomType: roomTypeOf(b), cancel: fx?.cancel ?? {}, place });
     const base = finalSatisfaction(cats, b.type);
     const sat = fx ? r2(clamp(base + fx.bonus + fx.penalty)) : base;
     const stars = reviewStars(sat);
     const id = `V${s.nextId++}`;
     const fitBand = stars >= 4 ? 'high' : stars === 3 ? 'mid' : 'low';
-    let text = writeReview(REVIEW_TEXT, { stats: cats, fitBand, seed: `${seed}:${id}` });
+    let text = writeReview(placeText(place, b.noise, fx?.cancel ?? {}), { stats: cats, fitBand, seed: `${seed}:${id}` });
     const unresolved = fx?.unresolved ?? 0;
     if (fx?.complaints.length) text = `${text} ${new Rng(`${seed}:${id}:complaint`).pick(COMPLAINT_TEXT[unresolved ? 'unresolved' : 'recovered'])}`;
     const review = { id, booking: b.id, type: b.type, room: b.room, got: roomTypeOf(b), wanted: b.roomType, nights: b.nights, day, cats, sat, stars, rep: repFor(stars) + REP_UNRESOLVED * unresolved, text, late: !!b.late, short: !!b.shortLinen };
+    if (place) Object.assign(review, { view: place.view, convenience: place.convenience, noise: fx?.cancel?.comfort ? 0 : b.noise?.loss ?? 0 }); // (Milestone 9)
     if (fx?.complaints.length) Object.assign(review, { complaints: fx.complaints, recovered: fx.recovered, unresolved, bonus: fx.bonus, penalty: fx.penalty, base, memory: fx.saved ? SAVED_MEMORY : null });
     s.list.unshift(review);
     s.counts.reviews++;
@@ -155,7 +168,7 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
 
   // The day change into a new month (day = the new day, a multiple of 28): rate the 28 days just ended.
   function monthEnd(day) {
-    const h = headlineFrom(s.list, day - WINDOW_DAYS, day - 1, facilities, effOf);
+    const h = headlineFrom(s.list, day - WINDOW_DAYS, day - 1, facilities, effOf, appealNow());
     const prev = s.months[s.months.length - 1] ?? null;
     if (h.count === 0) {
       if (!prev) return null; // no stays at all yet: the rating stays "New"
@@ -179,13 +192,16 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
     attachMaintenance(m) {
       mt = m;
     },
+    attachLayout(l) {
+      ly = l;
+    },
     onEdge(day, band) {
       if (band !== NIGHT) return;
       prune(day);
       if (day > 0 && day % WINDOW_DAYS === 0) monthEnd(day);
     },
     // Live headline scores (the last 28 days up to today).
-    headline: (today) => headlineFrom(s.list, today - WINDOW_DAYS + 1, today, facilities, effOf),
+    headline: (today) => headlineFrom(s.list, today - WINDOW_DAYS + 1, today, facilities, effOf, appealNow()),
     get list() {
       return s.list;
     },
@@ -233,6 +249,17 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
     serialize: () => clone(s),
   };
   return rv;
+}
+// (Milestone 9) the comment's lines for this stay: a good view can be the Room's best part, a poor one its worst, and the
+// stay's noise the Comfort's worst (data/layout.js PLACE_REVIEW).
+function placeText(place, noise, cancel) {
+  if (!place) return REVIEW_TEXT;
+  const P = PLACE_REVIEW;
+  const t = { ...REVIEW_TEXT, strong: { ...REVIEW_TEXT.strong }, weak: { ...REVIEW_TEXT.weak } };
+  if (place.view >= P.goodView) t.strong.room = P.text.goodView;
+  if (place.view <= P.badView) t.weak.room = P.text.badView;
+  if (!cancel.comfort && (noise?.loss ?? 0) >= P.noisy) t.weak.comfort = P.text.noisy;
+  return t;
 }
 // The room type they got (the room's type — the booking keeps the type they wanted).
 const roomTypeOf = (b) => roomById(b.room)?.typeId ?? b.roomType;

@@ -36,6 +36,8 @@
 // Milestone 8: each open resort has its maintenance (src/systems/maintenance.js: Condition of every facility and room, wear,
 // breakdowns, the Maintenance person's jobs, repair and parts costs), moved on in game minutes each step and with the
 // bookings' band edges, and saved with the rest. ?debug=1&maint=0 stops wear (the older milestones' browser runs).
+// Milestone 9: each open resort has its layout (src/systems/layout.js: walks, noise, views, live Appeal), attached to the
+// bookings (Fit, each band's noise for the stays — saved on the stays), the reviews and the complaints.
 // Add ?debug=1 for the FPS/state overlay and the setup-data check, ?screen=test for the scaling / tap / asset-loader test
 // screen. With ?debug=1, &complaints=0 switches complaint triggers off (the older milestones' browser runs), &safe=phone|tablet stands in a notch and home bar (safe-area insets) on any screen, and
 // &reset=1 empties all four slots.
@@ -67,6 +69,7 @@ import { createReviews } from './systems/reviews.js';
 import { createFinance } from './systems/finance.js';
 import { createComplaints } from './systems/complaints.js';
 import { createMaintenance } from './systems/maintenance.js';
+import { createLayout } from './systems/layout.js';
 import { MajorFeedback } from '../../../core/MajorFeedback.js';
 import { skipMoment, opalWelcomeMoment } from './screens/reviewMoments.js';
 import { validateCast } from '../data/cast.js';
@@ -261,13 +264,13 @@ bus.on('input:up', () => systemBack.rearm()); // re-arm after any tap, in case a
 // ---------------------------------------------------------------------------
 // The four campaign slots.
 let campaigns = null;
-let open = null; // { n, data, calendar, bookings, team, housekeeping, reviews, finance, complaints, maintenance } — the resort on screen
+let open = null; // { n, data, calendar, bookings, team, housekeeping, reviews, finance, complaints, maintenance, layout } — the resort on screen
 let account = {}; // the account store (core/CampaignSlots): empty until achievements / tokens / NG+ exist
 
 // A campaign on screen: its save plus its calendar (Milestone 2) and its bookings (Milestone 3), put back exactly where
 // the save left them.
 function openRun(n, data) {
-  const run = { n, data, calendar: null, bookings: null, team: null, housekeeping: null, reviews: null, finance: null, complaints: null, maintenance: null };
+  const run = { n, data, calendar: null, bookings: null, team: null, housekeeping: null, reviews: null, finance: null, complaints: null, maintenance: null, layout: null };
   // (Milestone 5) the speed unlocks read the live Rank
   run.calendar = createCalendar({ bus, saved: data.calendar ?? null, run: () => ({ ...run.data, reviews: run.reviews?.live ?? run.data.reviews }) });
   const c = run.calendar;
@@ -290,6 +293,11 @@ function openRun(n, data) {
   run.reviews.attachMaintenance(run.maintenance);
   run.finance.attachMaintenance(run.maintenance);
   run.complaints.attachMaintenance(run.maintenance);
+  // (Milestone 9) walks, noise, views and the live Appeal
+  run.layout = createLayout({ mt: run.maintenance });
+  run.layout.attachComplaints(run.complaints);
+  run.bookings.attachLayout(run.layout);
+  run.reviews.attachLayout(run.layout);
   open = run;
   run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;

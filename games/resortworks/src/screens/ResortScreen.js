@@ -35,6 +35,10 @@
 // broken one (bible §36: a different shape, not only a colour); a toast for each breakdown (one tap opens its sheet).
 // The Maintenance person walks to each job in the repair pose; every facility and room sheet shows its Condition and a
 // Service now button.
+// Milestone 9: a small Layout button left of Reception cycles the map's overlay Off → Noise → Views: a soft code-drawn
+// tint per tile (noise: one purple hue, deeper = louder; views: blue good / orange poor — colour-blind safe), with a
+// legend over the button. It fades in quickly; with Reduced flashes it snaps on and is lighter. Each room sheet has three
+// plain lines (noise, view, walk).
 //   createResortScreen({ renderer, layout, assets, bus, sheet, feedback, run, onMenu, debug, reducedFlashes, onSkip, onRep })
 //     run() → the open campaign { n, data, calendar, bookings, team, housekeeping, reviews, finance } or null    onSkip(days) → the debug skip
 //     feedback: core MajorFeedback (main draws it and gives it the taps)    onRep() → the debug REP skip
@@ -63,6 +67,7 @@ import { resortSheet, pickRoomSheet, resortScoresSheet, starText, ratesSheet, fi
 import { COMPLAINT_TYPES } from '../../data/complaints.js';
 import { BADGE } from '../../data/maintenance.js';
 import { targetName } from '../systems/maintenance.js';
+import { OVERLAY } from '../../data/layout.js';
 import { credits } from '../systems/finance.js';
 import { VfxSystem } from '../../../../core/VfxSystem.js';
 import { FloatFeed } from '../../../../core/FloatFeed.js';
@@ -102,6 +107,8 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   let buildMode = false;
   let active = false;
   let viewSet = false;
+  let overlay = 0; // (Milestone 9) index into OVERLAY.modes: off / noise / views
+  let overlayA = 0; // its fade (0–1)
   const taps = []; // recent taps and what they hit (tests / debug)
   let opened = null; // { id, via } — the last sheet opened (tests)
 
@@ -390,8 +397,22 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     const b = bannerRect();
     return { x: b.x + b.w - 300 - 24, y: b.y + b.h - 24 - 110, w: 300, h: 110 };
   };
+  // (Milestone 9) the Layout button: left of Reception on the bottom row (above it when the row is too narrow).
+  const layoutRect = () => {
+    const s = shortcutRect();
+    const sr = layout.safeRect;
+    const room = s.x - sr.x - 24 - 16;
+    if (room >= 170) return { x: sr.x + 24, y: s.y, w: Math.min(240, room), h: s.h };
+    return { x: sr.x + 24, y: s.y - 16 - 100, w: 220, h: 100 };
+  };
+  // its legend: over the map, just above the bottom row (and above the debug skips when they show)
+  const legendRect = () => {
+    const b = layoutRect();
+    const top = debugSkips() ? Math.min(b.y, skipRect(0).y) : b.y;
+    return { x: b.x, y: top - 12 - 64, w: Math.min(layout.safeRect.w - 48, 420), h: 64 };
+  };
   const onSkipRow = (p) => debugSkips() && SKIPS.some((_, i) => hitRect(p, skipRect(i)));
-  const onUi = (p) => (buildMode ? hitRect(p, bannerRect()) : topBar.contains(p) || hitRect(p, plateRect()) || hitRect(p, shortcutRect()) || onSkipRow(p) || (note && hitRect(p, noteRect())) || (toastRect() && hitRect(p, toastRect())));
+  const onUi = (p) => (buildMode ? hitRect(p, bannerRect()) : topBar.contains(p) || hitRect(p, plateRect()) || hitRect(p, shortcutRect()) || hitRect(p, layoutRect()) || onSkipRow(p) || (note && hitRect(p, noteRect())) || (toastRect() && hitRect(p, toastRect())));
   const overSheet = (p) => sheet.active && p.y >= sheet.rect().y;
 
   // The camera sees the lot between the name plate and the bottom row.
@@ -491,7 +512,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     const x = calendar()?.clock.dateOf(d);
     return x ? `Y${x.year} · Month ${x.month} · Day ${x.day}` : `Day ${d + 1}`;
   };
-  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null, finance: run()?.finance ?? null, complaints: run()?.complaints ?? null, mt: run()?.maintenance ?? null });
+  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null, finance: run()?.finance ?? null, complaints: run()?.complaints ?? null, mt: run()?.maintenance ?? null, layout: run()?.layout ?? null });
   function openSheet(id, via = 'art') {
     if (!world?.byId(id)) return;
     sheet.open(() => resortSheet(world, id, sheetOpts()));
@@ -506,6 +527,12 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     sheet.open(() => pickRoomSheet(bk, forId, sheetOpts()) ?? resortSheet(world, 'F01', sheetOpts()));
     opened = { id: `pick:${forId}`, via: 'sheet' };
     debug?.log(`sheet: pick a room for ${forId}`);
+  }
+  // (Milestone 9) the map overlay: Off → Noise → Views.
+  function setOverlay(i) {
+    overlay = i;
+    overlayA = reducedFlashes() ? 1 : 0;
+    debug?.log(`layout overlay: ${OVERLAY.modes[i]}`);
   }
   function setBuildMode(on) {
     if (buildMode === on) return;
@@ -631,6 +658,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         monthsDue.length = 0;
       }
       updateTint(dt);
+      overlayA = reducedFlashes() ? 1 : Math.min(1, overlayA + dt / OVERLAY.fadeSec);
       if (note && (note.t -= dt) <= 0) note = null;
     },
     onBack() {
@@ -695,6 +723,10 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         }
         return log(SKIPS[sk].id);
       }
+      if (hitRect(p, layoutRect())) {
+        setOverlay((overlay + 1) % OVERLAY.modes.length);
+        return log('layout');
+      }
       if (hitRect(p, shortcutRect())) {
         openSheet('F01', 'shortcut');
         return log('shortcut');
@@ -735,6 +767,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       groundLayer.setPixelScale(groundScale());
       groundLayer.renderView(ctx, { x: camera.x, y: camera.y, w: camera.visibleW, h: camera.visibleH });
       if (buildMode) drawBuildGrid(ctx);
+      else drawOverlay(ctx);
       assets.detail = detailFor(camera.zoom);
       const things = [...world.items, ...world.people].sort((a, b) => depthOf(a) - depthOf(b));
       for (const it of things) {
@@ -762,6 +795,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         if (note) drawNote(ctx);
         if (debugSkips()) SKIPS.forEach((s, i) => drawButton(ctx, skipRect(i), s.label, { accent: C.purple }));
         drawButton(ctx, shortcutRect(), 'Reception', { accent: C.action });
+        drawLayoutButton(ctx);
       }
     },
 
@@ -819,8 +853,15 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       const skip = Object.fromEntries(SKIPS.map((s, i) => [s.id, debugSkips() ? skipRect(i) : null]));
       if (id?.startsWith?.('badge:')) return badgeRects().find((b) => b.id === id.slice(6))?.rect ?? null;
       if (id?.startsWith?.('wrench:')) return wrenchRects().find((b) => b.id === id.slice(7))?.rect ?? null;
-      return { menu: menuRect(), shortcut: shortcutRect(), done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), note: note ? noteRect() : null, toast: toastRect(), stats: scoresRect(), credits: creditsRect(), skipMoment: feedback?.current?.skipRect?.() ?? null, ...bar, ...skip }[id] ?? null;
+      return { menu: menuRect(), shortcut: shortcutRect(), layout: layoutRect(), legend: overlay ? legendRect() : null, done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), note: note ? noteRect() : null, toast: toastRect(), stats: scoresRect(), credits: creditsRect(), skipMoment: feedback?.current?.skipRect?.() ?? null, ...bar, ...skip }[id] ?? null;
     },
+    // (Milestone 9) the overlay now ('off' / 'noise' / 'views'), and set it (tests).
+    get overlay() {
+      return OVERLAY.modes[overlay];
+    },
+    setOverlay: (mode) => setOverlay(Math.max(0, OVERLAY.modes.indexOf(mode))),
+    // The tint drawn on a tile now: [r, g, b, alpha] or null (tests).
+    overlayTint: (col, row) => overlayTint(col, row),
     // (Milestone 8) a wrench badge: 'worn' / 'broken' / null (tests); its rect via rectOf('wrench:<id>').
     wrenchOf: (id) => wrenchRects().find((b) => b.id === id)?.kind ?? null,
     // (Milestone 4) the word on a room's badge now — Ready / Dirty / Cleaning / Late … (tests).
@@ -1082,6 +1123,61 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       wrench(ctx, cx, look.shape === 'triangle' ? cy + r.h * 0.12 : cy, r.w * (look.shape === 'triangle' ? 0.62 : 0.7), look.color);
       ctx.restore();
     }
+  }
+  // --- (Milestone 9) the Layout overlay: a soft tint per tile ------------------------------------------------------
+  function overlayTint(col, row) {
+    const ly = run()?.layout;
+    const mode = OVERLAY.modes[overlay];
+    if (!ly || mode === 'off') return null;
+    const calm = reducedFlashes() ? OVERLAY.reducedAlpha : 1;
+    if (mode === 'noise') {
+      const n = ly.tileNoise(col, row);
+      if (n <= 0) return null;
+      const o = OVERLAY.noise;
+      return [...o.rgb, Math.min(1, n / o.full) * o.maxAlpha * calm * overlayA];
+    }
+    const v = ly.tileView(col, row);
+    if (v === 0) return null;
+    const o = OVERLAY.views;
+    return [...(v > 0 ? o.good : o.bad), Math.min(1, Math.abs(v) / o.full) * o.maxAlpha * calm * overlayA];
+  }
+  function drawOverlay(ctx) {
+    if (!overlay || !run()?.layout) return;
+    for (let r = 0; r < LOT.rows; r++)
+      for (let c = 0; c < LOT.cols; c++) {
+        const t = overlayTint(c, r);
+        if (!t || t[3] <= 0.004) continue;
+        patch(ctx, iso.outline(c + 0.04, r + 0.04, 0.92, 0.92), `rgba(${t[0]},${t[1]},${t[2]},${t[3].toFixed(3)})`);
+      }
+  }
+  function drawLayoutButton(ctx) {
+    const r = layoutRect();
+    const mode = OVERLAY.modes[overlay];
+    drawButton(ctx, r, mode === 'off' ? 'Layout' : OVERLAY.names[mode], { accent: OVERLAY.button[mode] });
+    if (mode === 'off') return;
+    // the legend: a strip from weak to strong (views: poor ← → good) with its words
+    const g = legendRect();
+    ctx.save();
+    ctx.fillStyle = C.chip;
+    ctx.beginPath();
+    ctx.roundRect(g.x, g.y, g.w, g.h, 20);
+    ctx.fill();
+    const bar = { x: g.x + 20, y: g.y + g.h - 20, w: g.w - 40, h: 10 };
+    const grad = ctx.createLinearGradient(bar.x, 0, bar.x + bar.w, 0);
+    if (mode === 'noise') {
+      grad.addColorStop(0, 'rgba(120,60,170,0.08)');
+      grad.addColorStop(1, 'rgba(120,60,170,0.95)');
+    } else {
+      grad.addColorStop(0, 'rgba(235,120,20,0.95)');
+      grad.addColorStop(0.5, 'rgba(255,255,255,0.4)');
+      grad.addColorStop(1, 'rgba(40,110,220,0.95)');
+    }
+    ctx.fillStyle = grad;
+    ctx.fillRect(bar.x, bar.y, bar.w, bar.h);
+    const words = mode === 'noise' ? ['Quiet', 'Loud'] : ['Poor view', 'Good view'];
+    text(ctx, words[0], bar.x, g.y + 22, { size: S.small, bold: true, color: C.textOnDark, baseline: 'middle' });
+    text(ctx, words[1], bar.x + bar.w, g.y + 22, { size: S.small, bold: true, color: C.textOnDark, align: 'right', baseline: 'middle' });
+    ctx.restore();
   }
   function drawPlate(ctx) {
     const r = plateRect();

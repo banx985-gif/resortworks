@@ -1,8 +1,9 @@
 // Complaints / recovery numbers (Milestone 7, bible §18 / §27A / §27F / §27P). Plain data — src/systems/complaints.js
 // runs it. Picks the bible leaves open are Cowork's (M7 card) or Claude Code's, and are logged in docs/DECISIONS.md.
 
-// The complaint types (bible §18). on: can happen today (noise and package failure wait for M9 / M18; breakdown is on from
-// M8, severity 0.5 from its card — a room breaking with a party in it always gives them one, data/maintenance.js FELT).
+// The complaint types (bible §18). on: can happen today (package failure waits for M18; breakdown is on from M8, severity
+// 0.5 from its card — a room breaking with a party in it always gives them one, data/maintenance.js FELT; noise is on
+// from M9, severity 0.4 from its card — noise in their room over their Noise tolerance, data/layout.js).
 // severity: the trigger's weight — the chance a trigger becomes a complaint is (100 − Patience) / 100 × severity (Patience:
 // data/bookings.js GUEST_TYPES, bible §27F). Tuned (M7 card): the card's 1.0 / 0.8 / 0.6 / 0.5 / 0.5 gave 1 complaint
 // every 23 stays in a 90-day Standard-price run, so every severity is halved (same order): 1 every ~40 (bible §27P: 30–60).
@@ -14,7 +15,7 @@ export const COMPLAINT_TYPES = {
   queue: { id: 'queue', on: true, severity: 0.3, category: 'service', best: ['apology'], name: 'Slow check-in', line: 'They queued too long at the front desk.' },
   value: { id: 'value', on: true, severity: 0.25, category: 'value', best: ['refund'], name: 'Too pricey', line: 'They think the room costs too much for what it is.' },
   food: { id: 'food', on: true, severity: 0.25, category: 'food', best: ['comp'], name: 'Slow café', line: 'The café was too busy to serve them.' },
-  noise: { id: 'noise', on: false, from: 'M9', severity: 0.3, category: 'comfort', best: ['roomChange'], name: 'Too noisy', line: 'It was too noisy to sleep.' },
+  noise: { id: 'noise', on: true, severity: 0.4, category: 'comfort', best: ['roomChange'], name: 'Too noisy', line: 'It was too noisy to sleep.' },
   breakdown: { id: 'breakdown', on: true, severity: 0.5, category: 'comfort', best: ['maintenance'], name: 'Something broke', line: 'Something in their room broke. They need a room change.' },
   package: { id: 'package', on: false, from: 'M18', severity: 0.35, category: 'activities', best: ['refund', 'vip'], name: 'Package let them down', line: 'Their package wasn’t what they paid for.' },
 };

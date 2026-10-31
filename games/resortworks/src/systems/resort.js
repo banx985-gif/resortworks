@@ -125,4 +125,11 @@ export const SAVE_MIGRATIONS = {
     const at = d.bookings?.at ?? { day: d.calendar?.totalDays ?? 0, band: 1 };
     return { ...record, data: { ...d, maintenance: d.maintenance ?? freshMaintenance({ minute: minuteOf(at.day, Math.max(0, Math.min(BANDS.length - 1, at.band))) }) } };
   },
+  // 8 → 9 (Milestone 9): every stay starts its noise from now (nothing heard before the update counts).
+  8: (record) => {
+    const d = record.data;
+    if (!d.bookings?.bookings) return record;
+    const bookings = d.bookings.bookings.map((b) => (b.noise ? b : { ...b, noise: { bands: 0, sum: 0, worst: 0, loss: 0, over: 0 } }));
+    return { ...record, data: { ...d, bookings: { ...d.bookings, bookings } } };
+  },
 };

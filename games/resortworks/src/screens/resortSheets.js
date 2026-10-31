@@ -73,14 +73,14 @@ export const starText = (stars) => (stars ? `${stars}★` : 'New');
 const starsLong = (n) => `${'★'.repeat(n)}${'☆'.repeat(5 - n)}`;
 const REVIEWS_SHOWN = 20;
 
-export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null, finance = null, complaints = null, mt = null } = {}) {
+export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null, finance = null, complaints = null, mt = null, layout = null } = {}) {
   const it = world?.byId(id);
   if (!it) return null;
   const now = [world.stateOf(it)];
   let spec;
   if (it.kind === 'guest') spec = guestSpec(world, it, { bookings, today, dateOf, complaints, act });
   else if (it.kind === 'staff') spec = staffSpec(world, it, { hk, now, mt });
-  else if (it.kind === 'room') spec = roomSpec(world, it, { bookings, today, act, hk, finance });
+  else if (it.kind === 'room') spec = roomSpec(world, it, { bookings, today, act, hk, finance, layout });
   else if (it.id === 'F01' && bookings) spec = receptionSpec(it, { bookings, today, act, accent, reviews, dateOf, finance, complaints });
   else if (it.id === 'F04' && hk) spec = laundrySpec(it, { hk, now });
   else if (it.id === 'F05' && mt) spec = shedSpec(it, { mt, now, team: world.team });
@@ -245,7 +245,7 @@ export function roomStateLine(bk, room, today) {
   if (st === 'cleaning') return 'Cleaning';
   return 'Broken — closed for repairs';
 }
-function roomSpec(world, it, { bookings: bk, today, act, hk = null, finance = null }) {
+function roomSpec(world, it, { bookings: bk, today, act, hk = null, finance = null, layout = null }) {
   const room = it.def;
   const rt = ROOM_TYPES[room.typeId];
   if (!bk) return { title: room.name, line: room.type, art: room.art, now: [world.stateOf(it)] };
@@ -273,7 +273,11 @@ function roomSpec(world, it, { bookings: bk, today, act, hk = null, finance = nu
     tag: { text: st.name.toUpperCase(), color: st.color },
     now,
     main,
-    body: [{ title: 'Room', lines: [finance ? { text: `${bandById(finance.bandOf(rt.id)).name} rate (Reception → Rates)`, right: rateWords(finance.rateOf(rt.id)) } : { text: `${PRICE_BAND.name} rate`, right: rateWords(Math.round(rt.rate * PRICE_BAND.mult)) }] }],
+    body: [
+      // (Milestone 9) its noise, view and walks in three plain lines
+      ...(layout ? [{ title: 'Where it is', std: 'place', lines: layout.lines(room.id) }] : []),
+      { title: 'Room', lines: [finance ? { text: `${bandById(finance.bandOf(rt.id)).name} rate (Reception → Rates)`, right: rateWords(finance.rateOf(rt.id)) } : { text: `${PRICE_BAND.name} rate`, right: rateWords(Math.round(rt.rate * PRICE_BAND.mult)) }] },
+    ],
   };
 }
 

@@ -35,6 +35,9 @@
 // Maintenance (roomBroken): it can't be sold; the state under it (Dirty, Ready, Occupied …) is kept and still changes (a
 // clean, a check-out) and comes back when it is repaired (roomRepaired) — a party waiting for it checks in then. A party
 // staying in a room that breaks gets a breakdown complaint (src/systems/complaints.js).
+// Milestone 9: with the layout attached (attachLayout(ly), src/systems/layout.js) Fit's viewMatch, noiseMatch and
+// distanceMatch are each room's own (Auto Assign prefers quiet rooms with a view, near the café, pool and Reception), and
+// every band edge is passed on after maintenance's (each party staying hears its room's noise: booking.noise).
 import { Rng } from '../../../../core/Rng.js';
 import { BANDS } from '../../data/calendar.js';
 import { LATE } from '../../data/housekeeping.js';
@@ -99,8 +102,9 @@ export function makeOffers(seed, day, stats = null, pricing = null) {
   return kept;
 }
 
-// Fit (bible §27B) of a room for an offer or booking, 0–100.
-export function fitOf(x, room) {
+// Fit (bible §27B) of a room for an offer or booking, 0–100. (Milestone 9) place: the room's { view, noise, distance }
+// matches (0–1, src/systems/layout.js fitParts); without it the three score FIT.neutral.
+export function fitOf(x, room, place = null) {
   const want = ROOM_TYPES[x.roomType];
   const have = ROOM_TYPES[room.typeId];
   if (x.party > have.cap) return -1;
@@ -109,7 +113,8 @@ export function fitOf(x, room) {
   const budget = GUEST_TYPES[x.type].budget;
   const price = Math.max(0, 1 - Math.abs(have.rate - budget) / budget);
   const w = FIT.weights;
-  return w.type * type + w.capacity * capacity + (w.view + w.noise + w.distance) * FIT.neutral + w.price * price;
+  const p = place ?? { view: FIT.neutral, noise: FIT.neutral, distance: FIT.neutral };
+  return w.type * type + w.capacity * capacity + w.view * p.view + w.noise * p.noise + w.distance * p.distance + w.price * price;
 }
 
 export function createBookingSystem({ seed, saved = null, bus = null, day = 0, band = 'morning' }) {
@@ -120,6 +125,8 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   let fin = null; // (Milestone 6) the finance system, once attached
   let cp = null; // (Milestone 7) the complaints system, once attached
   let mt = null; // (Milestone 8) the maintenance system, once attached
+  let ly = null; // (Milestone 9) the layout (walks, noise, views), once attached
+  const fit = (x, r) => fitOf(x, r, ly?.fitParts(r.id) ?? null);
   const pricing = (day) => (fin ? { rateOf: fin.rateOf, chance: (o) => fin.offerChance(o, rv?.headline(day).service ?? null) } : null);
   const changed = () => {
     version++;
@@ -152,7 +159,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     let best = null;
     let bestFit = -Infinity;
     for (const r of freeRoomsFor(x)) {
-      const f = fitOf(x, r);
+      const f = fit(x, r);
       if (f > bestFit + 1e-9) {
         best = r;
         bestFit = f;
@@ -272,6 +279,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
         hk?.onEdge(next.day, next.band);
         edge(next.day, next.band);
         mt?.onEdge(next.day, next.band, api); // (Milestone 8) the day change: wear, breakdowns
+        ly?.onEdge(next.day, next.band, api); // (Milestone 9) each party staying hears its room's noise this band
         cp?.onEdge(next.day, next.band, api); // (Milestone 7) the café band
         rv?.onEdge(next.day, next.band); // (Milestone 5) a new month rates the month just ended
         fin?.onEdge(next.day, next.band, api); // (Milestone 6) the café at Evening, the bills at the day change
@@ -366,6 +374,10 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     attachMaintenance(m) {
       mt = m;
     },
+    // (Milestone 9) the layout: Fit's view / noise / distance, and each band's noise passed on.
+    attachLayout(l) {
+      ly = l;
+    },
     // (Milestone 8) a room breaks down at this minute: Maintenance (the state under it kept); a party staying in it gets a
     // breakdown complaint.
     roomBroken(id, minute) {
@@ -443,7 +455,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     roomReady,
     freeRoomsFor,
     bestRoomFor,
-    fitOf,
+    fitOf: fit,
     whyNot,
     roomState,
     bookingInRoom: (id) => s.bookings.find((b) => b.room === id && HOLDS.has(b.status)) ?? null,

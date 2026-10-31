@@ -14,11 +14,12 @@ export const PRICE_BAND = { id: 'standard', name: 'Standard', mult: 1.0 }; // bi
 // the party; weight = share of offers; wants = chance of asking for each room type (Claude Code's pick from the budgets:
 // a Road Trip Couple (95) or Solo Traveller (100) sits between the two rates; a Retired Couple (165) wants Standard).
 // sprite = their walking picture (card), art = their sheet / offer picture. (Milestone 7) patience = bible §27F Patience
-// (0–100): how likely a trigger is to become a complaint (data/complaints.js).
+// (0–100): how likely a trigger is to become a complaint (data/complaints.js). (Milestone 9) noise = bible §27F Noise
+// tolerance (0–100): noise over half of it costs Comfort, over all of it is a noise trigger (data/layout.js).
 export const GUEST_TYPES = {
-  GT01: { id: 'GT01', name: 'Road Trip Couple', budget: 95, patience: 55, nights: [1, 2], party: 2, weight: 40, wants: { RM01: 0.55, RM02: 0.45 }, sprite: 'world_guest_adult_a', art: 'guest_gt01' },
-  GT03: { id: 'GT03', name: 'Solo Traveller', budget: 100, patience: 60, nights: [1, 3], party: 1, weight: 35, wants: { RM01: 0.6, RM02: 0.4 }, sprite: 'world_guest_adult_b', art: 'guest_gt03' },
-  GT04: { id: 'GT04', name: 'Retired Couple', budget: 165, patience: 70, nights: [3, 6], party: 2, weight: 25, wants: { RM01: 0.15, RM02: 0.85 }, sprite: 'world_guest_elder', art: 'guest_gt04' },
+  GT01: { id: 'GT01', name: 'Road Trip Couple', budget: 95, patience: 55, noise: 60, nights: [1, 2], party: 2, weight: 40, wants: { RM01: 0.55, RM02: 0.45 }, sprite: 'world_guest_adult_a', art: 'guest_gt01' },
+  GT03: { id: 'GT03', name: 'Solo Traveller', budget: 100, patience: 60, noise: 50, nights: [1, 3], party: 1, weight: 35, wants: { RM01: 0.6, RM02: 0.4 }, sprite: 'world_guest_adult_b', art: 'guest_gt03' },
+  GT04: { id: 'GT04', name: 'Retired Couple', budget: 165, patience: 70, noise: 30, nights: [3, 6], party: 2, weight: 25, wants: { RM01: 0.15, RM02: 0.85 }, sprite: 'world_guest_elder', art: 'guest_gt04' },
 };
 
 // Offers (Cowork's starting pick): 2–4 new offers each Morning, arriving today to +3 days. Unanswered offers expire at
@@ -37,10 +38,11 @@ export const ROOM_STATES = {
 };
 
 // Auto Room Assignment (bible §27B): Fit = 35·typePreference + 20·capacityFit + 15·viewMatch + 10·noiseMatch +
-// 10·distanceMatch + 10·priceFit, each 0–1. No view, noise or distance until M9: those three score a neutral 0.5.
+// 10·distanceMatch + 10·priceFit, each 0–1. Milestone 9: view, noise and distance come from the layout
+// (src/systems/layout.js); without one (older tests) they score a neutral 0.5.
 export const FIT = {
   weights: { type: 35, capacity: 20, view: 15, noise: 10, distance: 10, price: 10 },
-  neutral: 0.5, // view / noise / distance until M9
+  neutral: 0.5, // view / noise / distance with no layout attached
   // typePreference (Claude Code's pick): the type they asked for 1; one step better (an upgrade) 0.6; worse 0.2.
   type: { same: 1, upgrade: 0.6, downgrade: 0.2 },
   // capacityFit: a full room 1; each empty bed takes off half its share (1 person in a 2-bed room: 0.75).
