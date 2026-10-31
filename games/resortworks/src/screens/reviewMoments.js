@@ -6,7 +6,13 @@
 //     table) and the QualityIndex.
 // A tap (or the Skip button) while the parts are still coming shows them all at once; the next tap closes it. The
 // screen's input layer does that (skipMoment / the moment's skipRect()). Pure drawing: nothing here changes a number.
+// M6b (the chibi cast, data/cast.js): the inspectors' portraits replace their coloured initials (the initials stay as the
+// stand-in while a picture loads), and Dame Opal Fairweather says a short line (that month's tip) before they mark.
+//   opalWelcomeMoment({ layout, assets }) — Opal's one-tap welcome card after START RESORT: her portrait, then her two
+//     lines one at a time.
 import { THEME, font } from '../../../../core/Theme.js';
+import { castById, judgeCast, OPAL, opalTip } from '../../data/cast.js';
+import { faceCrop } from '../ui/resortArt.js';
 import { topBarRect } from '../../../../core/ui/TopBar.js';
 import { CATEGORIES, GUIDE, REVEAL } from '../../data/reviews.js';
 import { GUEST_TYPES, ROOM_TYPES } from '../../data/bookings.js';
@@ -82,6 +88,25 @@ function drawSkip(ctx, p, t, until) {
   ctx.fillText('Skip ›', r.x + r.w / 2, r.y + r.h / 2);
 }
 const ease = (x) => 1 - (1 - Math.max(0, Math.min(1, x))) ** 3;
+// (M6b) a cast member's head and shoulders in a round frame — or false while their picture isn't loaded.
+function drawCastFace(ctx, assets, cast, cx, cy, r, ring = C.outline) {
+  const crop = cast && faceCrop(assets, cast);
+  if (!crop) return false;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = C.panelInfo;
+  ctx.fill();
+  ctx.clip();
+  assets.drawCrop(ctx, cast.art, crop, { x: cx - r, y: cy - r, w: r * 2, h: r * 2 });
+  ctx.restore();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = ring;
+  ctx.lineWidth = 5;
+  ctx.stroke();
+  return true;
+}
 const barColor = (v) => (v >= 78 ? C.good : v >= 64 ? C.progress : v >= 50 ? C.warn : C.bad);
 
 // --- a review -------------------------------------------------------------------------------------------------------
@@ -162,13 +187,15 @@ export function reviewMoment(review, { assets = null, layout }) {
 }
 
 // --- the monthly Roadside Guide -------------------------------------------------------------------------------------
-export function guideMoment(month, { layout, earlier = 0 }) {
+export function guideMoment(month, { layout, earlier = 0, assets = null }) {
   const R = REVEAL.guide;
   const n = GUIDE.judges.length;
-  const judgeAt = (i) => START + i * R.step;
+  const opal = opalTip(month.n); // (M6b) her line comes first
+  const OPAL_H = 170;
+  const judgeAt = (i) => START + R.step + i * R.step;
   const starsAt = judgeAt(n) + 0.2;
   const done = starsAt + R.stars;
-  const H = 980;
+  const H = 980 + OPAL_H;
   const changed = month.was == null ? 'Your first star rating.' : month.stars > month.was ? `Up from ${month.was} ${month.was === 1 ? 'star' : 'stars'}.` : month.stars < month.was ? `Down from ${month.was} ${month.was === 1 ? 'star' : 'stars'}.` : 'Same as last month.';
   const m = {
     kind: 'guide',
@@ -176,6 +203,7 @@ export function guideMoment(month, { layout, earlier = 0 }) {
     title: `Month ${month.n} rating`, // (the stars themselves come last, in the panel)
     subtitle: `${changed}${earlier ? ` (${earlier} earlier ${earlier === 1 ? 'month' : 'months'} rated too.)` : ''}`,
     accent: C.gold,
+    opal,
     minShowSec: done,
     revealSec: done,
     skipRect: () => skipRectOf(panelRect(layout, H)),
@@ -183,6 +211,26 @@ export function guideMoment(month, { layout, earlier = 0 }) {
       const p = panelRect(layout, H);
       ctx.save();
       roundRect(ctx, p, 32, C.panel, C.gold, 6);
+      // (M6b) Dame Opal's line for the month
+      if (time >= START) {
+        const box = { x: p.x + 24, y: p.y + 160, w: p.w - 48, h: OPAL_H - 20 };
+        ctx.globalAlpha = Math.min(1, (time - START) / 0.3);
+        roundRect(ctx, box, 24, C.panelInfo);
+        const face = { cx: box.x + 72, cy: box.y + box.h / 2 };
+        if (!drawCastFace(ctx, assets, castById('opal'), face.cx, face.cy, 56, C.progress)) {
+          ctx.beginPath();
+          ctx.arc(face.cx, face.cy, 56, 0, Math.PI * 2);
+          ctx.fillStyle = C.progress;
+          ctx.fill();
+        }
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = C.text;
+        ctx.font = font(THEME.size.small);
+        const lines = wrap(ctx, `“${opal}”`, box.w - 180, 3);
+        lines.forEach((l, i) => ctx.fillText(l, box.x + 150, box.y + box.h / 2 + (i - (lines.length - 1) / 2) * 40, box.w - 170));
+        ctx.globalAlpha = 1;
+      }
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = C.text;
@@ -191,7 +239,7 @@ export function guideMoment(month, { layout, earlier = 0 }) {
       ctx.fillStyle = C.textMuted;
       ctx.font = font(THEME.size.small);
       ctx.fillText(`Month ${month.n} rating · four inspectors`, p.x + 40, p.y + 124, p.w - 300);
-      const rowY = p.y + 180;
+      const rowY = p.y + 180 + OPAL_H;
       const rowH = 150;
       GUIDE.judges.forEach((j, i) => {
         const k = (time - judgeAt(i)) / 0.3;
@@ -200,15 +248,17 @@ export function guideMoment(month, { layout, earlier = 0 }) {
         const y = rowY + i * rowH;
         ctx.globalAlpha = Math.min(1, k);
         roundRect(ctx, { x: p.x + 24, y, w: p.w - 48, h: rowH - 20 }, 24, C.panelAlt);
-        // their badge: initials in their colour
-        ctx.beginPath();
-        ctx.arc(p.x + 100, y + (rowH - 20) / 2, 48, 0, Math.PI * 2);
-        ctx.fillStyle = j.color;
-        ctx.fill();
-        ctx.fillStyle = C.textOnAction;
-        ctx.font = font(THEME.size.heading, true);
-        ctx.textAlign = 'center';
-        ctx.fillText(j.name.split(' ').map((w) => w[0]).join(''), p.x + 100, y + (rowH - 20) / 2 + 2);
+        // (M6b) their portrait in a ring of their colour; initials only while the picture loads
+        if (!drawCastFace(ctx, assets, judgeCast(j.id), p.x + 100, y + (rowH - 20) / 2, 54, j.color)) {
+          ctx.beginPath();
+          ctx.arc(p.x + 100, y + (rowH - 20) / 2, 48, 0, Math.PI * 2);
+          ctx.fillStyle = j.color;
+          ctx.fill();
+          ctx.fillStyle = C.textOnAction;
+          ctx.font = font(THEME.size.heading, true);
+          ctx.textAlign = 'center';
+          ctx.fillText(j.name.split(' ').map((w) => w[0]).join(''), p.x + 100, y + (rowH - 20) / 2 + 2);
+        }
         ctx.textAlign = 'left';
         ctx.fillStyle = C.text;
         ctx.font = font(THEME.size.body, true);
@@ -240,6 +290,60 @@ export function guideMoment(month, { layout, earlier = 0 }) {
     },
   };
   return m;
+}
+
+// --- (M6b) Dame Opal Fairweather's welcome ---------------------------------------------------------------------------
+export function opalWelcomeMoment({ layout, assets = null }) {
+  const opal = castById('opal');
+  const lineAt = (i) => START + 0.1 + i * 0.6;
+  const signAt = lineAt(OPAL.welcome.length);
+  const done = signAt + 0.3;
+  const H = 900;
+  return {
+    kind: 'opal',
+    id: 'welcome',
+    title: opal.name,
+    subtitle: OPAL.welcomeTitle,
+    accent: C.progress,
+    minShowSec: done,
+    revealSec: done,
+    skipRect: () => skipRectOf(panelRect(layout, H)),
+    drawFn(ctx, time) {
+      const p = panelRect(layout, H);
+      ctx.save();
+      roundRect(ctx, p, 32, C.panel, C.progress, 6);
+      const cx = p.x + p.w / 2;
+      if (!drawCastFace(ctx, assets, opal, cx, p.y + 230, 170, C.progress)) {
+        ctx.beginPath();
+        ctx.arc(cx, p.y + 230, 170, 0, Math.PI * 2);
+        ctx.fillStyle = C.panelInfo;
+        ctx.fill();
+      }
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      let y = p.y + 480;
+      OPAL.welcome.forEach((words, i) => {
+        const k = (time - lineAt(i)) / 0.3;
+        if (k <= 0) return;
+        ctx.globalAlpha = Math.min(1, k);
+        ctx.fillStyle = C.text;
+        ctx.font = font(THEME.size.heading, i === 1);
+        const lines = wrap(ctx, i === 0 ? `“${words}` : `${words}”`, p.w - 100, 3);
+        lines.forEach((l, j) => ctx.fillText(l, cx, y + j * 62, p.w - 80));
+        y += lines.length * 62 + 30;
+        ctx.globalAlpha = 1;
+      });
+      if (time >= signAt) {
+        ctx.globalAlpha = Math.min(1, (time - signAt) / 0.3);
+        ctx.fillStyle = C.textMuted;
+        ctx.font = font(THEME.size.body);
+        ctx.fillText(OPAL.sign, cx, p.y + H - 70, p.w - 80);
+        ctx.globalAlpha = 1;
+      }
+      drawSkip(ctx, p, time, done);
+      ctx.restore();
+    },
+  };
 }
 
 // Skip: every part at once (the moment can then be closed with one tap).

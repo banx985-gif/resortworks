@@ -27,6 +27,9 @@
 // Milestone 6: each open resort has its finance (src/systems/finance.js: Credits on a core EconomySystem ledger, room and
 // café income, wages / upkeep / supplies, the Emergency Credit, pricing bands per room type), moved on by the booking
 // edges after the reviews and saved with the rest.
+// M6b: the chibi cast (data/cast.js). Dame Opal Fairweather's welcome card shows once for a new resort (the save's
+// opal.welcomed, set and saved as it shows; never for a reload or an older save), and her line opens each month's
+// Roadside Guide moment, whose inspectors now have their portraits.
 // Add ?debug=1 for the FPS/state overlay and the setup-data check, ?screen=test for the scaling / tap / asset-loader test
 // screen. With ?debug=1, &safe=phone|tablet stands in a notch and home bar (safe-area insets) on any screen, and
 // &reset=1 empties all four slots.
@@ -57,7 +60,8 @@ import { loadTeam, saveTeam } from './systems/staff.js';
 import { createReviews } from './systems/reviews.js';
 import { createFinance } from './systems/finance.js';
 import { MajorFeedback } from '../../../core/MajorFeedback.js';
-import { skipMoment } from './screens/reviewMoments.js';
+import { skipMoment, opalWelcomeMoment } from './screens/reviewMoments.js';
+import { validateCast } from '../data/cast.js';
 import { FrameGovernor } from '../../../core/FrameGovernor.js';
 import { Haptics } from '../../../core/Haptics.js';
 import { settingsSheet } from '../../../core/ui/SettingsSheet.js';
@@ -269,6 +273,14 @@ function openRun(n, data) {
   run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;
 }
+// (M6b) Dame Opal's welcome, once for a new resort: shown as the hub opens, marked and saved at once.
+function welcomeIfDue(run) {
+  if (run?.data.opal?.welcomed !== false) return;
+  run.data.opal.welcomed = true;
+  feedback.show(opalWelcomeMoment({ layout, assets }));
+  autosave.request('welcome');
+  debug.log('Opal: welcome card');
+}
 // Every band edge moves the open resort's bookings on (check-ins, check-outs, nights, offers), in order.
 bus.on('band:change', () => open && open.bookings.sync(open.calendar.today, open.calendar.bandIndex));
 // The campaign save: the calendar as it stands, the date the slot card shows, then the slot (save + summary record).
@@ -323,7 +335,7 @@ async function prepareSaves() {
   account = await campaigns.slots.loadAccount();
   settings.attachStore(adapter, 'settings'); // the settings slot in the account database too
   if (debug.enabled) {
-    const v = validateSetup(new DataValidator(), { art: true });
+    const v = validateCast(validateSetup(new DataValidator(), { art: true }), { art: true }); // (M6b) + the cast
     await v.checkArt();
     const r = v.report();
     debug.log(r.ok ? `setup lists: ${r.counts.checks} checks, ${r.counts.art} portraits found` : `setup data: ${r.errors.join('; ')}`);
@@ -366,6 +378,7 @@ async function playSlot(n) {
   debug.log(`slot ${n} opened: ${data.resort.name} · ${open.calendar.dateText()} · ${open.calendar.band.name}`);
   rememberResort(n);
   router.go('resort');
+  welcomeIfDue(open); // (a new resort reloaded before its welcome was saved)
 }
 
 async function startResort(n, setup) {
@@ -377,6 +390,7 @@ async function startResort(n, setup) {
     debug.log(`new resort in slot ${n}: ${setup.resort}, founder ${setup.founder}`);
     rememberResort(n);
     router.go('resort');
+    welcomeIfDue(open);
   };
   if (old && !old.empty) {
     const was = old.summary ? `"${old.summary.resort}" (Year ${old.summary.year}, Month ${old.summary.month})` : 'a save that can’t be read';
@@ -528,7 +542,7 @@ const testSheet = () => ({
 
 // ?debug=1: a test hook for automated checks.
 if (debug.enabled) {
-  window.__rw = { bus, renderer, layout, input, loop, router, assets, sheet, dialog, systemBack, textPrompt, settings, governor, haptics, splashScreen, menuScreen, slotsScreen, setupScreen, resortScreen, feedback, addRep, playSlot, startResort, deleteSlot, newGame, openSettings, booting, autosave, saveRun, skipDays, taps: [], get booted() { return booted; }, get account() { return account; }, get campaigns() { return campaigns; }, get open() { return open; } };
+  window.__rw = { bus, renderer, layout, input, loop, router, assets, sheet, dialog, systemBack, textPrompt, settings, governor, haptics, splashScreen, menuScreen, slotsScreen, setupScreen, resortScreen, feedback, addRep, playSlot, startResort, deleteSlot, newGame, openSettings, booting, autosave, clearMoments, saveRun, skipDays, taps: [], get booted() { return booted; }, get account() { return account; }, get campaigns() { return campaigns; }, get open() { return open; } };
 }
 
 router.go('boot');

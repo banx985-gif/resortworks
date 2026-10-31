@@ -41,6 +41,7 @@ export function newCampaign(setup, now = Date.now()) {
     housekeeping: freshHousekeeping({ minute: minuteOf(0, 1) }), // (Milestone 4) cleaning jobs, queue, linen
     reviews: freshReviews(), // (Milestone 5) reviews, REP / Rank, the monthly star rating ("New" until the first month ends)
     finance: freshFinance({ day: 0 }), // (Milestone 6) 32,000 Credits, the ledger, no debt, Standard pricing
+    opal: { welcomed: false }, // (M6b) Dame Opal's welcome card is due (a save from before M6b has none: no welcome)
     playSec: 0,
     ngPlus: 0,
   };

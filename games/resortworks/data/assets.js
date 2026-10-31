@@ -4,6 +4,7 @@ import { FOUNDERS } from './setup.js';
 import { FACILITIES, ROOMS, GUEST, STAFF_ROLES } from './lot.js';
 import { GUEST_TYPES } from './bookings.js';
 import { CLEAN } from './housekeeping.js';
+import { NAMED_CAST } from './cast.js';
 
 export const ASSETS = {
   // Milestone 0: the five Founders' portraits (setup cards, slot cards, the Founder's sheet).
@@ -20,6 +21,9 @@ export const ASSETS = {
   ...Object.fromEntries(Object.values(GUEST_TYPES).map((g) => [g.sprite, `assets/images/world/${g.sprite}.png`])),
   // Milestone 4: the housekeeper's cleaning pose (the opening team's portraits are the Founders' above).
   [CLEAN.pose]: `assets/images/world/${CLEAN.pose}.png`,
+  // M6b: the named chibi cast in use now (Dame Opal and the four Roadside Guide inspectors); the rest join with their
+  // milestones.
+  ...Object.fromEntries(NAMED_CAST.filter((c) => c.milestone === 'M6b').map((c) => [c.art, c.portrait])),
   // Milestone 0 loader test (?screen=test): the placeholder PWA icon as a real image, and one deliberately missing file.
   m0Real: 'assets/branding/pwa/icon-192.png',
   m0Missing: 'assets/m0-missing-test.png',

@@ -576,7 +576,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       // (Milestone 5) the month just rated: its Roadside Guide moment (only the newest after a debug skip)
       if (monthsDue.length && feedback) {
         const m = monthsDue[monthsDue.length - 1];
-        feedback.show(guideMoment(m, { layout, earlier: monthsDue.length - 1 }));
+        feedback.show(guideMoment(m, { layout, earlier: monthsDue.length - 1, assets })); // (M6b) with the cast portraits
         debug?.log(`roadside guide: month ${m.n} · ${m.stars} stars (QI ${m.qi})`);
         monthsDue.length = 0;
       }
