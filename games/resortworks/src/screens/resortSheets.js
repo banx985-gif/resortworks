@@ -48,7 +48,11 @@ import { GUEST, ROOMS, roomById } from '../../data/lot.js';
 import { ROOM_TYPES, GUEST_TYPES, ROOM_STATES, PRICE_BAND } from '../../data/bookings.js';
 import { arrivalWords } from '../systems/bookings.js';
 import { ROLES } from '../../data/setup.js';
-import { STAT_KEYS, STAT_NAMES, TIERS } from '../../data/staff.js';
+import { STAT_KEYS, STAT_NAMES, TIERS, PATTERNS } from '../../data/staff.js';
+import { PRIORITIES, FATIGUE, EMERGENCY, AUTO_ACCEPT, HIRING } from '../../data/staffing.js';
+import { hireable, hireWhy } from '../systems/staffing.js';
+import { EARLY_STAFF } from '../../data/staff.js';
+import { staffById } from '../systems/staff.js';
 import { LINEN, LATE_BADGE } from '../../data/housekeeping.js';
 import { linenFor } from '../systems/housekeeping.js';
 import { patternWords } from '../systems/staff.js';
@@ -67,23 +71,24 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const partyWords = (n) => (n === 1 ? '1 person' : `${n} people`);
 const aOrAn = (w) => (/^[AEIOU]/i.test(w) ? 'an' : 'a');
 export const rateWords = (rate) => `${rate} Cr a night`;
-const NO_ACT = { accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {}, review() {}, scores() {}, rates() {}, finance() {}, setBand() {}, complaint() {}, recover() {}, service() {} };
+const NO_ACT = { accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {}, review() {}, scores() {}, rates() {}, finance() {}, setBand() {}, complaint() {}, recover() {}, service() {}, autoAccept() {}, autoSet() {}, setPriority() {}, pin() {}, hire() {} };
 // (Milestone 5) the star rating in a few characters: "3★", or "New" before the first month ends.
 export const starText = (stars) => (stars ? `${stars}★` : 'New');
 const starsLong = (n) => `${'★'.repeat(n)}${'☆'.repeat(5 - n)}`;
 const REVIEWS_SHOWN = 20;
 
-export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null, finance = null, complaints = null, mt = null, layout = null } = {}) {
+export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null, finance = null, complaints = null, mt = null, layout = null, staffing = null } = {}) {
   const it = world?.byId(id);
   if (!it) return null;
   const now = [world.stateOf(it)];
   let spec;
   if (it.kind === 'guest') spec = guestSpec(world, it, { bookings, today, dateOf, complaints, act });
-  else if (it.kind === 'staff') spec = staffSpec(world, it, { hk, now, mt });
+  else if (it.kind === 'staff') spec = staffSpec(world, it, { hk, now, mt, st: staffing, act });
   else if (it.kind === 'room') spec = roomSpec(world, it, { bookings, today, act, hk, finance, layout });
   else if (it.id === 'F01' && bookings) spec = receptionSpec(it, { bookings, today, act, accent, reviews, dateOf, finance, complaints });
   else if (it.id === 'F04' && hk) spec = laundrySpec(it, { hk, now });
   else if (it.id === 'F05' && mt) spec = shedSpec(it, { mt, now, team: world.team });
+  else if (it.id === 'F02' && staffing) spec = serviceBlockSpec(it, { st: staffing, now, act, team: world.team?.map((w) => w.member).filter(Boolean) ?? null, finance }); // (Milestone 10; M11 Hire)
   else spec = { title: it.def.name, line: it.def.line, art: it.def.art, now };
   // (Milestone 8) every facility and room: its Condition (Reception's goes after its lists)
   if (mt && it.kind !== 'guest' && it.kind !== 'staff') {
@@ -181,8 +186,9 @@ function receptionSpec(it, { bookings: bk, today, act, reviews = null, dateOf = 
       columns: 1,
       buttons: [{ id: `offer:${o.id}`, icon: t.art, label: t.name, sub: `${partyWords(o.party)} · ${plural(o.nights, 'night')} · arrives ${arrivalWords(o.arrival, today)} · wants ${ROOM_TYPES[o.roomType].name.replace(' Room', '')}`, cost: rateWords(o.rate), accent: C.progress, onTap: () => act.pick(o.id) }],
     });
+    const auto = !why && bk.autoAcceptSettings?.on ? bk.autoWhy(o.id) : null; // (Milestone 10) why Auto Accept left it
     body.push({
-      lines: why ? [{ text: why, color: C.bad }] : [],
+      lines: why ? [{ text: why, color: C.bad }] : auto ? [{ text: `Auto Accept left this for you: ${auto}`, color: C.textMuted }] : [],
       columns: 2,
       buttons: [
         { id: `accept:${o.id}`, label: 'Accept', accent: C.action, disabled: !!why, onTap: () => act.accept(o.id) },
@@ -227,7 +233,7 @@ function receptionSpec(it, { bookings: bk, today, act, reviews = null, dateOf = 
     line: it.def.line,
     art: it.def.art,
     now: [summary],
-    more: [...(finance ? financeButtons(finance, act) : []), ...(reviews ? [{ id: 'scores', label: `Resort scores · ${starText(reviews.stars)}`, sub: `Rank ${reviews.rank.id} · the five headline scores`, accent: C.progress, onTap: () => act.scores() }] : []), { id: 'auto', label: `Auto Assign: ${bk.autoAssign ? 'On' : 'Off'}`, sub: bk.autoAssign ? 'Accepted guests get the best-fitting room' : 'You pick a room for each booking', accent: bk.autoAssign ? C.progress : C.textMuted, onTap: () => act.setAuto(!bk.autoAssign) }],
+    more: [...(bk.autoAcceptSettings ? [{ id: 'autoAccept', label: `Auto Accept: ${bk.autoAcceptSettings.on ? 'On' : 'Off'}`, sub: autoAcceptWords(bk), accent: bk.autoAcceptSettings.on ? C.action : C.textMuted, onTap: () => act.autoAccept() }] : []), ...(finance ? financeButtons(finance, act) : []), ...(reviews ? [{ id: 'scores', label: `Resort scores · ${starText(reviews.stars)}`, sub: `Rank ${reviews.rank.id} · the five headline scores`, accent: C.progress, onTap: () => act.scores() }] : []), { id: 'auto', label: `Auto Assign: ${bk.autoAssign ? 'On' : 'Off'}`, sub: bk.autoAssign ? 'Accepted guests get the best-fitting room' : 'You pick a room for each booking', accent: bk.autoAssign ? C.progress : C.textMuted, onTap: () => act.setAuto(!bk.autoAssign) }],
     body,
   };
 }
@@ -285,7 +291,7 @@ const ordinal = (n) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 ===
 export const minutesWords = (m) => (m >= 60 ? `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, '0')} min` : `${Math.max(1, Math.ceil(m))} min`);
 
 // --- a staff member (Milestone 4) -----------------------------------------------------------------------------------
-function staffSpec(world, p, { hk, now, mt = null }) {
+function staffSpec(world, p, { hk, now, mt = null, st = null, act = NO_ACT }) {
   const m = p.member;
   const tag = p.founder ? { text: 'FOUNDER', color: C.purple } : { text: 'STAFF', color: C.progress };
   if (!m?.stats) return { title: p.name, line: ROLES[p.role]?.name ?? world.role.name, art: m?.art ?? world.founder.art, tag, now };
@@ -318,6 +324,8 @@ function staffSpec(world, p, { hk, now, mt = null }) {
         { text: 'Shift', right: mt.onShift(m.id) ? 'On shift' : 'Off shift' },
       ],
     });
+  if (st) body.splice(1, 0, ...staffWork(m, st, act)); // (Milestone 10) fatigue, priority, pattern
+  if (m.absent) nowLines[0] = 'Away today: worn out, resting at home';
   return { title: m.name, line: ROLES[m.role].name, art: m.art, tag, now: nowLines, body };
 }
 
@@ -445,7 +453,7 @@ export function pickRoomSheet(bk, forId, { accent = C.progress, today = 0, act =
     art: t.art,
     accent,
     sections: [
-      { lines: [why ? { text: why, color: C.bad } : `Wants ${aOrAn(ROOM_TYPES[x.roomType].name)} ${ROOM_TYPES[x.roomType].name}. ${isOffer ? 'Picking a room accepts the booking in that room.' : 'The room you pick is kept for them.'}`] },
+      { lines: [why ? { text: why, color: C.bad } : `Wants ${aOrAn(ROOM_TYPES[x.roomType].name)} ${ROOM_TYPES[x.roomType].name}. ${isOffer ? 'Picking a room accepts the booking in that room.' : 'The room you pick is kept for them.'}`, ...(best && bk.fitParts ? [{ text: `Auto Assign picks ${best.name}: ${fitPartsWords(bk.fitParts(x, best))}`, color: C.textMuted }] : [])] },
       { title: 'Rooms', columns: 1, buttons: rows },
       { columns: 1, buttons: [{ id: 'back', label: '‹ Back to Reception', accent: C.textMuted, onTap: () => act.open('F01') }] },
     ],
@@ -551,3 +559,144 @@ export function financeSheet(fin, { today = 0, accent = C.progress } = {}) {
   body.push({ title: 'When money moves', std: 'when', lines: [{ text: 'Rooms are paid at check-out. The Snack Café takes 12 Cr a guest each evening. Upkeep and supplies are paid each night, wages at the end of each month. Repairs and maintenance parts are paid when the job starts.', color: C.textMuted }] });
   return { ...stationSheet({ title: 'Finance', line: 'Cash, income, costs and profit.', art: 'facility_f01', accent, now, body, text: { now: 'Now' } }), key: 'finance' };
 }
+
+// --- (Milestone 10) the team: Staff Wellbeing, each department's priority, everyone's pattern and fatigue ------------
+const PATTERN_NAMES = { day: 'Day', late: 'Late', night: 'Night' };
+export function fatigueWords(f, absent = false) {
+  if (absent) return { text: 'Away today (worn out)', color: C.bad };
+  if (f > FATIGUE.worn) return { text: `Worn out · ${Math.round(f)} (works at ${Math.round(FATIGUE.wornShare * 100)}%)`, color: C.bad };
+  if (f > FATIGUE.tired) return { text: `Tired · ${Math.round(f)} (works at ${Math.round(FATIGUE.tiredShare * 100)}%)`, color: C.bad };
+  return { text: `${f < 40 ? 'Rested' : 'Busy'} · ${Math.round(f)}`, color: f < 40 ? C.good : C.text };
+}
+function teamSection(st, act) {
+  const body = [];
+  const wb = st.wellbeing();
+  body.push({ title: `Staff Wellbeing ${Math.round(wb)}`, std: 'wellbeing', lines: [{ text: 'Each department works to its priority. Higher gets more done but tires people; over 75 tired they work slower, over 90 they may miss a day.', color: C.textMuted }] });
+  for (const role of Object.keys(ROLES)) {
+    const rows = st.rows.filter((r) => r.role === role);
+    if (!rows.length) continue;
+    const cur = st.priority(role);
+    const pr = PRIORITIES.find((p) => p.id === cur);
+    const em = cur === 'emergency' && st.streak(role) >= EMERGENCY.maxDays ? [{ text: `Emergency for ${plural(st.streak(role), 'day')}: Wellbeing is hurting twice as much.`, color: C.bad }] : [];
+    body.push({
+      title: `${ROLES[role].name} · ${pr.name}`,
+      std: `prio:${role}`,
+      lines: [{ text: pr.line, color: C.textMuted }, ...em],
+      columns: 2,
+      buttons: PRIORITIES.map((p) => ({ id: `prio:${role}:${p.id}`, label: p.id === cur ? `✓ ${p.name}` : p.name, sub: `${Math.round(p.target * 100)}% workload`, accent: p.id === cur ? (p.id === 'emergency' ? C.bad : C.action) : C.textMuted, onTap: () => act.setPriority(role, p.id) })),
+    });
+    body.push({
+      columns: 1,
+      buttons: rows.map((r) => {
+        const fw = fatigueWords(r.fatigue, r.absent);
+        return { id: `member:${r.id}`, icon: staffById(r.id)?.art ?? null, label: r.name, sub: `${PATTERN_NAMES[r.pattern]}${r.pinned ? ' (set by you)' : ''} · ${fw.text}`, accent: fw.color === C.bad ? C.bad : C.progress, onTap: () => act.open(r.id) };
+      }),
+    });
+  }
+  return body;
+}
+function serviceBlockSpec(it, { st, now, act, team = null, finance = null }) {
+  const tired = st.rows.filter((r) => r.absent || r.fatigue > FATIGUE.tired).length;
+  return { title: it.def.name, line: it.def.line, art: it.def.art, now: [tired ? `${plural(tired, 'person', 'people')} tired or away` : 'The team is rested', ...now.map((x) => ({ text: x, color: C.textMuted }))], body: [...teamSection(st, act), ...(team ? hireSection(team, finance, act) : [])] };
+}
+// (Milestone 11) Hire: the Early staff not on the team yet, while it has room.
+function hireSection(team, finance, act) {
+  const left = EARLY_STAFF.filter((e) => !team.some((m) => m.id === e.id));
+  if (!left.length) return [];
+  const full = team.length >= HIRING.cap;
+  return [
+    {
+      title: `Hire (${team.length} of ${HIRING.cap} people)`,
+      std: 'hire',
+      lines: [{ text: full ? `Your team is full (${HIRING.cap} people).` : `A ${HIRING.fee} Cr fee now, then 850 Cr a month like everyone.`, color: full ? C.bad : C.textMuted }],
+      columns: 1,
+      buttons: left.map((e) => {
+        const why = hireWhy(team, e.id, finance?.cash ?? Infinity);
+        return { id: `hire:${e.id}`, icon: e.art, label: e.name, sub: `${ROLES[e.role].name} · ${e.trait}`, cost: `${HIRING.fee} Cr`, accent: why ? C.textMuted : C.action, disabled: !!why, onTap: () => act.hire(e.id) };
+      }),
+    },
+  ];
+}
+// A staff member's (Milestone 10) part: fatigue, their department's priority, and their pattern (Auto or pinned).
+function staffWork(m, st, act) {
+  const row = st.rows.find((r) => r.id === m.id);
+  const pin = st.pinned(m.id);
+  const pr = PRIORITIES.find((p) => p.id === st.priority(m.role));
+  return [
+    { title: 'Fatigue', std: 'fatigue', lines: [fatigueWords(row?.fatigue ?? 0, row?.absent), { text: 'Department priority', right: pr.name }] },
+    {
+      title: `Work pattern · ${PATTERN_NAMES[m.pattern]}`,
+      std: 'pattern',
+      lines: [{ text: pin ? 'Set by you: Auto Schedule leaves it alone.' : 'Auto Schedule picks it each day.', color: C.textMuted }],
+      columns: 2,
+      buttons: [
+        { id: 'pattern:auto', label: pin ? 'Auto' : '✓ Auto', accent: pin ? C.textMuted : C.action, onTap: () => act.pin(m.id, null) },
+        ...Object.keys(PATTERN_NAMES).map((p) => ({ id: `pattern:${p}`, label: pin === p ? `✓ ${PATTERN_NAMES[p]}` : PATTERN_NAMES[p], sub: PATTERNS[p].bands.map((b) => b[0].toUpperCase() + b.slice(1)).join(', '), accent: pin === p ? C.action : C.textMuted, onTap: () => act.pin(m.id, p) })),
+      ],
+    },
+    { columns: 1, buttons: [{ id: 'team', label: 'Team & priorities', sub: 'The Motel Service Block', accent: C.progress, onTap: () => act.open('F02') }] },
+  ];
+}
+
+// --- (Milestone 10) Auto Accept: on / off and the filters (bible §27B) ------------------------------------------------
+export function autoAcceptSheet(bk, { accent = C.progress, act = NO_ACT } = {}) {
+  const f = bk.autoAcceptSettings;
+  const set = (patch) => () => act.autoSet(patch);
+  const types = f.types ?? Object.keys(GUEST_TYPES);
+  const sections = [
+    {
+      lines: [{ text: f.on ? 'New offers that pass your filters are accepted by themselves, each in the room Auto Assign picks. Anything left waits for you.' : 'Off: you accept or decline every offer yourself.', color: C.textMuted }],
+      columns: 1,
+      buttons: [{ id: 'aa:on', label: `Auto Accept: ${f.on ? 'On' : 'Off'}`, sub: f.on ? 'Tap to turn it off' : 'Tap to turn it on', accent: f.on ? C.action : C.textMuted, onTap: set({ on: !f.on }) }],
+    },
+    { title: 'Room they ask for', std: 'aa:rate', columns: 3, buttons: AUTO_ACCEPT.minRates.map((m) => ({ id: `aa:rate:${m.id}`, label: f.minRate === m.id ? `✓ ${m.name}` : m.name, accent: f.minRate === m.id ? C.action : C.textMuted, onTap: set({ minRate: m.id }) })) },
+    {
+      title: 'Guests',
+      std: 'aa:types',
+      columns: 1,
+      buttons: Object.values(GUEST_TYPES).map((g) => {
+        const on = types.includes(g.id);
+        const next = on ? types.filter((x) => x !== g.id) : [...types, g.id];
+        return { id: `aa:type:${g.id}`, icon: g.art, label: `${on ? '✓ ' : ''}${g.name}`, sub: on ? 'Accepted' : 'Left for you', accent: on ? C.action : C.textMuted, disabled: on && types.length === 1, onTap: set({ types: next }) };
+      }),
+    },
+    { title: 'Fill at most', std: 'aa:occ', columns: 3, buttons: AUTO_ACCEPT.maxOccs.map((n) => ({ id: `aa:occ:${n}`, label: f.maxOcc === n ? `✓ ${n}%` : `${n}%`, accent: f.maxOcc === n ? C.action : C.textMuted, onTap: set({ maxOcc: n }) })) },
+  ];
+  for (const rt of Object.keys(ROOM_TYPES)) {
+    const n = f.reserve?.[rt] ?? 0;
+    const have = ROOMS.filter((r) => r.typeId === rt).length;
+    const max = Math.min(AUTO_ACCEPT.reserveMax, have);
+    sections.push({
+      title: `Keep ${ROOM_TYPES[rt].name}s free: ${n}`,
+      std: `aa:keep:${rt}`,
+      columns: 2,
+      buttons: [
+        { id: `aa:keep:${rt}:-`, label: '− One fewer', accent: C.textMuted, disabled: n <= 0, onTap: set({ reserve: { ...f.reserve, [rt]: n - 1 } }) },
+        { id: `aa:keep:${rt}:+`, label: '+ One more', accent: C.progress, disabled: n >= max, onTap: set({ reserve: { ...f.reserve, [rt]: n + 1 } }) },
+      ],
+    });
+  }
+  sections.push({ title: 'Expected satisfaction at least', std: 'aa:sat', lines: [{ text: 'How the stay would score if it went well, in the room Auto Assign gives.', color: C.textMuted }], columns: 2, buttons: AUTO_ACCEPT.minSats.map((n) => ({ id: `aa:sat:${n ?? 'off'}`, label: f.minSat === n ? `✓ ${n ?? 'Off'}` : `${n ?? 'Off'}`, accent: f.minSat === n ? C.action : C.textMuted, onTap: set({ minSat: n }) })) });
+  sections.push({
+    title: 'Take first',
+    std: 'aa:prefer',
+    lines: [{ text: 'No repeat or package guests come to the Roadside yet.', color: C.textMuted }],
+    columns: 2,
+    buttons: [
+      { id: 'aa:repeat', label: `Repeat guests: ${f.preferRepeat ? 'On' : 'Off'}`, accent: f.preferRepeat ? C.action : C.textMuted, onTap: set({ preferRepeat: !f.preferRepeat }) },
+      { id: 'aa:package', label: `Package guests: ${f.preferPackage ? 'On' : 'Off'}`, accent: f.preferPackage ? C.action : C.textMuted, onTap: set({ preferPackage: !f.preferPackage }) },
+    ],
+  });
+  sections.push({ columns: 1, buttons: [{ id: 'back', label: '‹ Back to Reception', accent: C.textMuted, onTap: () => act.open('F01') }] });
+  return { key: 'autoAccept', title: 'Auto Accept', subtitle: 'Let offers you’d say yes to book themselves.', art: 'facility_f01', accent, sections };
+}
+export const autoAcceptWords = (bk) => {
+  const f = bk.autoAcceptSettings;
+  if (!f.on) return 'You answer every offer';
+  const bits = [f.types ? plural(f.types.length, 'guest type') : 'every guest', f.maxOcc < 100 ? `up to ${f.maxOcc}% full` : null, f.minSat != null ? `${f.minSat}+ expected` : null, f.minRate !== 'any' ? AUTO_ACCEPT.minRates.find((m) => m.id === f.minRate).name : null].filter(Boolean);
+  const words = bits.join(' · ');
+  return words[0].toUpperCase() + words.slice(1);
+};
+// Fit's parts in plain words (the picker's Auto Assign line).
+const FIT_WORDS = { type: 'room type', capacity: 'beds', view: 'view', noise: 'quiet', distance: 'walks', price: 'price' };
+export const fitPartsWords = (q) => Object.keys(FIT_WORDS).map((k) => `${FIT_WORDS[k]} ${Math.round(q[k])}`).join(' · ');

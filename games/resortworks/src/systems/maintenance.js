@@ -66,7 +66,7 @@ export function freshMaintenance({ minute = minuteOf(0, BAND.morning), start = C
 
 export function createMaintenance({ saved = null, team = [], bookings = null, finance = null, complaints = null, bus = null, seed = 'resortworks', rules = {} } = {}) {
   const R = { ...JOBS, ...rules };
-  const workers = rules.never ? [] : team.filter((m) => m.role === R.role); // (rules.never: tests — nobody ever on shift)
+  let workers = rules.never ? [] : team.filter((m) => m.role === R.role); // (rules.never: tests — nobody ever on shift; Milestone 11: refresh() after a hire)
   const grid = lotGrid();
   let s = saved ? load(saved) : freshMaintenance({ minute: bookings ? minuteOf(bookings.at.day, bookings.at.band) : undefined });
   const starts = Object.values(s.active).map((j) => ({ ...j }));
@@ -102,9 +102,10 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
     return r2(((kind === 'repair' ? R.repairMinutes : R.serviceMinutes) * k) / (1 + R.shedBonus * shedShare()));
   }
   const walkTiles = (from, to) => findPath(grid, doorOf(from), doorOf(to))?.length ?? 0;
-  const capacityLeft = (m, ws) => R.shiftMinutes - (s.shift[m.id]?.key === ws ? s.shift[m.id].used : 0);
+  // (Milestone 10) the shift capacity × their department's workload target; nobody works a day they are away
+  const capacityLeft = (m, ws) => R.shiftMinutes * (m.workload ?? 1) - (s.shift[m.id]?.key === ws ? s.shift[m.id].used : 0);
   const canStart = (m, t) => {
-    if (s.active[m.id]) return false;
+    if (s.active[m.id] || m.absent) return false;
     const ws = windowAt(m.pattern, t);
     return ws != null && capacityLeft(m, ws) > 1e-9;
   };
@@ -129,7 +130,7 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
     }
     const from = s.where[m.id] ?? m.station ?? R.shed;
     const walk = r2(walkTiles(from, q.target) * R.walkPerTile);
-    const work = minutesFor(q.kind, m.stats);
+    const work = r2(minutesFor(q.kind, m.stats) / (m.pace ?? 1)); // (Milestone 10) tired: slower
     const cost = costOf(q.target, q.kind);
     const day = Math.floor(t / MINUTES_PER_DAY);
     const job = { id: q.id ?? `M${s.nextId++}`, target: q.target, kind: q.kind, created: q.created, priority: !!q.priority, auto: !!q.auto, staff: m.id, start: t, walk, work, arrive: r2(t + walk), end: r2(t + walk + work), cost, phase: 'walk' };
@@ -305,7 +306,7 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
     },
     onShift: (staffId) => {
       const m = workers.find((x) => x.id === staffId);
-      return !!m && windowAt(m.pattern, s.at) != null;
+      return !!m && !m.absent && windowAt(m.pattern, s.at) != null;
     },
     minutesFor,
     costOf,
@@ -326,6 +327,11 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
         changed();
       }
       return ok;
+    },
+    // (Milestone 11) the team changed (a hire): every Maintenance person on it works the line from now.
+    refresh() {
+      if (!rules.never) workers = team.filter((m) => m.role === R.role);
+      changed();
     },
     get workers() {
       return workers;

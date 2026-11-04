@@ -38,12 +38,18 @@
 // Milestone 9: with the layout attached (attachLayout(ly), src/systems/layout.js) Fit's viewMatch, noiseMatch and
 // distanceMatch are each room's own (Auto Assign prefers quiet rooms with a view, near the café, pool and Reception), and
 // every band edge is passed on after maintenance's (each party staying hears its room's noise: booking.noise).
+// Milestone 10: with the team side attached (attachStaffing(st), src/systems/staffing.js) fatigue and Auto Schedule move
+// with every band edge, before it. Auto Accept (bible §27B, data/staffing.js AUTO_ACCEPT): when on, each band edge from
+// Morning takes every offer that passes the player's filters, in the room Auto Assign picks (autoWhy(offerId) says why one
+// is left for the player); setAutoAccept(patch) · autoAcceptSettings. Auto Assign also moves an unpinned booking that
+// hasn't arrived to the best free room when its room breaks. fitParts(x, room): Fit's six weighted parts.
 import { Rng } from '../../../../core/Rng.js';
 import { BANDS } from '../../data/calendar.js';
 import { LATE } from '../../data/housekeeping.js';
 import { minuteOf, bandAtMinute } from './calendar.js';
 import { ROOMS, roomById } from '../../data/lot.js';
 import { ROOM_TYPES, PRICE_BAND, GUEST_TYPES, OFFERS, ROOM_STATES, FIT, FIRST_GUEST } from '../../data/bookings.js';
+import { AUTO_ACCEPT, AUTO_MOVE } from '../../data/staffing.js';
 
 const BAND = Object.fromEntries(BANDS.map((b, i) => [b.id, i])); // night 0 · morning 1 · midday 2 · afternoon 3 · evening 4
 export const BAND_INDEX = BAND;
@@ -51,7 +57,7 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 
 // A fresh booking state at a day and band: every room Ready, no guests, that day's offers if Morning has come.
 export function freshBookings({ seed, day = 0, band = 'morning' }) {
-  const s = { autoAssign: true, nextId: 1, at: { day, band: BAND[band] ?? 1 }, rooms: Object.fromEntries(ROOMS.map((r) => [r.id, 'ready'])), under: {}, fixedAt: {}, cleanAt: {}, offers: [], bookings: [], stats: { ...STATS0 } };
+  const s = { autoAssign: true, autoAccept: clone(AUTO_ACCEPT.defaults), nextId: 1, at: { day, band: BAND[band] ?? 1 }, rooms: Object.fromEntries(ROOMS.map((r) => [r.id, 'ready'])), under: {}, fixedAt: {}, cleanAt: {}, offers: [], bookings: [], stats: { ...STATS0 } };
   if (s.at.band >= BAND.morning) s.offers = makeOffers(seed, day, s.stats);
   return s;
 }
@@ -69,7 +75,9 @@ export function firstBookings({ seed, day = 0, band = 'morning' }) {
   return s;
 }
 
-const STATS0 = { offered: 0, accepted: 0, declined: 0, expired: 0, checkIns: 0, checkOuts: 0, lateRooms: 0, lateMinutes: 0, pricedOut: 0 };
+// (Milestone 10) autoAccepted: taken by Auto Accept · autoMoved: moved by Auto Assign when their room broke · manualPicks /
+// manualPins: the player picked or changed a room by hand.
+const STATS0 = { offered: 0, accepted: 0, declined: 0, expired: 0, checkIns: 0, checkOuts: 0, lateRooms: 0, lateMinutes: 0, pricedOut: 0, autoAccepted: 0, autoMoved: 0, manualPicks: 0, manualPins: 0 };
 const HOLDS = new Set(['upcoming', 'waiting', 'staying']); // a booking in one of these holds its room
 const rateOf = (roomType) => Math.round(ROOM_TYPES[roomType].rate * PRICE_BAND.mult);
 function weighted(rng, entries) {
@@ -104,17 +112,22 @@ export function makeOffers(seed, day, stats = null, pricing = null) {
 
 // Fit (bible §27B) of a room for an offer or booking, 0–100. (Milestone 9) place: the room's { view, noise, distance }
 // matches (0–1, src/systems/layout.js fitParts); without it the three score FIT.neutral.
-export function fitOf(x, room, place = null) {
+// (Milestone 10) fitParts: the six weighted parts (the offer sheet shows them); null when the party doesn't fit.
+export function fitParts(x, room, place = null) {
   const want = ROOM_TYPES[x.roomType];
   const have = ROOM_TYPES[room.typeId];
-  if (x.party > have.cap) return -1;
+  if (x.party > have.cap) return null;
   const type = have.id === want.id ? FIT.type.same : have.rank > want.rank ? FIT.type.upgrade : FIT.type.downgrade;
   const capacity = 1 - ((have.cap - x.party) / have.cap) * 0.5;
   const budget = GUEST_TYPES[x.type].budget;
   const price = Math.max(0, 1 - Math.abs(have.rate - budget) / budget);
   const w = FIT.weights;
   const p = place ?? { view: FIT.neutral, noise: FIT.neutral, distance: FIT.neutral };
-  return w.type * type + w.capacity * capacity + w.view * p.view + w.noise * p.noise + w.distance * p.distance + w.price * price;
+  return { type: w.type * type, capacity: w.capacity * capacity, view: w.view * p.view, noise: w.noise * p.noise, distance: w.distance * p.distance, price: w.price * price };
+}
+export function fitOf(x, room, place = null) {
+  const q = fitParts(x, room, place);
+  return q ? q.type + q.capacity + q.view + q.noise + q.distance + q.price : -1;
 }
 
 export function createBookingSystem({ seed, saved = null, bus = null, day = 0, band = 'morning' }) {
@@ -126,6 +139,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   let cp = null; // (Milestone 7) the complaints system, once attached
   let mt = null; // (Milestone 8) the maintenance system, once attached
   let ly = null; // (Milestone 9) the layout (walks, noise, views), once attached
+  let st = null; // (Milestone 10) the team side (patterns, priorities, fatigue), once attached
   const fit = (x, r) => fitOf(x, r, ly?.fitParts(r.id) ?? null);
   const pricing = (day) => (fin ? { rateOf: fin.rateOf, chance: (o) => fin.offerChance(o, rv?.headline(day).service ?? null) } : null);
   const changed = () => {
@@ -239,6 +253,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     if (band >= BAND.midday)
       for (const b of s.bookings)
         if (b.status === 'upcoming' && b.arrival <= day) {
+          if (roomState(b.room) === 'maintenance') rehome(b); // (Milestone 10) broke when no other room was free
           if (['reserved', 'ready'].includes(roomState(b.room))) {
             checkIn(b, day, band);
             ins.push(b);
@@ -248,11 +263,86 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
           }
         }
     s.at = { day, band };
+    if (band >= BAND.morning) autoAccept(); // (Milestone 10) new offers, and rooms freed since the last band
     if (outs.length) bus?.emit('booking:checkout', { bookings: outs.map(clone) });
+    fresh = fresh.filter((o) => s.offers.includes(o)); // (Milestone 10) only those Auto Accept left for the player
     if (fresh.length) bus?.emit('booking:offers', { day, offers: fresh.map(clone) });
     if (ins.length) bus?.emit('booking:checkin', { bookings: ins.map(clone) });
     if (late.length) bus?.emit('booking:late', { bookings: late.map(clone) });
   }
+  // An offer becomes a booking in room r (pinned: the player chose the room). Accepted on its arrival day after check-in
+  // time began: they check in straight away.
+  function take(o, r, pinned, auto = false) {
+    s.offers = s.offers.filter((x) => x !== o);
+    const b = { id: `B${s.nextId++}`, type: o.type, party: o.party, nights: o.nights, arrival: o.arrival, roomType: o.roomType, rate: o.rate, room: r.id, pinned, status: 'upcoming', nightsLeft: o.nights, inDay: null, inBand: null, outDay: null };
+    if (auto) b.auto = true;
+    s.bookings.push(b);
+    hold(r.id);
+    s.stats.accepted++;
+    if (b.arrival <= s.at.day && s.at.band >= BAND.midday) {
+      checkIn(b, s.at.day, s.at.band, Math.max(hk?.at ?? 0, cp?.at ?? 0, minuteOf(s.at.day, s.at.band)));
+      bus?.emit('booking:checkin', { bookings: [clone(b)] });
+    }
+    return b;
+  }
+
+  // --- (Milestone 10) Auto Accept (bible §27B) -------------------------------------------------------------------
+  // Rooms held on night n (a booking holds its room from its arrival night to the night before it leaves), all or of one
+  // room type.
+  const holdsNight = (b, n) => HOLDS.has(b.status) && b.arrival <= n && n < b.arrival + b.nights;
+  const heldOn = (n, type = null) => s.bookings.filter((b) => holdsNight(b, n) && (!type || roomById(b.room).typeId === type)).length;
+  const nightsOf = (x) => Array.from({ length: x.nights }, (_, i) => x.arrival + i);
+  // Why Auto Accept leaves an offer for the player (one plain line), or null when it would take it — and the room.
+  function autoCheck(o) {
+    const f = s.autoAccept;
+    const t = GUEST_TYPES[o.type];
+    if (f.types && !f.types.includes(o.type)) return { why: `${t.name}s aren’t on your list.` };
+    const min = AUTO_ACCEPT.minRates.find((m) => m.id === f.minRate) ?? AUTO_ACCEPT.minRates[0];
+    if (ROOM_TYPES[o.roomType].rank < min.rank) return { why: `Asks for a ${ROOM_TYPES[o.roomType].name}: under ${min.name}.` };
+    const r = bestRoomFor(o);
+    if (!r) return { why: whyNot(o) ?? 'No free room.' };
+    const type = r.typeId;
+    const keep = f.reserve?.[type] ?? 0;
+    const sellable = ROOMS.filter((x) => roomState(x.id) !== 'maintenance');
+    const ofType = sellable.filter((x) => x.typeId === type).length;
+    for (const n of nightsOf(o)) {
+      if (((heldOn(n) + 1) / Math.max(1, sellable.length)) * 100 > f.maxOcc + 1e-9) return { why: `Would fill more than ${f.maxOcc}% of the rooms.` };
+      if (keep && ofType - heldOn(n, type) - 1 < keep) return { why: `Would use a ${ROOM_TYPES[type].name} you keep free.` };
+    }
+    if (f.minSat != null && rv) {
+      const e = rv.expected(o, r.id);
+      if (e < f.minSat) return { why: `Expected satisfaction ${Math.round(e)}: under ${f.minSat}.` };
+    }
+    return { why: null, room: r };
+  }
+  // Take every offer that passes (preferred guests first — no repeat or package guests exist yet — then oldest).
+  function autoAccept() {
+    if (!s.autoAccept.on) return 0;
+    let n = 0;
+    for (const o of [...s.offers]) {
+      const c = autoCheck(o);
+      if (c.why) continue;
+      take(o, c.room, false, true);
+      s.stats.autoAccepted++;
+      n++;
+    }
+    if (n) bus?.emit('booking:auto', { n });
+    return n;
+  }
+  // (Milestone 10) Auto Assign: an unpinned booking that hasn't arrived moves to the best free room when its room breaks.
+  function rehome(b) {
+    if (!AUTO_MOVE.onBreakdown || !s.autoAssign || b.pinned || b.status !== 'upcoming') return false;
+    const r = bestRoomFor(b);
+    if (!r || r.id === b.room) return false;
+    const old = b.room;
+    b.room = r.id;
+    b.movedFrom = old;
+    if (s.rooms[old] === 'maintenance' && s.under[old] === 'reserved' && !heldBy(old, b)) s.under[old] = 'ready';
+    hold(r.id);
+    s.stats.autoMoved++;
+    return true;
+  }
+
   // (Milestone 4) A room is clean at this minute: the waiting party checks in now (late minutes and Service loss on the
   // stay), or it is held for its next booking (Reserved), or it is Ready.
   function roomReady(id, minute) {
@@ -276,6 +366,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
         hk?.advance(minuteOf(next.day, next.band)); // cleaning up to this edge first, then the edge
         mt?.advance(minuteOf(next.day, next.band)); // (Milestone 8) maintenance jobs up to this edge
         cp?.advance(minuteOf(next.day, next.band)); // (Milestone 7) late parties' 30 minutes up to this edge
+        st?.onEdge(next.day, next.band); // (Milestone 10) fatigue for the band just ended; the day change's Auto Schedule
         hk?.onEdge(next.day, next.band);
         edge(next.day, next.band);
         mt?.onEdge(next.day, next.band, api); // (Milestone 8) the day change: wear, breakdowns
@@ -299,16 +390,8 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
         if (!r) return { ok: false, why: `${roomById(room)?.name ?? 'That room'} isn't free for this booking.` };
       } else if (s.autoAssign) r = bestRoomFor(o);
       else return { ok: false, needsRoom: true, why: 'Auto Assign is off: pick a room for this booking.' };
-      s.offers = s.offers.filter((x) => x !== o);
-      const b = { id: `B${s.nextId++}`, type: o.type, party: o.party, nights: o.nights, arrival: o.arrival, roomType: o.roomType, rate: o.rate, room: r.id, pinned: !!room, status: 'upcoming', nightsLeft: o.nights, inDay: null, inBand: null, outDay: null };
-      s.bookings.push(b);
-      hold(r.id);
-      s.stats.accepted++;
-      // Accepted on its arrival day after check-in time began: they check in straight away.
-      if (b.arrival <= s.at.day && s.at.band >= BAND.midday) {
-        checkIn(b, s.at.day, s.at.band, Math.max(hk?.at ?? 0, cp?.at ?? 0, minuteOf(s.at.day, s.at.band)));
-        bus?.emit('booking:checkin', { bookings: [clone(b)] });
-      }
+      if (room) s.stats.manualPicks++; // (Milestone 10)
+      const b = take(o, r, !!room);
       changed();
       return { ok: true, booking: b };
     },
@@ -334,6 +417,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
       release(b.room);
       b.room = r.id;
       b.pinned = true;
+      s.stats.manualPins++; // (Milestone 10)
       hold(r.id);
       changed();
       return { ok: true, booking: b };
@@ -378,6 +462,37 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     attachLayout(l) {
       ly = l;
     },
+    // (Milestone 10) the team side: fatigue and Auto Schedule move with every band edge, before it.
+    attachStaffing(x) {
+      st = x;
+    },
+    // (Milestone 10) Auto Accept: its settings (data/staffing.js AUTO_ACCEPT), changed one or several at a time; offers
+    // already waiting are checked at once.
+    get autoAcceptSettings() {
+      return clone(s.autoAccept);
+    },
+    setAutoAccept(patch) {
+      const f = { ...s.autoAccept, ...patch };
+      if (!AUTO_ACCEPT.minRates.some((m) => m.id === f.minRate)) f.minRate = 'any';
+      if (!AUTO_ACCEPT.maxOccs.includes(f.maxOcc)) f.maxOcc = 100;
+      if (!AUTO_ACCEPT.minSats.includes(f.minSat)) f.minSat = null;
+      f.types = Array.isArray(f.types) ? Object.keys(GUEST_TYPES).filter((id) => f.types.includes(id)) : null;
+      if (f.types && f.types.length === Object.keys(GUEST_TYPES).length) f.types = null;
+      f.reserve = Object.fromEntries(Object.entries(f.reserve ?? {}).filter(([rt, n]) => ROOM_TYPES[rt] && n > 0).map(([rt, n]) => [rt, Math.min(AUTO_ACCEPT.reserveMax, Math.round(n))]));
+      f.on = !!f.on;
+      f.preferRepeat = !!f.preferRepeat;
+      f.preferPackage = !!f.preferPackage;
+      s.autoAccept = f;
+      if (s.at.band >= BAND.morning) autoAccept();
+      changed();
+      return clone(f);
+    },
+    // Why Auto Accept leaves this offer for the player, or null when it would take it.
+    autoWhy: (offerId) => {
+      const o = s.offers.find((x) => x.id === offerId);
+      return o ? autoCheck(o).why : null;
+    },
+    fitParts: (x, r) => fitParts(x, r, ly?.fitParts(r.id) ?? null),
     // (Milestone 8) a room breaks down at this minute: Maintenance (the state under it kept); a party staying in it gets a
     // breakdown complaint.
     roomBroken(id, minute) {
@@ -388,6 +503,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
       delete s.cleanAt[id];
       const b = s.bookings.find((x) => x.room === id && x.status === 'staying') ?? null;
       if (b) cp?.onRoomBreakdown?.(b, minute, id);
+      for (const u of s.bookings.filter((x) => x.room === id && x.status === 'upcoming')) rehome(u); // (Milestone 10)
       changed();
       return b;
     },
@@ -506,6 +622,7 @@ export function arrivalWords(arrival, today) {
 function load(saved) {
   const s = clone(saved);
   s.autoAssign = s.autoAssign !== false;
+  s.autoAccept = { ...clone(AUTO_ACCEPT.defaults), ...(s.autoAccept && typeof s.autoAccept === 'object' ? s.autoAccept : {}) }; // (Milestone 10)
   s.nextId = Number.isFinite(s.nextId) ? s.nextId : 1;
   s.at = s.at && Number.isFinite(s.at.day) && Number.isFinite(s.at.band) ? s.at : { day: 0, band: 1 };
   s.rooms = Object.fromEntries(ROOMS.map((r) => [r.id, ROOM_STATES[s.rooms?.[r.id]] ? s.rooms[r.id] : 'ready']));

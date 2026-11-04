@@ -55,6 +55,7 @@ export const LINES = {
   refunds: { kind: 'cost', name: 'Refunds' }, // (Milestone 7) complaint recovery
   repairs: { kind: 'cost', name: 'Repairs' }, // (Milestone 8) 8% of the build cost a repair
   parts: { kind: 'cost', name: 'Maintenance parts' }, // (Milestone 8) 1% of the build cost a preventive service
+  hiring: { kind: 'cost', name: 'Hiring fees' }, // (Milestone 11) a new staff member's one-off fee
   creditDraw: { kind: 'credit', name: 'Emergency Credit taken' },
   creditRepay: { kind: 'credit', name: 'Emergency Credit paid back' },
 };

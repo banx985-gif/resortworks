@@ -86,7 +86,7 @@ export const linenFor = (roomId) => ROOM_TYPES[roomById(roomId).typeId].beds * L
 export function createHousekeeping({ saved = null, team = [], bookings = null, bus = null, rules = {} } = {}) {
   const R = { ...CLEAN, ...rules };
   const linenCap = rules.linen ?? LINEN.perMorning;
-  const hks = team.filter((m) => m.role === 'HK');
+  let hks = team.filter((m) => m.role === 'HK'); // (Milestone 11: refresh() after a hire)
   const grid = lotGrid();
   let s = saved ? load(saved) : freshHousekeeping({ minute: bookings ? minuteOf(bookings.at.day, bookings.at.band) : undefined, dirty: bookings ? ROOMS.filter((r) => bookings.roomState(r.id) === 'dirty').map((r) => r.id) : [] });
   const starts = Object.values(s.active).map((j) => ({ ...j })); // (in memory only: the walker catches up from here)
@@ -113,9 +113,10 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
   }
 
   const walkTiles = (from, to) => findPath(grid, doorOf(from), doorOf(to))?.length ?? 0;
-  const capacityLeft = (m, ws) => R.shiftMinutes - (s.shift[m.id]?.key === ws ? s.shift[m.id].used : 0);
+  // (Milestone 10) the shift capacity × their department's workload target; nobody works a day they are away
+  const capacityLeft = (m, ws) => R.shiftMinutes * (m.workload ?? 1) - (s.shift[m.id]?.key === ws ? s.shift[m.id].used : 0);
   const canStart = (m, t) => {
-    if (s.active[m.id]) return false;
+    if (s.active[m.id] || m.absent) return false;
     const ws = windowAt(m.pattern, t);
     return ws != null && capacityLeft(m, ws) > 1e-9;
   };
@@ -141,7 +142,7 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
     s.linen.left = Math.max(0, s.linen.left - need);
     s.linen.rooms++;
     if (short) s.linen.short++;
-    const clean = cleanMinutes(q.room, m.stats, short, R);
+    const clean = r2(cleanMinutes(q.room, m.stats, short, R) / (m.pace ?? 1)); // (Milestone 10) tired: slower
     const job = { id: q.id, room: q.room, created: q.created, staff: m.id, start: t, walk, clean, arrive: r2(t + walk), end: r2(t + walk + clean), short, phase: 'walk' };
     s.queue = s.queue.filter((x) => x !== q);
     s.active[m.id] = job;
@@ -218,6 +219,12 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
     attachMaintenance(m) {
       mt = m;
     },
+    // (Milestone 11) the team changed (a hire): every housekeeper on it works the queue from now.
+    refresh() {
+      hks = team.filter((m) => m.role === 'HK');
+      tryStart();
+      changed();
+    },
     enqueue(ids) {
       for (const id of ids) if (!hk.hasJob(id)) s.queue.push({ id: `J${s.nextId++}`, room: id, created: s.at });
       tryStart();
@@ -254,11 +261,11 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
     hoursLeft(staffId) {
       const m = hks.find((x) => x.id === staffId);
       const ws = m && windowAt(m.pattern, s.at);
-      return ws == null ? 0 : Math.max(0, capacityLeft(m, ws));
+      return ws == null || m.absent ? 0 : Math.max(0, capacityLeft(m, ws));
     },
     onShift: (staffId) => {
       const m = hks.find((x) => x.id === staffId);
-      return !!m && windowAt(m.pattern, s.at) != null;
+      return !!m && !m.absent && windowAt(m.pattern, s.at) != null;
     },
     get housekeepers() {
       return hks;

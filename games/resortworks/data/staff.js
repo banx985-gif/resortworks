@@ -49,3 +49,12 @@ export const rolePattern = (role) => Object.entries(ROLE_PATTERN_SHARES[role] ??
 // The Start staff (bible §8 "Start" eligibility): one per role. They are the five Founder choices (data/setup.js
 // FOUNDERS), so the run's Founder is one of them and the other four join as the opening team.
 export const START_STAFF = ['S01', 'S11', 'S21', 'S31', 'S41'];
+// (Milestone 10 / 11) The bible §8 'Early' staff, one per role: the people a Roadside resort can hire (Standard tier). A
+// saved team may hold them; their portraits are filed as assets/images/staff/<art>.png.
+export const EARLY_STAFF = [
+  { id: 'S02', name: 'Eli Cross', role: 'FO', art: 'staff_s02', trait: 'Quick Desk' },
+  { id: 'S12', name: 'Sam Moss', role: 'HK', art: 'staff_s12', trait: 'Neat Eye' },
+  { id: 'S22', name: 'Mina Cole', role: 'HS', art: 'staff_s22', trait: 'Fast Serve' },
+  { id: 'S32', name: 'Lena Bell', role: 'AE', art: 'staff_s32', trait: 'Kids Smile' },
+  { id: 'S42', name: 'Rami Cole', role: 'MG', art: 'staff_s42', trait: 'Green Thumb' },
+];

@@ -48,7 +48,8 @@ const ARRIVE_SHARE = 0.6; // arrive with at least 40% of the stop's time left to
 // on the lane.
 const STAFF_SPOT = [-0.27, 0];
 // (Milestone 4) the team at the rest point: the Founder on M1's spot, the others spread round it on the left.
-const STAFF_SPOTS = [STAFF_SPOT, [-0.27, 0.22], [-0.27, -0.22], [-0.08, 0.34], [-0.08, -0.34]];
+// (M11: up to 8 people on the team)
+const STAFF_SPOTS = [STAFF_SPOT, [-0.27, 0.22], [-0.27, -0.22], [-0.08, 0.34], [-0.08, -0.34], [-0.4, 0.1], [-0.4, -0.1], [-0.18, 0]];
 const TASK_WALK_SEC = 0.4; // the housekeeper's quick walk to the next room on screen (game seconds)
 const CLEAN_SPOT = [0.3, -0.12]; // the housekeeper cleaning: right of the doorway, a little nearer the room (still on the tile; clear of a building in front)
 const GUEST_SPOTS = [
@@ -84,7 +85,9 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
   // A staff member's plan for this band: at their station in their pattern's bands, resting otherwise (no pattern: the
   // M2 Founder, at the station Morning to Evening).
   function staffPlan(p, b) {
-    const working = p.pattern ? onShiftAt(p.pattern, b) : b !== 'night';
+    // (Milestone 10) the pattern Auto Schedule gives them today (read live), and nobody works a day they are away
+    const pattern = p.member?.pattern ?? p.pattern;
+    const working = p.member?.absent ? false : pattern ? onShiftAt(pattern, b) : b !== 'night';
     const station = STAFF_ROLES[p.role].station;
     return (working ? STAFF_PLAN.work : STAFF_PLAN.night).map((s) => ({ ...s, at: s.at === 'station' ? station : s.at }));
   }
@@ -92,7 +95,7 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
   function guestPlan(p, b, d) {
     const st = p.stay;
     let list = GUEST_PLAN[b];
-    if (st.status === 'left' && b === 'morning') list = LEAVE_PLAN;
+    if (st.status === 'left') list = LEAVE_PLAN; // (M11: a leaver slowed at 2× still heads for their car after Morning)
     else if (st.status === 'waiting') list = WAIT_PLAN;
     else if (st.inDay === d && st.inBand === BAND_I[b]) list = ARRIVE_PLAN;
     const roomName = placeName(st.room);
@@ -123,6 +126,7 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
   let bandNow = band;
   let fracNow = bandFrac;
   let dayNow = day;
+  let pace = 1; // (Milestone 11) the clock speed: walks are capped on screen at 2×
 
   // Step to their own spot on the doorway tile (plan +x −y = screen right, +x +y = deeper).
   function standAside(p) {
@@ -157,6 +161,7 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
     const tiles = findPath(grid, here, it.door);
     const dist = ((tiles?.length ?? 0) + 1) * grid.tileSize;
     p.agent.speed = timeLeft != null ? Math.max(p.baseSpeed, dist / (Math.max(0.05, timeLeft) * ARRIVE_SHARE)) : p.baseSpeed;
+    if (pace === 2) p.agent.speed = Math.min(p.agent.speed, Math.max(p.baseSpeed, PERSON.maxRealSpeed / pace)); // (M11) readable at 2×
     p.phase = 'walking';
     p.agent.walkTo(grid, it.door.col, it.door.row, () => {
       p.phase = 'at';
@@ -280,6 +285,7 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
     for (const p of [...guests, ...crew]) {
       if (p.phase !== 'walking') continue;
       const a = p.agent;
+      if (pace === 2) a.speed = Math.min(a.speed, Math.max(p.baseSpeed, PERSON.maxRealSpeed / pace)); // (M11) a walk begun at 1× slows at once
       const px = a.x;
       const py = a.y;
       a.update(dt, grid);
@@ -343,6 +349,12 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
     staffOf: (memberId) => crew.find((w) => w.memberId === memberId) ?? null,
     byId: (id) => itemById(id) ?? guests.find((p) => p.id === id) ?? crew.find((w) => w.id === id || w.memberId === id) ?? null,
     setTime,
+    setPace(s) {
+      pace = s > 0 ? s : 1;
+    },
+    get pace() {
+      return pace;
+    },
     update,
     stateOf,
   };

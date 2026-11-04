@@ -10,6 +10,7 @@ import { freshReviews } from './reviews.js';
 import { freshFinance } from './finance.js';
 import { freshComplaints } from './complaints.js';
 import { freshMaintenance } from './maintenance.js';
+import { freshStaffing } from './staffing.js';
 
 // A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
 // before the calendar existed (Milestone 2).
@@ -45,6 +46,7 @@ export function newCampaign(setup, now = Date.now()) {
     finance: freshFinance({ day: 0 }), // (Milestone 6) 32,000 Credits, the ledger, no debt, Standard pricing
     complaints: freshComplaints(), // (Milestone 7) complaints, recovery actions and results
     maintenance: freshMaintenance({ minute: minuteOf(0, 1) }), // (Milestone 8) Condition 90 everywhere, no jobs yet
+    staffing: freshStaffing({ day: 0, band: 1 }), // (Milestone 10) Normal priorities, Auto Schedule, everyone rested
     opal: { welcomed: false }, // (M6b) Dame Opal's welcome card is due (a save from before M6b has none: no welcome)
     playSec: 0,
     ngPlus: 0,
@@ -131,5 +133,12 @@ export const SAVE_MIGRATIONS = {
     if (!d.bookings?.bookings) return record;
     const bookings = d.bookings.bookings.map((b) => (b.noise ? b : { ...b, noise: { bands: 0, sum: 0, worst: 0, loss: 0, over: 0 } }));
     return { ...record, data: { ...d, bookings: { ...d.bookings, bookings } } };
+  },
+  // 9 → 10 (Milestone 10): Normal priority everywhere, every pattern on Auto Schedule, everyone rested, from the save's
+  // last band edge; Auto Accept off (the booking state fills in its settings on load).
+  9: (record) => {
+    const d = record.data;
+    const at = d.bookings?.at ?? { day: d.calendar?.totalDays ?? 0, band: 1 };
+    return { ...record, data: { ...d, staffing: d.staffing ?? freshStaffing({ day: at.day, band: Math.max(0, Math.min(BANDS.length - 1, at.band)) }) } };
   },
 };

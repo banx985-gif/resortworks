@@ -60,10 +60,11 @@ import { drawToasts, toastHeight } from '../../../../core/ui/Toast.js';
 import { ROOM_STATES, GUEST_TYPES } from '../../data/bookings.js';
 import { LATE_BADGE } from '../../data/housekeeping.js';
 import { BANDS, TINT_FADE } from '../../data/calendar.js';
-import { founderById, paletteById } from '../../data/setup.js';
+import { founderById, paletteById, ROLES } from '../../data/setup.js';
 import { LOT, ART_LOOK, ART_TWEAK, PERSON, LOOK, roomById } from '../../data/lot.js';
 import { createResortWorld } from '../systems/resortWorld.js';
-import { resortSheet, pickRoomSheet, resortScoresSheet, starText, ratesSheet, financeSheet, complaintSheet } from './resortSheets.js';
+import { hireStaff } from '../systems/staffing.js';
+import { resortSheet, pickRoomSheet, resortScoresSheet, starText, ratesSheet, financeSheet, complaintSheet, autoAcceptSheet } from './resortSheets.js';
 import { COMPLAINT_TYPES } from '../../data/complaints.js';
 import { BADGE } from '../../data/maintenance.js';
 import { targetName } from '../systems/maintenance.js';
@@ -100,6 +101,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   let worldOf = null; // the run's booking system the world was made for
   let worldHk = null; // (M4) and its housekeeping
   let worldMt = null; // (M8) and its maintenance
+  let worldTeam = 0; // (M11) and how many people were on the team (a hire builds a new world)
   let peopleVersion = -1; // world.version the tap list was built for
   let slotN = null;
   let palette = paletteById(null);
@@ -300,6 +302,19 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       feedback.show(opalLineMoment({ layout, assets }));
       debug?.log('Opal: first complaint');
     }
+  });
+  // (Milestone 11) a hire: the new person walks onto the lot (a new world with everyone where the band puts them).
+  bus.on('staff:hired', ({ id }) => {
+    if (!active) return;
+    ensureWorld();
+    const m = run()?.team?.find((x) => x.id === id);
+    if (m) toast(`${m.name} joined the team`, `${ROLES[m.role].name}. Auto Schedule has given them a pattern.`, m.art, { open: id });
+  });
+  // (Milestone 10) someone worn out misses a day: a toast (one tap opens their sheet).
+  bus.on('staff:absent', ({ id }) => {
+    if (!active) return;
+    const m = run()?.team?.find((x) => x.id === id);
+    if (m) toast(`${m.name} is off today`, 'Worn out: they rest at home. Lower a priority to let the team recover.', m.art, { open: id });
   });
   // (Milestone 8) a toast for each breakdown (one tap opens the broken thing's sheet).
   bus.on('mt:breakdown', ({ id }) => {
@@ -507,12 +522,40 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       bookings()?.setAutoAssign(on);
       acted(`auto assign ${on ? 'on' : 'off'}`);
     },
+    // (Milestone 10) Auto Accept and its filters; department priorities and pinned patterns (staff:priority asks for a save)
+    autoAccept: () => openAutoAccept('sheet'),
+    autoSet(patch) {
+      const f = bookings()?.setAutoAccept(patch);
+      if (f) acted(`auto accept ${JSON.stringify(patch)}`);
+    },
+    setPriority(role, id) {
+      if (run()?.staffing?.setPriority(role, id)) debug?.log(`priority: ${role} → ${id}`);
+    },
+    // (Milestone 11) hire one of the Early staff (staff:priority asks for a save)
+    hire(id) {
+      const o = run();
+      if (!o) return;
+      const r = hireStaff({ team: o.team, staffing: o.staffing, finance: o.finance, housekeeping: o.housekeeping, maintenance: o.maintenance, seed: o.data.seed, day: today(), bus }, id);
+      if (!r.ok) return say(r.why);
+      bus.emit('staff:priority', { role: r.member.role, id: null });
+      debug?.log(`hired ${id}`);
+    },
+    pin(memberId, pattern) {
+      if (run()?.staffing?.pin(memberId, pattern)) debug?.log(`pattern: ${memberId} → ${pattern ?? 'auto'}`);
+    },
   };
+  function openAutoAccept(via = 'sheet') {
+    const bk = bookings();
+    if (!bk) return;
+    sheet.open(() => autoAcceptSheet(bk, { accent: palette.hex, act }));
+    opened = { id: 'autoAccept', via };
+    debug?.log(`sheet: auto accept (${via})`);
+  }
   const dateWords = (d) => {
     const x = calendar()?.clock.dateOf(d);
     return x ? `Y${x.year} · Month ${x.month} · Day ${x.day}` : `Day ${d + 1}`;
   };
-  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null, finance: run()?.finance ?? null, complaints: run()?.complaints ?? null, mt: run()?.maintenance ?? null, layout: run()?.layout ?? null });
+  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null, finance: run()?.finance ?? null, complaints: run()?.complaints ?? null, mt: run()?.maintenance ?? null, layout: run()?.layout ?? null, staffing: run()?.staffing ?? null });
   function openSheet(id, via = 'art') {
     if (!world?.byId(id)) return;
     sheet.open(() => resortSheet(world, id, sheetOpts()));
@@ -547,7 +590,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     if (!o) return false;
     const founder = founderById(o.data.resort.founder.id);
     palette = paletteById(o.data.resort.palette);
-    if (!world || slotN !== o.n || world.founder !== founder || worldOf !== (o.bookings ?? null) || worldHk !== (o.housekeeping ?? null) || worldMt !== (o.maintenance ?? null)) {
+    if (!world || slotN !== o.n || world.founder !== founder || worldOf !== (o.bookings ?? null) || worldHk !== (o.housekeeping ?? null) || worldMt !== (o.maintenance ?? null) || worldTeam !== (o.team?.length ?? 0)) {
       if (slotN !== o.n) viewSet = false;
       const cal = o.calendar;
       const bk = o.bookings ?? null;
@@ -555,6 +598,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       worldOf = bk;
       worldHk = o.housekeeping ?? null;
       worldMt = o.maintenance ?? null;
+      worldTeam = o.team?.length ?? 0;
       slotN = o.n;
       paths = null;
       syncSelection();
@@ -638,6 +682,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     update(dt) {
       const cal = calendar();
       if (world && cal) {
+        world.setPace?.(cal.speed); // (M11) walks stay readable at 2× / 4×
         world.setTime(cal.band.id, cal.bandFrac, cal.bandSeconds, cal.today);
         world.update(cal.paused ? 0 : dt * cal.speed);
         if (world.version !== peopleVersion) {

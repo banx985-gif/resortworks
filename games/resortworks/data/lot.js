@@ -62,7 +62,10 @@ export const ART_LOOK = { width: 1.06, foot: 0.97 };
 export const ART_TWEAK = Object.fromEntries(ROOMS.map((r) => [r.id, { width: 1.0, foot: 0.985 }]));
 
 // People: drawn height at zoom 1 (logical px); feet = where the feet sit in the picture (share of its height).
-export const PERSON = { height: 200, feet: 0.985, guestSpeed: 260, staffSpeed: 280 };
+// (Milestone 11, bible §27P "2× remains readable") maxRealSpeed: at 2× nobody walks faster on screen than this many plan
+// units per real second (2× then looks about as quick as 1×). A walk that can't finish in its band carries on into the
+// next stop. 1× and 4× are never capped (4×, a late unlock, keeps M2's rule that everyone reaches each band's place).
+export const PERSON = { height: 200, feet: 0.985, guestSpeed: 260, staffSpeed: 280, maxRealSpeed: 5000 };
 
 // A staying guest's day follows the bands (Milestone 2's lone guest; Milestone 3: every booked guest). Each band lists
 // where they go; a band with two stops splits at `until` (a share of the band). at: 'room' = their own room. going =

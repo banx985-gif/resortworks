@@ -7,7 +7,7 @@
 //   onShiftAt(pattern, bandId) → do they work this band?
 import { Rng } from '../../../../core/Rng.js';
 import { StaffModel } from '../../../../core/StaffModel.js';
-import { STAT_KEYS, ROLE_TEMPLATES, TIERS, LEVEL_ADD, PATTERNS, rolePattern, START_STAFF } from '../../data/staff.js';
+import { STAT_KEYS, ROLE_TEMPLATES, TIERS, LEVEL_ADD, PATTERNS, rolePattern, START_STAFF, EARLY_STAFF } from '../../data/staff.js';
 import { founderById } from '../../data/setup.js';
 import { STAFF_ROLES } from '../../data/lot.js';
 
@@ -36,27 +36,41 @@ export function makeTeam(seed, founderId) {
   });
 }
 
+// Anyone the team may hold: a Founder (the Start staff) or (Milestone 10) one of the Early staff.
+export const staffById = (id) => founderById(id) ?? EARLY_STAFF.find((m) => m.id === id) ?? null;
+// One Early staff member as a new hire: Standard tier, a seeded level 1–3, their role's stats and most common pattern.
+export function makeHire(seed, id) {
+  const f = EARLY_STAFF.find((m) => m.id === id);
+  if (!f) return null;
+  const tier = TIERS.standard;
+  const level = new Rng(`${seed}:staff:${id}`).int(tier.levels[0], tier.levels[1]);
+  const model = new StaffModel({ id, name: f.name, role: f.role, tier: tier.id, level, stats: statsFor(f.role, tier.id, level), art: f.art, activity: 'resting' });
+  return { ...model.toJSON(), pattern: rolePattern(f.role), founder: false };
+}
+
 // A saved team, checked (a missing or damaged one is made again from the seed — same people, same levels).
 export function loadTeam(saved, seed, founderId) {
   let list = Array.isArray(saved) && saved.length ? saved : makeTeam(seed, founderId);
-  if (!list.some((m) => m.id === founderId) || list.some((m) => !founderById(m.id))) list = makeTeam(seed, founderId);
-  return list.map((m) => {
-    const model = StaffModel.fromJSON(m);
-    return {
-      id: model.id,
-      name: model.name,
-      role: model.role,
-      tier: model.tier,
-      level: model.level,
-      stats: model.stats,
-      pattern: PATTERNS[m.pattern] ? m.pattern : rolePattern(model.role),
-      founder: m.id === founderId,
-      art: model.art,
-      sprite: STAFF_ROLES[model.role].art,
-      station: STAFF_ROLES[model.role].station,
-      model,
-    };
-  });
+  if (!list.some((m) => m.id === founderId) || list.some((m) => !staffById(m.id)) || new Set(list.map((m) => m.id)).size !== list.length) list = makeTeam(seed, founderId);
+  return list.map((m) => memberFrom(m, founderId));
+}
+// One saved person as a working team member (Milestone 11: a new hire joins the same way).
+export function memberFrom(m, founderId) {
+  const model = StaffModel.fromJSON(m);
+  return {
+    id: model.id,
+    name: model.name,
+    role: model.role,
+    tier: model.tier,
+    level: model.level,
+    stats: model.stats,
+    pattern: PATTERNS[m.pattern] ? m.pattern : rolePattern(model.role),
+    founder: m.id === founderId,
+    art: model.art,
+    sprite: STAFF_ROLES[model.role].art,
+    station: STAFF_ROLES[model.role].station,
+    model,
+  };
 }
 export const saveTeam = (team) => team.map((m) => ({ ...m.model.toJSON(), pattern: m.pattern, founder: m.founder }));
 

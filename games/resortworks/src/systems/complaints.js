@@ -58,9 +58,10 @@ export function freshComplaints() {
   return { at: 0, list: [], history: [], seen: {}, desk: { freeAt: 0 }, firstShown: false, stats: clone(STATS0) };
 }
 
-// The best stat on the team in that role (50 = neutral when nobody holds it).
+// The best stat on the team in that role (50 = neutral when nobody holds it). (Milestone 10) × the share fatigue and the
+// department's priority leave of it (src/systems/staffing.js m.statShare; 1 without it).
 function roleStat(team, role, stat) {
-  const v = (team ?? []).filter((m) => m.role === role).map((m) => m.stats?.[stat] ?? 50);
+  const v = (team ?? []).filter((m) => m.role === role).map((m) => (m.stats?.[stat] ?? 50) * (m.statShare ?? 1));
   return v.length ? Math.max(...v) : 50;
 }
 
@@ -114,11 +115,12 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
   function deskWait(b, t) {
     const people = fo();
     if (!people.length || b.priority) return 0;
-    const onShift = people.some((m) => onShiftAtMinute(m.pattern, t));
-    if (!onShift) return DESK.offShiftWait;
+    const here = people.filter((m) => !m.absent && onShiftAtMinute(m.pattern, t)); // (Milestone 10) nobody away today
+    if (!here.length) return DESK.offShiftWait;
     const start = Math.max(t, s.desk.freeAt);
     const desk = mt ? Math.max(CONDITION.halfFactor, mt.eff('F01')) : 1; // (Milestone 8) worn: slower; offline: twice as long
-    s.desk.freeAt = r2(start + DESK.checkInMinutes / desk);
+    const pace = Math.max(...here.map((m) => (m.workload ?? 1) * (m.pace ?? 1))); // (Milestone 10) priority and fatigue
+    s.desk.freeAt = r2(start + DESK.checkInMinutes / desk / pace);
     return r2(start - t);
   }
 

@@ -36,6 +36,8 @@
 // Milestone 8: each open resort has its maintenance (src/systems/maintenance.js: Condition of every facility and room, wear,
 // breakdowns, the Maintenance person's jobs, repair and parts costs), moved on in game minutes each step and with the
 // bookings' band edges, and saved with the rest. ?debug=1&maint=0 stops wear (the older milestones' browser runs).
+// Milestone 10: each open resort has its staffing (src/systems/staffing.js: Auto Schedule, department priorities, fatigue,
+// Staff Wellbeing), moved on by the booking edges and saved with the rest; Auto Accept lives in the bookings.
 // Milestone 9: each open resort has its layout (src/systems/layout.js: walks, noise, views, live Appeal), attached to the
 // bookings (Fit, each band's noise for the stays — saved on the stays), the reviews and the complaints.
 // Add ?debug=1 for the FPS/state overlay and the setup-data check, ?screen=test for the scaling / tap / asset-loader test
@@ -70,6 +72,7 @@ import { createFinance } from './systems/finance.js';
 import { createComplaints } from './systems/complaints.js';
 import { createMaintenance } from './systems/maintenance.js';
 import { createLayout } from './systems/layout.js';
+import { createStaffing } from './systems/staffing.js';
 import { MajorFeedback } from '../../../core/MajorFeedback.js';
 import { skipMoment, opalWelcomeMoment } from './screens/reviewMoments.js';
 import { validateCast } from '../data/cast.js';
@@ -298,6 +301,10 @@ function openRun(n, data) {
   run.layout.attachComplaints(run.complaints);
   run.bookings.attachLayout(run.layout);
   run.reviews.attachLayout(run.layout);
+  // (Milestone 10) Auto Schedule, priorities, fatigue, Staff Wellbeing
+  run.staffing = createStaffing({ saved: data.staffing ?? null, team: run.team, seed: data.seed, bus, day: run.bookings.at.day, band: run.bookings.at.band });
+  run.bookings.attachStaffing(run.staffing);
+  run.reviews.attachStaffing(run.staffing);
   open = run;
   run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;
@@ -325,15 +332,16 @@ async function saveRun() {
   data.finance = finance.serialize();
   data.complaints = complaints.serialize();
   data.maintenance = maintenance.serialize();
+  data.staffing = open.staffing.serialize();
   const c = calendar.clock;
   data.date = { year: c.year, month: c.month, day: c.day };
   await campaigns.save(n, data);
 }
 const autosave = new Autosave({
   bus,
-  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service'],
+  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority'],
   save: () => saveRun(),
-  stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize(), open.maintenance.serialize()]) : null),
+  stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize(), open.maintenance.serialize(), open.staffing.serialize()]) : null),
   enabled: () => !!open,
 });
 autosave.installBackground(); // the app going to the background (or the page closing) saves at once
