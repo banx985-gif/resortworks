@@ -18,9 +18,9 @@
 //   On the bus: 'hk:start' { job } · 'hk:arrive' { job } · 'hk:done' { job } · 'hk:change'
 // Milestone 8: with maintenance attached (attachMaintenance(mt)) the Morning restock is the linen × the Laundry Room's
 // working share (offline: none).
-import { Grid } from '../../../../core/Grid.js';
+import { lotGrid } from './site.js';
 import { findPath } from '../../../../core/Pathing.js';
-import { LOT, FACILITIES, ROOMS, roomById } from '../../data/lot.js';
+import { FACILITIES, ROOMS, roomById } from '../../data/lot.js';
 import { ROOM_TYPES } from '../../data/bookings.js';
 import { CLEAN, LINEN } from '../../data/housekeeping.js';
 import { PATTERNS } from '../../data/staff.js';
@@ -32,13 +32,9 @@ const r2 = (x) => Math.round(x * 100) / 100;
 const BAND_I = Object.fromEntries(BANDS.map((b, i) => [b.id, i]));
 const MAX_STARTS = 40;
 
-// The lot's hidden grid (the same one the walkers use): every facility and room blocks its footprint.
-export function lotGrid() {
-  const grid = new Grid({ cols: LOT.cols, rows: LOT.rows, tileSize: LOT.cell });
-  grid.pathCache = new Map();
-  for (const it of [...FACILITIES, ...ROOMS]) grid.blockRect(it.fp.col, it.fp.row, it.fp.w, it.fp.h);
-  return grid;
-}
+// The lot's hidden grid (the same one the walkers use): every facility and room blocks its footprint. (Milestone 12: it
+// lives in src/systems/site.js — remade whenever Build Mode changes the land.)
+export { lotGrid };
 export const doorOf = (id) => (roomById(id) ?? FACILITIES.find((f) => f.id === id))?.door ?? null;
 
 // A work pattern's shift each day: where it starts (minute of the day) and how long the window is (Night wraps).
@@ -87,7 +83,6 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
   const R = { ...CLEAN, ...rules };
   const linenCap = rules.linen ?? LINEN.perMorning;
   let hks = team.filter((m) => m.role === 'HK'); // (Milestone 11: refresh() after a hire)
-  const grid = lotGrid();
   let s = saved ? load(saved) : freshHousekeeping({ minute: bookings ? minuteOf(bookings.at.day, bookings.at.band) : undefined, dirty: bookings ? ROOMS.filter((r) => bookings.roomState(r.id) === 'dirty').map((r) => r.id) : [] });
   const starts = Object.values(s.active).map((j) => ({ ...j })); // (in memory only: the walker catches up from here)
   let version = 0;
@@ -112,7 +107,11 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
     return o;
   }
 
-  const walkTiles = (from, to) => findPath(grid, doorOf(from), doorOf(to))?.length ?? 0;
+  const walkTiles = (from, to) => {
+    const a = doorOf(from);
+    const b = doorOf(to);
+    return a && b ? findPath(lotGrid(), a, b)?.length ?? 0 : 0; // (M12: the grid of the land as it stands now)
+  };
   // (Milestone 10) the shift capacity × their department's workload target; nobody works a day they are away
   const capacityLeft = (m, ws) => R.shiftMinutes * (m.workload ?? 1) - (s.shift[m.id]?.key === ws ? s.shift[m.id].used : 0);
   const canStart = (m, t) => {

@@ -11,6 +11,8 @@ import { freshFinance } from './finance.js';
 import { freshComplaints } from './complaints.js';
 import { freshMaintenance } from './maintenance.js';
 import { freshStaffing } from './staffing.js';
+import { freshSite } from './site.js';
+import { freshProgress } from './progress.js';
 
 // A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
 // before the calendar existed (Milestone 2).
@@ -47,6 +49,8 @@ export function newCampaign(setup, now = Date.now()) {
     complaints: freshComplaints(), // (Milestone 7) complaints, recovery actions and results
     maintenance: freshMaintenance({ minute: minuteOf(0, 1) }), // (Milestone 8) Condition 90 everywhere, no jobs yet
     staffing: freshStaffing({ day: 0, band: 1 }), // (Milestone 10) Normal priorities, Auto Schedule, everyone rested
+    site: freshSite(), // (Milestone 12) the shipped Roadside Lot: what stands where, no construction, the starter land
+    progress: freshProgress(), // (Milestone 12) the Roadside Motel stage
     opal: { welcomed: false }, // (M6b) Dame Opal's welcome card is due (a save from before M6b has none: no welcome)
     playSec: 0,
     ngPlus: 0,
@@ -68,7 +72,7 @@ export function slotSummary(data) {
     founderRole: founder ? ROLES[founder.role].name : '',
     year: data.date.year,
     month: data.date.month,
-    stage: data.stage ?? null,
+    stage: data.progress?.stage ?? data.stage ?? null, // (Milestone 12)
     stars: data.reviews?.stars ?? data.stars ?? 0, // (Milestone 5) 0 = New
     cash: data.finance?.econ?.balances?.credits ?? null, // (Milestone 6)
     prestige: data.prestige ?? 0,
@@ -141,4 +145,7 @@ export const SAVE_MIGRATIONS = {
     const at = d.bookings?.at ?? { day: d.calendar?.totalDays ?? 0, band: 1 };
     return { ...record, data: { ...d, staffing: d.staffing ?? freshStaffing({ day: at.day, band: Math.max(0, Math.min(BANDS.length - 1, at.band)) }) } };
   },
+  // 10 → 11 (Milestone 12): the shipped lot as the site (nothing was ever moved before), the Roadside Motel stage — a
+  // resort that already passes the Holiday Lodge gate moves on at its next band edge.
+  10: (record) => ({ ...record, data: { ...record.data, site: record.data.site ?? freshSite(), progress: record.data.progress ?? freshProgress() } }),
 };

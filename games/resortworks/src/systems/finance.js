@@ -102,7 +102,7 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
     econ.add('credits', kind === 'cost' ? -value : value, LINES[line].name, line);
     record(line, Math.abs(value), d);
     if (kind === 'income') {
-      s.lifetimeRevenue += value;
+      if (!LINES[line].noRevenue) s.lifetimeRevenue += value; // (M12: a sale or cancel refund is money back, not revenue)
       bus?.emit('finance:income', { line, amount: value, source });
     }
     if (kind === 'cost') cover(d);
@@ -189,6 +189,13 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
     // (Milestone 7) a one-off cost on its own ledger line (comped meals, refunds).
     spend(line, amount, day, source = null) {
       if (LINES[line]?.kind !== 'cost') return 0;
+      const v = move(line, amount, day, source);
+      bookDay = day;
+      return v;
+    },
+    // (Milestone 12) money back on its own income line (a building sold, a build cancelled).
+    earn(line, amount, day, source = null) {
+      if (LINES[line]?.kind !== 'income') return 0;
       const v = move(line, amount, day, source);
       bookDay = day;
       return v;

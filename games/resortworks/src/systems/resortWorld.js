@@ -104,7 +104,11 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
   // The stop a plan asks for at this band and point in it.
   function stopFor(person, b, frac, d) {
     const list = person.kind === 'guest' ? guestPlan(person, b, d) : staffPlan(person, b);
-    return list.find((s) => s.until == null || frac < s.until) ?? list[list.length - 1];
+    const stop = list.find((s) => s.until == null || frac < s.until) ?? list[list.length - 1];
+    if (itemById(stop.at)) return stop;
+    // (Milestone 12) a place sold in Build Mode: guests stay in their room, staff rest at the Motel Service Block
+    const at = person.kind === 'guest' && itemById(person.stay?.room) ? person.stay.room : itemById(STAFF_PLAN.night[0].at) ? STAFF_PLAN.night[0].at : 'F01';
+    return { ...stop, at, going: person.kind === 'guest' ? 'Walking back to their room' : 'Walking to the rest point', doing: person.kind === 'guest' ? 'In their room' : 'Resting', until: stop.until };
   }
   const sameStop = (a, b) => a && b && a.at === b.at && a.doing === b.doing && a.going === b.going;
 

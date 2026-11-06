@@ -43,6 +43,12 @@
 // Morning takes every offer that passes the player's filters, in the room Auto Assign picks (autoWhy(offerId) says why one
 // is left for the player); setAutoAccept(patch) · autoAcceptSettings. Auto Assign also moves an unpinned booking that
 // hasn't arrived to the best free room when its room breaks. fitParts(x, room): Fit's six weighted parts.
+// Milestone 12: (Cowork's calls on the M10 / M11 questions) a booking holds its room only on the nights of its stay — from
+// its arrival day, not from the day it was accepted — so one room can carry several bookings one after another (Reserved
+// means "held for its next guest"). Same-day turnaround: before Midday a Dirty / Cleaning room with its clean queued can
+// be sold for that day's arrival (it is cleaned before check-in, or the party waits as a late room, M4). With Build Mode
+// attached (attachSite(site), src/systems/site.js) a moved room is closed for a day (never sold) and every band edge
+// first moves the construction on (builds finish, moved things reopen).
 import { Rng } from '../../../../core/Rng.js';
 import { BANDS } from '../../data/calendar.js';
 import { LATE } from '../../data/housekeeping.js';
@@ -140,6 +146,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   let mt = null; // (Milestone 8) the maintenance system, once attached
   let ly = null; // (Milestone 9) the layout (walks, noise, views), once attached
   let st = null; // (Milestone 10) the team side (patterns, priorities, fatigue), once attached
+  let site = null; // (Milestone 12) Build Mode, once attached
   const fit = (x, r) => fitOf(x, r, ly?.fitParts(r.id) ?? null);
   const pricing = (day) => (fin ? { rateOf: fin.rateOf, chance: (o) => fin.offerChance(o, rv?.headline(day).service ?? null) } : null);
   const changed = () => {
@@ -156,19 +163,25 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   // Rooms an offer / booking could have by its arrival day (the one place this is decided): a room nobody else holds that
   // is Ready now, or (Milestone 4) Dirty / Cleaning with a cleaning job queued when the party arrives on a later day — it
   // will be Ready in time. A Reserved room is held for its own guest; Maintenance rooms are never sold or assigned.
-  const heldBy = (id, x) => s.bookings.find((b) => b.room === id && b !== x && HOLDS.has(b.status)) ?? null;
+  // (Milestone 12) only a booking whose nights overlap x's holds the room against it.
+  const overlaps = (b, x) => b.arrival < x.arrival + (x.nights ?? 1) && x.arrival < b.arrival + (b.nights ?? 1); // (a bare query with no nights: one night)
+  const heldBy = (id, x) => s.bookings.find((b) => b.room === id && b !== x && HOLDS.has(b.status) && overlaps(b, x)) ?? null;
   function freeBy(id, x) {
-    if (heldBy(id, x)) return false;
+    if (site?.isClosed(id) || heldBy(id, x)) return false;
     const st = roomState(id);
-    if (ROOM_STATES[st].sellable) return true;
-    return (st === 'dirty' || st === 'cleaning') && x.arrival > s.at.day && !!hk?.hasJob(id);
+    if (ROOM_STATES[st].sellable || st === 'reserved') return true; // (Reserved: held for a later stay that doesn't overlap)
+    if (st === 'occupied') return x.arrival > s.at.day; // (its guest leaves first: the room is cleaned in between)
+    if (st !== 'dirty' && st !== 'cleaning') return false;
+    if (x.arrival > s.at.day) return !!hk?.hasJob(id);
+    return x.arrival === s.at.day && s.at.band < BAND.midday && !!hk?.hasJob(id); // (M12 same-day turnaround)
   }
+  const upcomingIn = (id) => s.bookings.some((b) => b.room === id && b.status === 'upcoming');
   function freeRoomsFor(x) {
     return ROOMS.filter((r) => ROOM_TYPES[r.typeId].cap >= x.party && freeBy(r.id, x));
   }
   // A booking takes its room: a Ready room turns Reserved (a Dirty / Cleaning one stays so until it is clean).
   const hold = (id) => roomState(id) === 'ready' && setRoom(id, 'reserved');
-  const release = (id) => roomState(id) === 'reserved' && setRoom(id, 'ready');
+  const release = (id) => roomState(id) === 'reserved' && !upcomingIn(id) && setRoom(id, 'ready'); // (M12: still Reserved for another booking)
   function bestRoomFor(x) {
     let best = null;
     let bestFit = -Infinity;
@@ -337,7 +350,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     const old = b.room;
     b.room = r.id;
     b.movedFrom = old;
-    if (s.rooms[old] === 'maintenance' && s.under[old] === 'reserved' && !heldBy(old, b)) s.under[old] = 'ready';
+    if (s.rooms[old] === 'maintenance' && s.under[old] === 'reserved' && !upcomingIn(old)) s.under[old] = 'ready';
     hold(r.id);
     s.stats.autoMoved++;
     return true;
@@ -363,6 +376,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
       let n = 0;
       while (s.at.day < day || (s.at.day === day && s.at.band < band)) {
         const next = s.at.band === BANDS.length - 1 ? { day: s.at.day + 1, band: 0 } : { day: s.at.day, band: s.at.band + 1 };
+        site?.onEdge(next.day, next.band); // (Milestone 12) builds finish and moved things reopen at the edge's minute
         hk?.advance(minuteOf(next.day, next.band)); // cleaning up to this edge first, then the edge
         mt?.advance(minuteOf(next.day, next.band)); // (Milestone 8) maintenance jobs up to this edge
         cp?.advance(minuteOf(next.day, next.band)); // (Milestone 7) late parties' 30 minutes up to this edge
@@ -414,8 +428,9 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
       }
       const r = freeRoomsFor(b).find((x) => x.id === roomId);
       if (!r) return { ok: false, why: `${roomById(roomId)?.name ?? 'That room'} isn't free.` };
-      release(b.room);
+      const old = b.room;
       b.room = r.id;
+      release(old);
       b.pinned = true;
       s.stats.manualPins++; // (Milestone 10)
       hold(r.id);
@@ -442,6 +457,11 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     attach(h) {
       hk = h;
     },
+    // (Milestone 12) Build Mode: closed rooms are never sold; the construction moves with the band edges.
+    attachSite(x) {
+      site = x;
+    },
+    hasBooking: (id) => s.bookings.some((b) => b.room === id && HOLDS.has(b.status)),
     // (Milestone 5) the reviews system: every check-out is scored, every band edge passed on.
     attachReviews(r) {
       rv = r;

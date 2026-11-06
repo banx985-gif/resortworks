@@ -24,7 +24,7 @@ export const GUEST_TYPES = {
 
 // Offers (Cowork's starting pick): 2–4 new offers each Morning, arriving today to +3 days. Unanswered offers expire at
 // the end of the day.
-export const OFFERS = { perMorning: [2, 4], arriveWithin: [0, 3] };
+export const OFFERS = { perMorning: [2, 3], arriveWithin: [0, 3] }; // (M12: 2–3, was 2–4 — rooms now held from the arrival day, see DECISIONS)
 
 // Room states (bible §10). sellable = can be sold / assigned. Cleaning is used from M4 (src/systems/housekeeping.js);
 // Maintenance from M8 (a broken room, src/systems/maintenance.js). colour = the code-drawn badge on the map.

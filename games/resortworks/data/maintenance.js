@@ -1,5 +1,6 @@
 // Maintenance / Condition numbers (Milestone 8, bible §12 / §27E / §27G). Plain data — src/systems/maintenance.js runs it.
 // Cowork's starting picks (M8 card) and Claude Code's, logged in docs/DECISIONS.md.
+import { FACILITY_BUILD, ROOM_BUILD } from './build.js';
 
 // Condition 0–100 on every facility and room (bible §12). Everything starts at `start`.
 //   70+ (full): full effect · 40–70: the main effect × Condition / 70 · under 40 (half): × halfFactor, and a daily breakdown
@@ -45,7 +46,8 @@ export const JOBS = {
 };
 
 // Build costs (bible §27G facilities, §27E rooms by type) — the parts and repair costs are shares of them.
-export const BUILD_COST = { F01: 2000, F02: 3500, F03: 5000, F04: 3000, F05: 3000, F06: 4000, F07: 2500, F08: 2000, RM01: 2500, RM02: 4000 };
+// (Milestone 12: every facility and room type, from data/build.js — the shipped ten are unchanged.)
+export const BUILD_COST = { ...Object.fromEntries(Object.entries(FACILITY_BUILD).map(([id, f]) => [id, f.cost])), ...Object.fromEntries(Object.entries(ROOM_BUILD).map(([id, r]) => [id, r.cost])) };
 
 // What a facility's Condition does to it (M8 card): its main effect follows the working share (offline: none).
 //   F01 Reception: a check-in takes deskMinutes ÷ share (offline: twice as long) · F03 Pool: the +8 Activity · F04 Laundry:
@@ -65,7 +67,7 @@ export const FELT = { F01: 'service', F03: 'activities', F06: 'food' };
 export const BADGE = { worn: { color: '#E0A93A', shape: 'disc' }, broken: { color: '#D64545', shape: 'triangle' } };
 
 // The plain Condition words on a sheet.
-export const COND_TEXT = { good: 'Good', worn: (pct) => `Worn: working at ${pct}%`, broken: 'Broken: offline' };
+export const COND_TEXT = { good: 'Good', worn: (pct) => `Worn: working at ${pct}%`, broken: 'Broken: offline', moving: 'Moved: opens again tomorrow' };
 
 // The breakdown log kept in the save (for the sheets and tests).
 export const LOG_MAX = 60;

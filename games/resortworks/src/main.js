@@ -40,6 +40,9 @@
 // Staff Wellbeing), moved on by the booking edges and saved with the rest; Auto Accept lives in the bookings.
 // Milestone 9: each open resort has its layout (src/systems/layout.js: walks, noise, views, live Appeal), attached to the
 // bookings (Fit, each band's noise for the stays — saved on the stays), the reviews and the complaints.
+// Milestone 12: each open resort has its site (src/systems/site.js: what stands where, construction, land) — made first, so
+// every system loads against the land as saved — and its stage (src/systems/progress.js). A Build Mode change measures the
+// layout again and remakes the walking world.
 // Add ?debug=1 for the FPS/state overlay and the setup-data check, ?screen=test for the scaling / tap / asset-loader test
 // screen. With ?debug=1, &complaints=0 switches complaint triggers off (the older milestones' browser runs), &safe=phone|tablet stands in a notch and home bar (safe-area insets) on any screen, and
 // &reset=1 empties all four slots.
@@ -73,6 +76,8 @@ import { createComplaints } from './systems/complaints.js';
 import { createMaintenance } from './systems/maintenance.js';
 import { createLayout } from './systems/layout.js';
 import { createStaffing } from './systems/staffing.js';
+import { createSite } from './systems/site.js';
+import { createProgress } from './systems/progress.js';
 import { MajorFeedback } from '../../../core/MajorFeedback.js';
 import { skipMoment, opalWelcomeMoment } from './screens/reviewMoments.js';
 import { validateCast } from '../data/cast.js';
@@ -277,6 +282,7 @@ function openRun(n, data) {
   // (Milestone 5) the speed unlocks read the live Rank
   run.calendar = createCalendar({ bus, saved: data.calendar ?? null, run: () => ({ ...run.data, reviews: run.reviews?.live ?? run.data.reviews }) });
   const c = run.calendar;
+  run.site = createSite({ saved: data.site ?? null, bus, now: () => run.calendar.minute }); // (Milestone 12) the land first
   run.bookings = createBookingSystem({ seed: data.seed, saved: data.bookings ?? null, bus, day: c.today, band: c.band.id });
   run.team = loadTeam(data.staff ?? null, data.seed, data.resort.founder.id); // (Milestone 4)
   run.housekeeping = createHousekeeping({ saved: data.housekeeping ?? null, team: run.team, bookings: run.bookings, bus });
@@ -305,6 +311,12 @@ function openRun(n, data) {
   run.staffing = createStaffing({ saved: data.staffing ?? null, team: run.team, seed: data.seed, bus, day: run.bookings.at.day, band: run.bookings.at.band });
   run.bookings.attachStaffing(run.staffing);
   run.reviews.attachStaffing(run.staffing);
+  // (Milestone 12) the stage, and Build Mode tied to everything it pays, checks and changes
+  run.progress = createProgress({ saved: data.progress ?? null, bus, reviews: run.reviews, bookings: run.bookings, now: () => run.calendar.minute });
+  run.site.attach({ finance: run.finance, reviews: run.reviews, bookings: run.bookings, maintenance: run.maintenance, progress: run.progress });
+  run.bookings.attachSite(run.site);
+  run.maintenance.attachSite(run.site);
+  run.site.onChange(() => run.layout.refresh());
   open = run;
   run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;
@@ -333,15 +345,17 @@ async function saveRun() {
   data.complaints = complaints.serialize();
   data.maintenance = maintenance.serialize();
   data.staffing = open.staffing.serialize();
+  data.site = open.site.serialize(); // (Milestone 12)
+  data.progress = open.progress.serialize();
   const c = calendar.clock;
   data.date = { year: c.year, month: c.month, day: c.day };
   await campaigns.save(n, data);
 }
 const autosave = new Autosave({
   bus,
-  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority'],
+  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage'],
   save: () => saveRun(),
-  stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize(), open.maintenance.serialize(), open.staffing.serialize()]) : null),
+  stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize(), open.maintenance.serialize(), open.staffing.serialize(), open.site.serialize(), open.progress.serialize()]) : null),
   enabled: () => !!open,
 });
 autosave.installBackground(); // the app going to the background (or the page closing) saves at once

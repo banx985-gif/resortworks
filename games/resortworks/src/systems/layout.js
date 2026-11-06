@@ -5,7 +5,8 @@
 // its view (the Garden by its Condition and the Pool lift it; the Laundry, the Shed and the car park pull it down; the sum
 // is a % on the Room category, capped ±12%). Resort Appeal is live: 60 + the Garden × its working share + 2 × the average
 // room view %. Fit's viewMatch, noiseMatch and distanceMatch are live, so Auto Assign prefers quiet rooms with a view.
-// All numbers are in data/layout.js. Players can't move buildings until M12: tests swap places with TEST_LAYOUTS.
+// All numbers are in data/layout.js. Tests swap places with TEST_LAYOUTS. (Milestone 12) the player builds, moves and
+// sells: ly.refresh() measures the land again (the open resort calls it on every Build Mode change).
 // The only state is on the stays (booking.noise: bands counted, the loudest band, the Comfort lost — saved with the
 // bookings): each band edge the booking system passes on (bookings.attachLayout(ly)) every party staying hears its room's
 // noise for that band. Over half their Noise tolerance costs Comfort, Night double, at most 12 a stay; over their full
@@ -17,7 +18,7 @@
 //     ly.appeal() · ly.place(roomId) (the review's inputs) · ly.lines(roomId) (the room sheet's three lines)
 //     ly.tileNoise(col, row) · ly.tileView(col, row) (the map overlay) · ly.onEdge(day, band, bookings)
 //     ly.attachMaintenance(mt) · ly.attachComplaints(cp) · ly.items · ly.facts
-import { Grid } from '../../../../core/Grid.js';
+import { gridFor } from './site.js';
 import { findPath } from '../../../../core/Pathing.js';
 import { LOT, FACILITIES, ROOMS } from '../../data/lot.js';
 import { GUEST_TYPES } from '../../data/bookings.js';
@@ -84,8 +85,7 @@ const shedBand = (band) => NOISE_EFFECT.shedBands.includes(BANDS[band].id);
 
 // The fixed facts for every room on a layout.
 export function measureLayout(items = layoutItems()) {
-  const grid = new Grid({ cols: LOT.cols, rows: LOT.rows, tileSize: LOT.cell });
-  for (const it of [...items.facilities, ...items.rooms]) grid.blockRect(it.fp.col, it.fp.row, it.fp.w, it.fp.h);
+  const grid = gridFor([...items.facilities, ...items.rooms].map((it) => it.fp));
   const doorOf = (id) => items.facilities.find((f) => f.id === id)?.door ?? null;
   const rooms = {};
   for (const r of items.rooms) {
@@ -115,8 +115,8 @@ export function measureLayout(items = layoutItems()) {
 }
 
 export function createLayout({ spec = null, mt = null } = {}) {
-  const items = layoutItems(spec);
-  const facts = measureLayout(items);
+  let items = layoutItems(spec);
+  let facts = measureLayout(items);
   let cp = null;
   const gardenShare = () => (mt ? mt.eff(APPEAL.gardenId) : 1);
   const factsOf = (id) => facts.rooms[id] ?? null;
@@ -211,8 +211,18 @@ export function createLayout({ spec = null, mt = null } = {}) {
   };
 
   return {
-    items,
-    facts,
+    get items() {
+      return items;
+    },
+    get facts() {
+      return facts;
+    },
+    // (Milestone 12) the land changed (a build finished, a move, a sale): walks, noise and views measured again.
+    refresh() {
+      items = layoutItems(spec);
+      facts = measureLayout(items);
+      tileCache.clear();
+    },
     viewPct,
     noiseAt,
     shedRunning,

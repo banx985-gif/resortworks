@@ -1,6 +1,7 @@
 // Early finance / pricing numbers (Milestone 6, bible §26 / §27D / §27E / §27G / §27M / §27N). Plain data —
 // src/systems/finance.js runs it. Picks the bible leaves open are Cowork's (marked) or Claude Code's, and are logged in
 // docs/DECISIONS.md. All money is whole Credits.
+import { FACILITY_BUILD } from './build.js';
 
 // A new resort's cash (bible §27M). Old saves get the same on load (M6 card).
 export const START_CASH = 32000;
@@ -27,8 +28,9 @@ export const CAFE = { facility: 'F06', perGuestDay: 12 };
 export const WAGES = { standard: 850, rare: 1450, elite: 2600, legendary: 4200, secret: 5800 };
 
 // Daily upkeep (bible §27G facilities, §27E rooms), paid at each day change for the day just ended.
-export const FACILITY_UPKEEP = { F01: 10, F02: 14, F03: 18, F04: 12, F05: 12, F06: 16, F07: 5, F08: 4 };
-export const ROOM_UPKEEP = { RM01: 5, RM02: 7 };
+// (Milestone 12) every facility's from data/build.js (the shipped eight are unchanged); rooms: all twelve (bible §27E).
+export const FACILITY_UPKEEP = Object.fromEntries(Object.entries(FACILITY_BUILD).map(([id, f]) => [id, f.upkeep]));
+export const ROOM_UPKEEP = { RM01: 5, RM02: 7, RM03: 10, RM04: 11, RM05: 13, RM06: 17, RM07: 22, RM08: 24, RM09: 32, RM10: 42, RM11: 48, RM12: 75 };
 
 // Supplies per occupied room-night at Basic quality (bible §27N), paid at each day change for the night just slept.
 export const SUPPLIES = { food: 11, linen: 5, amenities: 4, utilities: 6 };
@@ -56,6 +58,8 @@ export const LINES = {
   repairs: { kind: 'cost', name: 'Repairs' }, // (Milestone 8) 8% of the build cost a repair
   parts: { kind: 'cost', name: 'Maintenance parts' }, // (Milestone 8) 1% of the build cost a preventive service
   hiring: { kind: 'cost', name: 'Hiring fees' }, // (Milestone 11) a new staff member's one-off fee
+  construction: { kind: 'cost', name: 'Building' }, // (Milestone 12) Build Mode: builds, upgrades and land, paid at once
+  buildBack: { kind: 'income', name: 'Building sold or cancelled', noRevenue: true }, // (Milestone 12) sale and cancel refunds (not revenue)
   creditDraw: { kind: 'credit', name: 'Emergency Credit taken' },
   creditRepay: { kind: 'credit', name: 'Emergency Credit paid back' },
 };

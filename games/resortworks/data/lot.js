@@ -55,6 +55,13 @@ export const ROOMS = [
   room(8, 'RM02', 12, 8, { col: 12, row: 10 }),
 ];
 export const roomById = (id) => ROOMS.find((r) => r.id === id) ?? null;
+// (Milestone 12) FACILITIES and ROOMS above are the live lists: what stands open on the open resort's land now. Build Mode
+// (src/systems/site.js setLive) rewrites them in place, so every system reading them follows what the player builds.
+// The shipped start, kept as it was:
+export const START_FACILITIES = FACILITIES.map((x) => JSON.parse(JSON.stringify(x)));
+export const START_ROOMS = ROOMS.map((x) => JSON.parse(JSON.stringify(x)));
+// A room built in Build Mode (number n, its type's name and picture).
+export const makeRoom = (n, typeId, typeName, fp, door) => ({ id: `R${n}`, number: n, name: `Room ${n}`, typeId, type: typeName, art: `room_${typeId.toLowerCase()}`, fp: { ...fp }, door: { ...door } });
 
 // How each picture sits on its footprint: width = the footprint diamond's width × width; the diamond's front corner sits
 // at foot (a share of the picture's height, from the top). One scale for every piece of art.

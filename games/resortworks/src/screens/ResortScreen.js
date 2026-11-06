@@ -39,6 +39,13 @@
 // tint per tile (noise: one purple hue, deeper = louder; views: blue good / orange poor — colour-blind safe), with a
 // legend over the button. It fades in quickly; with Reduced flashes it snaps on and is lighter. Each room sheet has three
 // plain lines (noise, view, walk).
+// Milestone 12: Build Mode for real (a long press on empty land, or the Build button right of Reception): the build list
+// (src/screens/buildSheets.js — rooms and facilities the stage allows, the land, what is being built); pick one and tap
+// the land: a ghost of it shows green where it fits and red where it doesn't, with the reason in one plain line in the
+// banner; Place pays and starts it. A plot under construction is a code-drawn scaffold with a progress bar; tapping a
+// building in Build Mode opens its sheet (Move, Upgrade, Sell — two taps — or Cancel a build). The land you don't own
+// yet is drawn as fenced, darker ground. Dougie Barnes' build lines come as toasts (one tap, queued). Lv2 / Lv3 show as a
+// small code-drawn badge on the art. A moved thing is drawn faded until it opens again.
 //   createResortScreen({ renderer, layout, assets, bus, sheet, feedback, run, onMenu, debug, reducedFlashes, onSkip, onRep })
 //     run() → the open campaign { n, data, calendar, bookings, team, housekeeping, reviews, finance } or null    onSkip(days) → the debug skip
 //     feedback: core MajorFeedback (main draws it and gives it the taps)    onRep() → the debug REP skip
@@ -74,6 +81,10 @@ import { VfxSystem } from '../../../../core/VfxSystem.js';
 import { FloatFeed } from '../../../../core/FloatFeed.js';
 import { reviewMoment, guideMoment, starWords, opalLineMoment } from './reviewMoments.js';
 import { managerLine } from '../systems/resort.js';
+import { GRID, BUILD_LOOK, SCAFFOLD, DOUGIE, ROOM_BUILD, FACILITY_BUILD, landById } from '../../data/build.js';
+import { FACILITY_INFO } from '../../data/facilities.js';
+import { siteVersion, tileOwned } from '../systems/site.js';
+import { buildListSheet, buildItemSheet } from './buildSheets.js';
 
 const C = THEME.color;
 const S = THEME.size;
@@ -89,8 +100,8 @@ const PEOPLE_FIRST = 1e6; // people are picked over the building behind them
 export function createResortScreen({ renderer, layout, assets, bus, sheet, feedback = null, run, onMenu, debug = null, reducedFlashes = () => false, onSkip = () => {}, onRep = () => {} }) {
   const W = renderer.width;
   const iso = new IsoProjection({ tileSize: CELL, halfW: HW, halfH: HH, originX: LOT.margin + ROWS_DRAWN * HW, originY: LOT.margin + LOT.topOverhang });
-  const worldW = (LOT.cols + ROWS_DRAWN) * HW + LOT.margin * 2;
-  const worldH = (LOT.cols + ROWS_DRAWN) * HH + LOT.topOverhang + LOT.margin * 2;
+  const worldW = (GRID.cols + ROWS_DRAWN) * HW + LOT.margin * 2; // (M12: the land beyond the lot too)
+  const worldH = (GRID.cols + ROWS_DRAWN) * HH + LOT.topOverhang + LOT.margin * 2;
   const camera = new Camera({ viewW: W, viewH: renderer.height, worldW, worldH });
   camera.maxZoom = LOT.zoom.max;
   camera.minZoom = LOT.zoom.min;
@@ -102,6 +113,10 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   let worldHk = null; // (M4) and its housekeeping
   let worldMt = null; // (M8) and its maintenance
   let worldTeam = 0; // (M11) and how many people were on the team (a hire builds a new world)
+  let worldSite = -1; // (M12) and the land's version (a build, move or sale builds a new world)
+  let place = null; // (M12) placing: { kind, def, moving, col, row, check }
+  let confirm = null; // (M12) a sell / cancel waiting for its second tap
+  let buildMsg = null; // (M12) { text, t } — the banner's line after an action
   let peopleVersion = -1; // world.version the tap list was built for
   let slotN = null;
   let palette = paletteById(null);
@@ -115,9 +130,9 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   let opened = null; // { id, via } — the last sheet opened (tests)
 
   // --- where things are drawn (projected world) ------------------------------------------------------------------
-  const lookOf = (id) => ({ ...ART_LOOK, ...(ART_TWEAK[id] ?? {}) });
+  const lookOf = (it) => ({ ...ART_LOOK, ...(ART_TWEAK[it.id] ?? (it.kind === 'room' ? ART_TWEAK.R1 : {})) }); // (M12: built rooms look like the shipped ones)
   function artRect(it) {
-    const look = lookOf(it.id);
+    const look = lookOf(it);
     const fp = it.fp;
     const w = (fp.w + fp.h) * HW * look.width;
     const h = w / (assets.aspect(it.def.art) || 1);
@@ -304,6 +319,9 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     }
   });
   // (Milestone 11) a hire: the new person walks onto the lot (a new world with everyone where the band puts them).
+  // (Milestone 12) Dougie Barnes' build lines and a new stage: toasts (one tap closes it; they queue)
+  bus.on('site:dougie', ({ line, id }) => toast(DOUGIE.name, line, DOUGIE.art, id && world?.byId(id) ? { open: id } : null));
+  bus.on('progress:stage', ({ name }) => toast(`Welcome to the ${name} stage!`, 'New rooms and facilities are in the build list.', DOUGIE.art));
   bus.on('staff:hired', ({ id }) => {
     if (!active) return;
     ensureWorld();
@@ -408,6 +426,17 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     const sr = layout.safeRect;
     return { x: sr.x + 24, y: sr.y + 24, w: sr.w - 48, h: 300 };
   };
+  // (Milestone 12) the Build button: right of Reception on the bottom row (above it when the row is too narrow)
+  const buildRect = () => {
+    const s = shortcutRect();
+    const sr = layout.safeRect;
+    const room = sr.x + sr.w - 24 - (s.x + s.w + 16);
+    if (room >= 170) return { x: sr.x + sr.w - 24 - Math.min(240, room), y: s.y, w: Math.min(240, room), h: s.h };
+    return { x: sr.x + sr.w - 24 - 220, y: s.y - 16 - 100, w: 220, h: 100 };
+  };
+  // In Build Mode the bottom row: the build list (or, while placing: Place in the middle, Cancel on the left).
+  const placeRect = () => shortcutRect();
+  const cancelPlaceRect = () => layoutRect();
   const doneRect = () => {
     const b = bannerRect();
     return { x: b.x + b.w - 300 - 24, y: b.y + b.h - 24 - 110, w: 300, h: 110 };
@@ -427,7 +456,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     return { x: b.x, y: top - 12 - 64, w: Math.min(layout.safeRect.w - 48, 420), h: 64 };
   };
   const onSkipRow = (p) => debugSkips() && SKIPS.some((_, i) => hitRect(p, skipRect(i)));
-  const onUi = (p) => (buildMode ? hitRect(p, bannerRect()) : topBar.contains(p) || hitRect(p, plateRect()) || hitRect(p, shortcutRect()) || hitRect(p, layoutRect()) || onSkipRow(p) || (note && hitRect(p, noteRect())) || (toastRect() && hitRect(p, toastRect())));
+  const onUi = (p) => (buildMode ? hitRect(p, bannerRect()) || hitRect(p, placeRect()) || (!!place && hitRect(p, cancelPlaceRect())) : topBar.contains(p) || hitRect(p, plateRect()) || hitRect(p, shortcutRect()) || hitRect(p, layoutRect()) || hitRect(p, buildRect()) || onSkipRow(p) || (note && hitRect(p, noteRect())) || (toastRect() && hitRect(p, toastRect())));
   const overSheet = (p) => sheet.active && p.y >= sheet.rect().y;
 
   // The camera sees the lot between the name plate and the bottom row.
@@ -543,7 +572,119 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     pin(memberId, pattern) {
       if (run()?.staffing?.pin(memberId, pattern)) debug?.log(`pattern: ${memberId} → ${pattern ?? 'auto'}`);
     },
+    // --- (Milestone 12) Build Mode -------------------------------------------------------------------------------
+    list: () => openBuildList(),
+    done: () => setBuildMode(false),
+    item: (id) => openBuildItem(id),
+    pickBuild(kind, def) {
+      sheet.close();
+      const size = (kind === 'room' ? ROOM_BUILD[def] : FACILITY_BUILD[def]).size;
+      const c = centreCell();
+      startPlace({ kind, def, moving: null, col: c.col - Math.floor(size / 2), row: c.row - Math.floor(size / 2) });
+    },
+    startMove(id) {
+      const it = site()?.itemById(id);
+      if (!it) return;
+      if (site().jobFor(id)) return built('It’s being built or upgraded.');
+      sheet.close();
+      startPlace({ kind: it.kind, def: it.def, moving: id, col: it.fp.col, row: it.fp.row });
+    },
+    sell(id) {
+      if (confirm !== `sell:${id}`) {
+        confirm = `sell:${id}`;
+        return;
+      }
+      confirm = null;
+      const name = site()?.nameOf(id);
+      const r = site()?.sell(id);
+      if (!r?.ok) return built(r?.why);
+      sheet.close();
+      built(`Sold ${name}: ${credits(r.back)} back.`);
+      debug?.log(`build: sold ${id} (+${r.back})`);
+    },
+    cancelJob(jobId) {
+      if (confirm !== `cancel:${jobId}`) {
+        confirm = `cancel:${jobId}`;
+        return;
+      }
+      confirm = null;
+      const r = site()?.cancel(jobId);
+      if (!r?.ok) return built(r?.why);
+      sheet.close();
+      built(`Cancelled: ${credits(r.back)} back.`);
+      debug?.log(`build: cancelled ${jobId} (+${r.back})`);
+    },
+    upgrade(id) {
+      const r = site()?.upgrade(id);
+      if (!r?.ok) return built(r?.why);
+      openBuildItem(id);
+      debug?.log(`build: upgrade ${id}`);
+    },
+    buyLand(id) {
+      const r = site()?.buyLand(id);
+      if (!r?.ok) return built(r?.why);
+      built(`The ${landById(id)?.name ?? id} are yours.`);
+      openBuildList();
+      debug?.log(`build: land ${id}`);
+    },
   };
+  // --- (Milestone 12) Build Mode helpers -----------------------------------------------------------------------------
+  const site = () => run()?.site ?? null;
+  const minuteNow = () => calendar()?.minute ?? 0;
+  const built = (words) => words && (buildMsg = { text: words, t: 3.5 });
+  function centreCell() {
+    const w = camera.screenToWorld(W / 2, camera.viewY + camera.viewH / 2);
+    const plan = iso.toPlan(w.x, w.y);
+    return { col: Math.max(0, Math.min(GRID.cols - 1, Math.floor(plan.x / CELL))), row: Math.max(0, Math.min(GRID.rows - 1, Math.floor(plan.y / CELL))) };
+  }
+  function recheck() {
+    if (!place || !site()) return;
+    place.check = site().check(place.kind, place.def, place.col, place.row, { moving: place.moving });
+    if (place.moving) {
+      const it = site().itemById(place.moving);
+      if (it && it.fp.col === place.col && it.fp.row === place.row) place.check = { ...place.check, ok: false, why: 'Tap where it should go.', same: true };
+    }
+  }
+  function startPlace(pl) {
+    place = pl;
+    buildMsg = null;
+    recheck();
+    debug?.log(`build: placing ${pl.moving ?? `${pl.kind} ${pl.def}`}`);
+  }
+  function confirmPlace() {
+    if (!place || !site()) return;
+    recheck();
+    if (!place.check?.ok) return built(place.check?.why);
+    const r = place.moving ? site().move(place.moving, place.col, place.row) : site().build(place.kind, place.def, place.col, place.row);
+    if (!r.ok) return built(r.why);
+    const name = site().nameOf(r.id);
+    built(place.moving ? `${name} moved: it opens again tomorrow.` : `${name}: building started.`);
+    debug?.log(`build: ${place.moving ? 'moved' : 'built'} ${r.id} at ${place.col},${place.row}`);
+    place = null;
+  }
+  function openBuildList(via = 'sheet') {
+    const st = site();
+    if (!st) return;
+    confirm = null;
+    sheet.open(() => buildListSheet(st, { finance: run()?.finance, progress: run()?.progress, act, accent: palette.hex, now: minuteNow() }));
+    opened = { id: 'build', via };
+    debug?.log(`sheet: build list (${via})`);
+  }
+  function openBuildItem(id, via = 'sheet') {
+    const st = site();
+    if (!st?.itemById(id)) return;
+    confirm = null;
+    sheet.open(() => buildItemSheet(st, id, { act, accent: palette.hex, confirm, now: minuteNow() }) ?? buildListSheet(st, { finance: run()?.finance, progress: run()?.progress, act, accent: palette.hex, now: minuteNow() }));
+    opened = { id: `build:${id}`, via };
+    debug?.log(`sheet: build ${id} (${via})`);
+  }
+  // A plot under construction under this screen point (its diamond), or null.
+  function plotAt(p) {
+    const st = site();
+    if (!st) return null;
+    const w = camera.screenToWorld(p.x, p.y);
+    return st.items.find((it) => !it.open && inside(iso.outline(it.fp.col, it.fp.row, it.fp.w, it.fp.h), w.x, w.y)) ?? null;
+  }
   function openAutoAccept(via = 'sheet') {
     const bk = bookings();
     if (!bk) return;
@@ -580,7 +721,10 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   function setBuildMode(on) {
     if (buildMode === on) return;
     buildMode = on;
-    if (on) sheet.close();
+    sheet.close();
+    place = null;
+    confirm = null;
+    buildMsg = null;
     debug?.log(`Build Mode ${on ? 'on' : 'off'}`);
   }
 
@@ -590,7 +734,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     if (!o) return false;
     const founder = founderById(o.data.resort.founder.id);
     palette = paletteById(o.data.resort.palette);
-    if (!world || slotN !== o.n || world.founder !== founder || worldOf !== (o.bookings ?? null) || worldHk !== (o.housekeeping ?? null) || worldMt !== (o.maintenance ?? null) || worldTeam !== (o.team?.length ?? 0)) {
+    if (!world || slotN !== o.n || world.founder !== founder || worldOf !== (o.bookings ?? null) || worldHk !== (o.housekeeping ?? null) || worldMt !== (o.maintenance ?? null) || worldTeam !== (o.team?.length ?? 0) || worldSite !== siteVersion()) {
       if (slotN !== o.n) viewSet = false;
       const cal = o.calendar;
       const bk = o.bookings ?? null;
@@ -599,6 +743,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       worldHk = o.housekeeping ?? null;
       worldMt = o.maintenance ?? null;
       worldTeam = o.team?.length ?? 0;
+      worldSite = siteVersion();
       slotN = o.n;
       paths = null;
       syncSelection();
@@ -662,6 +807,19 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     },
     taps,
     setBuildMode,
+    // (Milestone 12) placing now ({ kind, def, moving, col, row, check }), the banner's line, a tile's screen point (tests)
+    get place() {
+      return place;
+    },
+    get buildLine() {
+      return bannerLine();
+    },
+    tilePoint(col, row) {
+      const w = iso.cellCenter(col, row);
+      return camera.worldToScreen(w.x, w.y);
+    },
+    openBuildList,
+    openBuildItem,
     openSheet,
     enter() {
       active = true;
@@ -680,6 +838,11 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     },
     // dt: real seconds. The calendar has already stepped (main); people follow its band at its pace.
     update(dt) {
+      if (world && worldSite !== siteVersion()) {
+        ensureWorld(); // (M12) the land changed: a new world (everyone where the band puts them)
+        if (place) recheck();
+      }
+      if (buildMsg && (buildMsg.t -= dt) <= 0) buildMsg = null;
       const cal = calendar();
       if (world && cal) {
         world.setPace?.(cal.speed); // (M11) walks stay readable at 2× / 4×
@@ -737,8 +900,36 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         if (taps.length > 50) taps.shift();
       };
       if (buildMode) {
-        if (hitRect(p, doneRect())) setBuildMode(false);
-        return log(hitRect(p, doneRect()) ? 'done' : null);
+        if (hitRect(p, doneRect())) {
+          setBuildMode(false);
+          return log('done');
+        }
+        if (hitRect(p, bannerRect())) return log(null);
+        if (place && hitRect(p, cancelPlaceRect())) {
+          place = null;
+          return log('cancelPlace');
+        }
+        if (hitRect(p, placeRect())) {
+          const was = !!place;
+          if (place) confirmPlace();
+          else openBuildList('button');
+          return log(was ? 'place' : 'buildList');
+        }
+        if (!inView(p.x, p.y)) return log(null);
+        if (place) {
+          const c = cellAt(p.x, p.y);
+          if (!c) return log(null);
+          const size = (place.kind === 'room' ? ROOM_BUILD[place.def] : FACILITY_BUILD[place.def]).size;
+          place.col = c.col - Math.floor(size / 2);
+          place.row = c.row - Math.floor(size / 2);
+          recheck();
+          return log(`ghost:${place.col},${place.row}`);
+        }
+        const pl = plotAt(p);
+        const picked = pl ? null : pickAt(p.x, p.y);
+        const id = pl?.id ?? (picked && picked.kind !== 'guest' && picked.kind !== 'staff' ? picked.id : null);
+        if (id) openBuildItem(id, 'art');
+        return log(id ? `build:${id}` : null);
       }
       if (topBar.contains(p)) {
         const cr = creditsRect();
@@ -776,6 +967,11 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         openSheet('F01', 'shortcut');
         return log('shortcut');
       }
+      if (hitRect(p, buildRect())) {
+        setBuildMode(true); // (Milestone 12) one tap from the bottom row
+        openBuildList('button');
+        return log('build');
+      }
       if (hitRect(p, plateRect()) || !inView(p.x, p.y)) return log(null);
       const wr = wrenchRects().find((b) => hitRect(p, b.rect)); // (M8) a wrench badge opens its sheet
       if (wr) {
@@ -789,6 +985,14 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       }
       const picked = pickAt(p.x, p.y);
       if (picked) openSheet(picked.id);
+      else {
+        const pl = plotAt(p); // (M12) a plot under construction: its build sheet in Build Mode
+        if (pl) {
+          setBuildMode(true);
+          openBuildItem(pl.id, 'art');
+          return log(`build:${pl.id}`);
+        }
+      }
       log(picked?.id ?? null);
     },
     // Long press on empty land → Build Mode (on a building or a person it opens their sheet, like a tap).
@@ -797,7 +1001,10 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       const picked = pickAt(p.x, p.y);
       if (picked) return openSheet(picked.id);
       const c = cellAt(p.x, p.y);
-      if (c && !world.grid.isBlocked(c.col, c.row)) setBuildMode(true);
+      if (c && !world.grid.isBlocked(c.col, c.row)) {
+        setBuildMode(true);
+        openBuildList('hold'); // (M12) the build list straight away
+      }
     },
 
     render(ctx) {
@@ -814,25 +1021,38 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       if (buildMode) drawBuildGrid(ctx);
       else drawOverlay(ctx);
       assets.detail = detailFor(camera.zoom);
-      const things = [...world.items, ...world.people].sort((a, b) => depthOf(a) - depthOf(b));
+      const plots = (site()?.items ?? []).filter((it) => !it.open).map((it) => ({ kind: 'plot', id: it.id, fp: it.fp, item: it, def: { art: artOfItem(it) } }));
+      const things = [...world.items, ...plots, ...world.people].sort((a, b) => depthOf(a) - depthOf(b));
       for (const it of things) {
         if (it.kind === 'guest' || it.kind === 'staff') {
           const r = personRect(it);
           pose.flip = it.facing;
           drawCharacter(ctx, assets, it.art, r.x + r.w / 2, r.y + r.h, r.w, r.h, pose);
-        } else {
+        } else if (it.kind === 'plot') drawScaffold(ctx, it);
+        else {
           const r = artRect(it);
+          const closed = site()?.isClosed(it.id);
+          if (closed) ctx.globalAlpha = 0.55; // (M12) moved: faded until it opens again
           assets.draw(ctx, it.def.art, r.x, r.y, r.w, r.h);
+          if (closed) ctx.globalAlpha = 1;
         }
       }
+      if (buildMode && place) drawGhost(ctx);
       assets.detail = 1;
       camera.restore(ctx);
       drawTint(ctx);
       if (!buildMode) drawWrenches(ctx);
       if (!buildMode) drawBadges(ctx);
+      drawLevels(ctx); // (M12) Lv2 / Lv3
+      drawBuildBars(ctx); // (M12) construction progress
       if (!buildMode) vfx.render(ctx, 'screen'); // (M6) the "+N" money floats, under the bar and the sheets
-      if (buildMode) drawBanner(ctx);
-      else {
+      if (buildMode) {
+        drawBanner(ctx);
+        if (place) {
+          drawButton(ctx, cancelPlaceRect(), 'Cancel', { accent: C.textMuted });
+          drawButton(ctx, placeRect(), place.moving ? 'Move here' : `Place · ${credits((place.kind === 'room' ? ROOM_BUILD[place.def] : FACILITY_BUILD[place.def]).cost)}`, { accent: place.check?.ok ? C.action : C.textMuted });
+        } else drawButton(ctx, placeRect(), 'Build list', { accent: C.action });
+      } else {
         topBar.render(ctx);
         drawPlate(ctx);
         const tr = toastRect();
@@ -840,6 +1060,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         if (note) drawNote(ctx);
         if (debugSkips()) SKIPS.forEach((s, i) => drawButton(ctx, skipRect(i), s.label, { accent: C.purple }));
         drawButton(ctx, shortcutRect(), 'Reception', { accent: C.action });
+        drawButton(ctx, buildRect(), 'Build', { accent: C.gold }); // (Milestone 12)
         drawLayoutButton(ctx);
       }
     },
@@ -898,7 +1119,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       const skip = Object.fromEntries(SKIPS.map((s, i) => [s.id, debugSkips() ? skipRect(i) : null]));
       if (id?.startsWith?.('badge:')) return badgeRects().find((b) => b.id === id.slice(6))?.rect ?? null;
       if (id?.startsWith?.('wrench:')) return wrenchRects().find((b) => b.id === id.slice(7))?.rect ?? null;
-      return { menu: menuRect(), shortcut: shortcutRect(), layout: layoutRect(), legend: overlay ? legendRect() : null, done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), note: note ? noteRect() : null, toast: toastRect(), stats: scoresRect(), credits: creditsRect(), skipMoment: feedback?.current?.skipRect?.() ?? null, ...bar, ...skip }[id] ?? null;
+      return { build: buildMode ? null : buildRect(), place: buildMode ? placeRect() : null, cancelPlace: buildMode && place ? cancelPlaceRect() : null, menu: menuRect(), shortcut: shortcutRect(), layout: layoutRect(), legend: overlay ? legendRect() : null, done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), note: note ? noteRect() : null, toast: toastRect(), stats: scoresRect(), credits: creditsRect(), skipMoment: feedback?.current?.skipRect?.() ?? null, ...bar, ...skip }[id] ?? null;
     },
     // (Milestone 9) the overlay now ('off' / 'noise' / 'views'), and set it (tests).
     get overlay() {
@@ -1000,10 +1221,12 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     const R = LOT.rows;
     g.lineJoin = 'round';
     // The lot: grass in soft two-tone tiles.
-    for (let r = 0; r < R; r++) for (let c = 0; c < LOT.cols; c++) patch(g, iso.outline(c, r), (c + r) % 2 ? LOOK.grassA : LOOK.grassB);
+    const OC = ownedCols(); // (M12) the land you own; the rest of the grid is fenced, darker ground for sale
+    for (let r = 0; r < R; r++) for (let c = 0; c < OC; c++) patch(g, iso.outline(c, r), (c + r) % 2 ? LOOK.grassA : LOOK.grassB);
+    if (OC < GRID.cols) patch(g, iso.outline(OC, 0, GRID.cols - OC, R), BUILD_LOOK.land, BUILD_LOOK.landEdge, 6);
     g.strokeStyle = LOOK.grassLine;
     g.lineWidth = 1.2;
-    for (let c = 0; c <= LOT.cols; c += 1) line(g, iso.corner(c, 0), iso.corner(c, R));
+    for (let c = 0; c <= OC; c += 1) line(g, iso.corner(c, 0), iso.corner(c, R));
     // The lanes: sandy tiles, edged in the accent colour, joined across neighbouring tiles.
     const P = pathCells();
     const has = (c, r) => P.has(`${c},${r}`);
@@ -1028,21 +1251,134 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     // The lot's edge: a low kerb in the accent colour all round.
     g.strokeStyle = palette.dark;
     g.lineWidth = 16;
-    isoPath(g, iso.outline(0, 0, LOT.cols, R));
+    isoPath(g, iso.outline(0, 0, OC, R));
     g.stroke();
     g.strokeStyle = palette.hex;
     g.lineWidth = 9;
-    isoPath(g, iso.outline(0, 0, LOT.cols, R));
+    isoPath(g, iso.outline(0, 0, OC, R));
     g.stroke();
   }
-  // Build Mode (placeholder): the hidden grid shown over the lot.
+  // Build Mode: the hidden grid shown over the land you own.
   function drawBuildGrid(ctx) {
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.strokeStyle = BUILD_LOOK.grid;
     ctx.lineWidth = 2 / camera.zoom;
-    for (let c = 0; c <= LOT.cols; c++) line(ctx, iso.corner(c, 0), iso.corner(c, LOT.rows));
-    for (let r = 0; r <= LOT.rows; r++) line(ctx, iso.corner(0, r), iso.corner(LOT.cols, r));
+    const cols = ownedCols();
+    for (let c = 0; c <= cols; c++) line(ctx, iso.corner(c, 0), iso.corner(c, GRID.rows));
+    for (let r = 0; r <= GRID.rows; r++) line(ctx, iso.corner(0, r), iso.corner(cols, r));
     ctx.restore();
+  }
+  // (Milestone 12) the owned land runs from column 0 to here (the strips are bought in order).
+  function ownedCols() {
+    let c = 0;
+    while (c < GRID.cols && tileOwned(c, 0)) c++;
+    return c;
+  }
+  const artOfItem = (it) => (it.kind === 'room' ? `room_${it.def.toLowerCase()}` : FACILITY_INFO[it.def]?.art);
+  function bannerLine() {
+    if (buildMsg) return buildMsg.text;
+    if (!place) return 'Tap Build list to pick a room, facility or land. Tap a building to move, sell or upgrade it.';
+    const c = place.check;
+    if (c?.ok) return place.moving ? 'It fits here. Tap Move here (free; it closes for one day).' : `It fits here. Tap Place to pay and start building (${(place.kind === 'room' ? ROOM_BUILD[place.def] : FACILITY_BUILD[place.def]).days} days).`;
+    return c?.why ?? 'Tap the land where it should go.';
+  }
+  // The placing ghost: its footprint green where it fits (red where not), its door tile marked, its picture faded on top.
+  function drawGhost(ctx) {
+    const c = place.check;
+    const size = (place.kind === 'room' ? ROOM_BUILD[place.def] : FACILITY_BUILD[place.def]).size;
+    const fp = c?.fp ?? { col: place.col, row: place.row, w: size, h: size };
+    const ok = !!c?.ok;
+    ctx.save();
+    patch(ctx, iso.outline(fp.col, fp.row, fp.w, fp.h), ok ? BUILD_LOOK.ok : BUILD_LOOK.bad, ok ? BUILD_LOOK.okEdge : BUILD_LOOK.badEdge, 5 / camera.zoom);
+    if (c?.door) patch(ctx, iso.outline(c.door.col + 0.2, c.door.row + 0.2, 0.6, 0.6), 'rgba(255,255,255,0.6)', ok ? BUILD_LOOK.okEdge : BUILD_LOOK.badEdge, 3 / camera.zoom);
+    ctx.globalAlpha = 0.6;
+    const ghost = { id: place.moving ?? 'ghost', kind: place.kind, fp, def: { art: artOfItem(place) } };
+    const r = artRect(ghost);
+    assets.draw(ctx, ghost.def.art, r.x, r.y, r.w, r.h);
+    ctx.restore();
+  }
+  // A plot under construction: its picture faint, then a code-drawn scaffold (poles, planks, a safety net).
+  function drawScaffold(ctx, pl) {
+    const fp = pl.fp;
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    const r = artRect(pl);
+    assets.draw(ctx, pl.def.art, r.x, r.y, r.w, r.h);
+    ctx.globalAlpha = 1;
+    patch(ctx, iso.outline(fp.col + 0.05, fp.row + 0.05, fp.w - 0.1, fp.h - 0.1), 'rgba(170,130,70,0.35)');
+    const top = r.y + r.h * 0.25;
+    const L = iso.corner(fp.col, fp.row + fp.h);
+    const B = iso.corner(fp.col + fp.w, fp.row + fp.h);
+    const R = iso.corner(fp.col + fp.w, fp.row);
+    const T = iso.corner(fp.col, fp.row);
+    const lift = (pt) => ({ x: pt.x, y: top + (pt.y - B.y) * 0.5 });
+    ctx.fillStyle = SCAFFOLD.net;
+    ctx.beginPath();
+    ctx.moveTo(L.x, L.y);
+    ctx.lineTo(B.x, B.y);
+    ctx.lineTo(R.x, R.y);
+    ctx.lineTo(lift(R).x, lift(R).y);
+    ctx.lineTo(lift(B).x, lift(B).y);
+    ctx.lineTo(lift(L).x, lift(L).y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = SCAFFOLD.pole;
+    ctx.lineWidth = 8;
+    for (const pt of [L, B, R, T]) line(ctx, pt, lift(pt));
+    ctx.strokeStyle = SCAFFOLD.plank;
+    ctx.lineWidth = 10;
+    for (const k of [0.33, 0.66, 1]) {
+      const at = (pt) => ({ x: pt.x, y: pt.y + (lift(pt).y - pt.y) * k });
+      line(ctx, at(L), at(B));
+      line(ctx, at(B), at(R));
+    }
+    ctx.restore();
+  }
+  // Screen-space progress bars over every plot and every upgrade under way.
+  function drawBuildBars(ctx) {
+    const st = site();
+    if (!st || !world) return;
+    const k = badgeScale();
+    for (const j of st.jobs) {
+      const it = st.itemById(j.target);
+      if (!it) continue;
+      const a = artRect({ id: it.id, kind: it.kind, fp: it.fp, def: { art: artOfItem(it) } });
+      const c = camera.worldToScreen(a.x + a.w / 2, a.y + a.h * (j.kind === 'build' ? 0.15 : 0.05));
+      const w = 150 * k;
+      const h = 22 * k;
+      if (c.y < camera.viewY || c.y > camera.viewY + camera.viewH) continue;
+      ctx.fillStyle = SCAFFOLD.barBack;
+      ctx.beginPath();
+      ctx.roundRect(c.x - w / 2, c.y - h / 2, w, h, h / 2);
+      ctx.fill();
+      ctx.fillStyle = SCAFFOLD.bar;
+      ctx.beginPath();
+      ctx.roundRect(c.x - w / 2, c.y - h / 2, Math.max(h, w * st.progressOf(j)), h, h / 2);
+      ctx.fill();
+      if (j.kind === 'upgrade') text(ctx, `→ Lv${j.level}`, c.x, c.y - h, { size: 22 * k, bold: true, color: '#FFFFFF', align: 'center', baseline: 'bottom' });
+    }
+  }
+  // Lv2 / Lv3: a small code-drawn badge on the art's top right.
+  function drawLevels(ctx) {
+    if (!world) return;
+    const k = badgeScale();
+    for (const it of world.items) {
+      const lv = it.def.level ?? 1;
+      if (lv < 2) continue;
+      const a = artRect(it);
+      const c = camera.worldToScreen(a.x + a.w * 0.82, a.y + a.h * 0.12);
+      if (c.y < camera.viewY || c.y > camera.viewY + camera.viewH) continue;
+      const w = 64 * k;
+      const h = 36 * k;
+      ctx.fillStyle = lv >= 3 ? C.gold : C.progress;
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 3 * k;
+      ctx.beginPath();
+      ctx.roundRect(c.x - w / 2, c.y - h / 2, w, h, 10 * k);
+      ctx.fill();
+      ctx.stroke();
+      text(ctx, `Lv${lv}`, c.x, c.y + 1, { size: 22 * k, bold: true, color: '#FFFFFF', align: 'center', baseline: 'middle' });
+    }
   }
   // --- room state badges (Milestone 3): a code-drawn pill on each room's roof — its number in a white disc and its state
   // in the state's colour. Drawn in screen space (always readable), a little smaller when zoomed far out; a tap on one
@@ -1254,8 +1590,9 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   function drawBanner(ctx) {
     const b = bannerRect();
     card(ctx, b, 'gold');
-    text(ctx, 'Build Mode', b.x + 32, b.y + 28, { size: S.title, bold: true, color: C.gold, maxWidth: b.w - 64 });
-    para(ctx, 'Nothing to build yet — building, moving and upgrading arrive in a later update.', b.x + 32, b.y + 104, doneRect().x - b.x - 56, { size: S.body, color: C.text });
+    text(ctx, place ? (place.moving ? `Moving ${site()?.nameOf(place.moving)}` : `New ${place.kind === 'room' ? 'room' : 'facility'}`) : 'Build Mode', b.x + 32, b.y + 28, { size: S.title, bold: true, color: C.gold, maxWidth: b.w - 64 });
+    const bad = place && !place.check?.ok && !place.check?.same;
+    para(ctx, bannerLine(), b.x + 32, b.y + 104, doneRect().x - b.x - 56, { size: S.body, color: bad && !buildMsg ? C.bad : C.text });
     drawButton(ctx, doneRect(), 'Done', { accent: C.action, font: font(S.button, true) });
   }
 

@@ -31,8 +31,12 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 const r2 = (x) => Math.round(x * 100) / 100;
 const BAND = Object.fromEntries(BANDS.map((b, i) => [b.id, i]));
 const MAX_STARTS = 40;
-export const TARGETS = [...FACILITIES.map((f) => f.id), ...ROOMS.map((r) => r.id)];
-const ORDER = Object.fromEntries(TARGETS.map((id, i) => [id, i]));
+// (Milestone 12) everything open on the land now (Build Mode changes it).
+export const targets = () => [...FACILITIES.map((f) => f.id), ...ROOMS.map((r) => r.id)];
+const orderOf = (id) => {
+  const i = targets().indexOf(id);
+  return i < 0 ? 1e9 : i;
+};
 export const isRoom = (id) => !!roomById(id);
 export const targetName = (id) => roomById(id)?.name ?? FACILITIES.find((f) => f.id === id)?.name ?? id;
 export const buildCost = (id) => BUILD_COST[roomById(id)?.typeId ?? id] ?? 0;
@@ -53,7 +57,7 @@ export function freshMaintenance({ minute = minuteOf(0, BAND.morning), start = C
   return {
     at: minute,
     nextId: 1,
-    cond: Object.fromEntries(TARGETS.map((id) => [id, start])),
+    cond: Object.fromEntries(targets().map((id) => [id, start])),
     offline: {},
     queue: [],
     active: {},
@@ -67,7 +71,7 @@ export function freshMaintenance({ minute = minuteOf(0, BAND.morning), start = C
 export function createMaintenance({ saved = null, team = [], bookings = null, finance = null, complaints = null, bus = null, seed = 'resortworks', rules = {} } = {}) {
   const R = { ...JOBS, ...rules };
   let workers = rules.never ? [] : team.filter((m) => m.role === R.role); // (rules.never: tests — nobody ever on shift; Milestone 11: refresh() after a hire)
-  const grid = lotGrid();
+  let site = null; // (Milestone 12) a moved thing is closed for a day: no effect while closed
   let s = saved ? load(saved) : freshMaintenance({ minute: bookings ? minuteOf(bookings.at.day, bookings.at.band) : undefined });
   const starts = Object.values(s.active).map((j) => ({ ...j }));
   let version = 0;
@@ -83,10 +87,10 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
     return {
       at: f.at,
       nextId: Number.isFinite(o.nextId) ? o.nextId : 1,
-      cond: Object.fromEntries(TARGETS.map((id) => [id, Number.isFinite(o.cond?.[id]) ? Math.max(0, Math.min(CONDITION.max, o.cond[id])) : CONDITION.start])),
-      offline: Object.fromEntries(Object.entries(o.offline ?? {}).filter(([id]) => TARGETS.includes(id))),
-      queue: Array.isArray(o.queue) ? o.queue.filter((j) => TARGETS.includes(j.target)) : [],
-      active: Object.fromEntries(Object.entries(o.active ?? {}).filter(([id, j]) => workers.some((m) => m.id === id) && TARGETS.includes(j.target))),
+      cond: Object.fromEntries(targets().map((id) => [id, Number.isFinite(o.cond?.[id]) ? Math.max(0, Math.min(CONDITION.max, o.cond[id])) : CONDITION.start])),
+      offline: Object.fromEntries(Object.entries(o.offline ?? {}).filter(([id]) => targets().includes(id))),
+      queue: Array.isArray(o.queue) ? o.queue.filter((j) => targets().includes(j.target)) : [],
+      active: Object.fromEntries(Object.entries(o.active ?? {}).filter(([id, j]) => workers.some((m) => m.id === id) && targets().includes(j.target))),
       where: o.where ?? {},
       shift: o.shift ?? {},
       stats: { ...f.stats, ...(o.stats ?? {}) },
@@ -94,14 +98,18 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
     };
   }
 
-  const eff = (id) => (s.offline[id] ? 0 : workingShare(s.cond[id] ?? CONDITION.start));
+  const eff = (id) => (s.offline[id] || site?.isClosed(id) ? 0 : workingShare(s.cond[id] ?? CONDITION.start));
   const shedShare = () => eff(R.shed);
   // Job minutes for this worker's stats (k, ÷ the Maintenance Shed's working bonus).
   function minutesFor(kind, stats = {}) {
     const k = Math.max(0.1, R.base - (stats.skill ?? 0) / R.skillDiv - (stats.speed ?? 0) / R.speedDiv);
     return r2(((kind === 'repair' ? R.repairMinutes : R.serviceMinutes) * k) / (1 + R.shedBonus * shedShare()));
   }
-  const walkTiles = (from, to) => findPath(grid, doorOf(from), doorOf(to))?.length ?? 0;
+  const walkTiles = (from, to) => {
+    const a = doorOf(from);
+    const b = doorOf(to);
+    return a && b ? findPath(lotGrid(), a, b)?.length ?? 0 : 0;
+  };
   // (Milestone 10) the shift capacity × their department's workload target; nobody works a day they are away
   const capacityLeft = (m, ws) => R.shiftMinutes * (m.workload ?? 1) - (s.shift[m.id]?.key === ws ? s.shift[m.id].used : 0);
   const canStart = (m, t) => {
@@ -114,10 +122,10 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
   // The order the next pick takes: repairs (priority first, then oldest), Service now jobs (oldest), then preventive
   // service of anything under serviceBelow that isn't offline, queued or being worked on (lowest first).
   function ordered() {
-    const rep = s.queue.filter((j) => j.kind === 'repair').sort((a, b) => (b.priority ? 1 : 0) - (a.priority ? 1 : 0) || a.created - b.created || ORDER[a.target] - ORDER[b.target]);
-    const asked = s.queue.filter((j) => j.kind === 'service').sort((a, b) => a.created - b.created || ORDER[a.target] - ORDER[b.target]);
-    const auto = TARGETS.filter((id) => !s.offline[id] && s.cond[id] < R.serviceBelow && !queued(id) && !busy(id))
-      .sort((a, b) => s.cond[a] - s.cond[b] || ORDER[a] - ORDER[b])
+    const rep = s.queue.filter((j) => j.kind === 'repair').sort((a, b) => (b.priority ? 1 : 0) - (a.priority ? 1 : 0) || a.created - b.created || orderOf(a.target) - orderOf(b.target));
+    const asked = s.queue.filter((j) => j.kind === 'service').sort((a, b) => a.created - b.created || orderOf(a.target) - orderOf(b.target));
+    const auto = targets().filter((id) => !s.offline[id] && s.cond[id] < R.serviceBelow && !queued(id) && !busy(id))
+      .sort((a, b) => s.cond[a] - s.cond[b] || orderOf(a) - orderOf(b))
       .map((id) => ({ id: null, target: id, kind: 'service', created: s.at, auto: true }));
     return [...rep, ...asked, ...auto].filter((j) => !busy(j.target));
   }
@@ -208,13 +216,14 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
     const stay = bk?.staying ?? [];
     const occupied = new Set(stay.map((b) => b.room));
     const guests = stay.reduce((t, b) => t + (b.party ?? 1), 0);
-    for (const id of TARGETS) {
+    for (const id of targets()) {
+      s.cond[id] ??= CONDITION.start; // (M12: anything new on the land)
       const users = WEAR.users.includes(id) && !s.offline[id] ? guests : 0;
       s.cond[id] = Math.max(0, r2(s.cond[id] - dailyWear(id, { occupied: occupied.has(id), users })));
     }
     s.stats.wearDays++;
     const minute = minuteOf(day, BAND.night);
-    for (const id of TARGETS) {
+    for (const id of targets()) {
       if (s.offline[id] || busy(id)) continue; // (someone working on it right now: it holds)
       if (s.cond[id] <= 0) breakDown(id, minute, 'worn out');
       else {
@@ -222,7 +231,7 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
         if (p > 0 && new Rng(`${seed}:breakdown:${id}:${day}`).next() < p) breakDown(id, minute, 'roll');
       }
     }
-    s.stats.lowest = Math.min(s.stats.lowest, ...TARGETS.map((id) => s.cond[id]));
+    s.stats.lowest = Math.min(s.stats.lowest, ...targets().map((id) => s.cond[id]));
     markStays(bk);
   }
 
@@ -256,7 +265,7 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
     },
     // The player asks for a preventive service now (it goes after the repairs).
     serviceNow(id) {
-      if (!TARGETS.includes(id)) return { ok: false, why: 'Unknown.' };
+      if (!targets().includes(id)) return { ok: false, why: 'Unknown.' };
       if (s.offline[id]) return { ok: false, why: 'It’s broken: the repair is already in the queue.' };
       if (queued(id) || busy(id)) return { ok: false, why: 'Maintenance is already on it.' };
       if (s.cond[id] >= CONDITION.max) return { ok: false, why: 'It’s in perfect condition.' };
@@ -280,6 +289,15 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
     attachComplaints(c) {
       cp = c;
     },
+    // (Milestone 12) Build Mode: a moved thing is closed (site.isClosed); a new building starts in perfect condition.
+    attachSite(x) {
+      site = x;
+    },
+    addTarget(id, cond = CONDITION.max) {
+      s.cond[id] = cond;
+      delete s.offline[id];
+      changed();
+    },
     condition: (id) => s.cond[id] ?? CONDITION.start,
     eff,
     isOffline: (id) => !!s.offline[id],
@@ -287,6 +305,7 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
     // The plain line: "Good", "Worn: working at 80%", "Broken: offline".
     words(id) {
       if (s.offline[id]) return COND_TEXT.broken;
+      if (site?.isClosed(id)) return COND_TEXT.moving;
       const c = s.cond[id] ?? CONDITION.start;
       return c >= CONDITION.full ? COND_TEXT.good : COND_TEXT.worn(Math.round(workingShare(c) * 100));
     },
@@ -312,7 +331,7 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
     costOf,
     // Tests / debug: set a Condition (≤ 0 breaks it at once), or break it now.
     setCondition(id, v) {
-      if (!TARGETS.includes(id)) return false;
+      if (!targets().includes(id)) return false;
       s.cond[id] = Math.max(0, Math.min(CONDITION.max, v));
       if (s.cond[id] <= 0) breakDown(id, s.at, 'worn out');
       tryStart();
@@ -320,7 +339,7 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
       return true;
     },
     breakNow(id) {
-      const ok = TARGETS.includes(id) && breakDown(id, s.at, 'test');
+      const ok = targets().includes(id) && breakDown(id, s.at, 'test');
       if (ok) {
         s.cond[id] = Math.min(s.cond[id], CONDITION.half - 1);
         tryStart();

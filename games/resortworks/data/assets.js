@@ -6,6 +6,8 @@ import { GUEST_TYPES } from './bookings.js';
 import { CLEAN } from './housekeeping.js';
 import { JOBS } from './maintenance.js';
 import { NAMED_CAST } from './cast.js';
+import { FACILITY_INFO } from './facilities.js';
+import { ROOM_BUILD, LAND, DOUGIE } from './build.js';
 
 export const ASSETS = {
   // Milestone 0: the five Founders' portraits (setup cards, slot cards, the Founder's sheet).
@@ -27,6 +29,12 @@ export const ASSETS = {
   // M6b: the named chibi cast in use now (Dame Opal and the four Roadside Guide inspectors); the rest join with their
   // milestones.
   ...Object.fromEntries(NAMED_CAST.filter((c) => c.milestone === 'M6b').map((c) => [c.art, c.portrait])),
+  // Milestone 12: everything Build Mode can place (the 35 facilities, the 12 room types — later ones open with their
+  // stages), the land cards and Dougie Barnes, the builder (cast).
+  ...Object.fromEntries(Object.values(FACILITY_INFO).map((f) => [f.art, `assets/images/facilities/${f.art}.png`])),
+  ...Object.fromEntries(Object.keys(ROOM_BUILD).map((id) => [`room_${id.toLowerCase()}`, `assets/images/rooms/room_${id.toLowerCase()}.png`])),
+  ...Object.fromEntries(LAND.map((l) => [l.art, `assets/images/expansions/${l.art}.png`])),
+  [DOUGIE.art]: `assets/images/cast/${DOUGIE.art}.png`,
   // Milestone 0 loader test (?screen=test): the placeholder PWA icon as a real image, and one deliberately missing file.
   m0Real: 'assets/branding/pwa/icon-192.png',
   m0Missing: 'assets/m0-missing-test.png',
