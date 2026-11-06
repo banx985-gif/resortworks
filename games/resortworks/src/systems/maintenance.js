@@ -28,6 +28,7 @@ import { MINUTES_PER_DAY, minuteOf } from './calendar.js';
 import { lotGrid, doorOf, windowAt, nextShiftAfter } from './housekeeping.js';
 import { teamBonus } from './staff.js';
 import { systemValue, mult } from './facilities.js';
+import { rx } from './research.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const r2 = (x) => Math.round(x * 100) / 100;
@@ -107,7 +108,7 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
   function minutesFor(kind, stats = {}) {
     const k = Math.max(0.1, R.base - (stats.skill ?? 0) / R.skillDiv - (stats.speed ?? 0) / R.speedDiv);
     const traits = 1 + teamBonus(team, 'repairSpeed') + teamBonus(team, 'efficiency') + (kind === 'repair' ? teamBonus(team, 'emergencyRepair') : 0); // (M13) Handy …
-    return r2(((kind === 'repair' ? R.repairMinutes : R.serviceMinutes) * k) / (1 + R.shedBonus * mult(R.shed) * shedShare()) / traits); // (M16) the Shed's level
+    return r2(((kind === 'repair' ? R.repairMinutes : R.serviceMinutes) * k) / (1 + R.shedBonus * mult(R.shed) * shedShare()) / traits / (1 + rx('routine'))); // (M16) the Shed's level; (M17) Smart Resort
   }
   const walkTiles = (from, to) => {
     const a = doorOf(from);
@@ -211,7 +212,7 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
     for (const b of bk?.staying ?? []) {
       const c = (b.cond ??= {});
       c.room = Math.min(c.room ?? 1, eff(b.room));
-      for (const f of STAY_FACILITIES) c[f] = Math.min(c[f] ?? 1, eff(f));
+      for (const f of STAY_FACILITIES) if (c[f] != null || FACILITIES.some((x) => x.id === f)) c[f] = Math.min(c[f] ?? 1, eff(f)); // (M16: the ones built)
     }
   }
   // The day change into `day`: the wear of the day just ended, then the breakdown rolls, then the stays are marked.
@@ -231,7 +232,7 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
       if (s.offline[id] || busy(id)) continue; // (someone working on it right now: it holds)
       if (s.cond[id] <= 0) breakDown(id, minute, 'worn out');
       else {
-        const p = breakdownChance(s.cond[id]) * Math.max(0, 1 - teamBonus(team, 'prevention') - (POOLS.includes(id) ? teamBonus(team, 'poolReliability') : 0)); // (M13) Preventive, Pool Tech …
+        const p = breakdownChance(s.cond[id]) * (1 - rx('breakdown')) * Math.max(0, 1 - teamBonus(team, 'prevention') - (POOLS.includes(id) ? teamBonus(team, 'poolReliability') : 0)); // (M13) Preventive, Pool Tech …
         if (p > 0 && new Rng(`${seed}:breakdown:${id}:${day}`).next() < p) breakDown(id, minute, 'roll');
       }
     }

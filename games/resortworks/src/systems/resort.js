@@ -13,6 +13,7 @@ import { freshMaintenance } from './maintenance.js';
 import { freshStaffing } from './staffing.js';
 import { freshSite } from './site.js';
 import { freshProgress } from './progress.js';
+import { freshResearch } from './research.js';
 
 // A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
 // before the calendar existed (Milestone 2).
@@ -51,6 +52,7 @@ export function newCampaign(setup, now = Date.now()) {
     staffing: freshStaffing({ day: 0, band: 1 }), // (Milestone 10) Normal priorities, Auto Schedule, everyone rested
     site: freshSite(), // (Milestone 12) the shipped Roadside Lot: what stands where, no construction, the starter land
     progress: freshProgress(), // (Milestone 12) the Roadside Motel stage
+    research: freshResearch(), // (Milestone 17) nothing researched yet
     opal: { welcomed: false }, // (M6b) Dame Opal's welcome card is due (a save from before M6b has none: no welcome)
     playSec: 0,
     ngPlus: 0,
@@ -160,4 +162,6 @@ export const SAVE_MIGRATIONS = {
     if (!d.site?.items) return record;
     return { ...record, data: { ...d, site: { ...d.site, items: d.site.items.map((it) => (it.kind === 'room' ? { loved: 0, ...it } : it)) } } };
   },
+  // 13 → 14 (Milestone 17): nothing researched yet. Auto Accept that was on stays on (grandfathered: it now needs R32).
+  13: (record) => ({ ...record, data: { ...record.data, research: record.data.research ?? freshResearch() } }),
 };

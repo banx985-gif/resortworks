@@ -752,7 +752,7 @@ export function autoAcceptSheet(bk, { accent = C.progress, act = NO_ACT } = {}) 
     {
       lines: [{ text: f.on ? 'New offers that pass your filters are accepted by themselves, each in the room Auto Assign picks. Anything left waits for you.' : 'Off: you accept or decline every offer yourself.', color: C.textMuted }],
       columns: 1,
-      buttons: [{ id: 'aa:on', label: `Auto Accept: ${f.on ? 'On' : 'Off'}`, sub: f.on ? 'Tap to turn it off' : 'Tap to turn it on', accent: f.on ? C.action : C.textMuted, onTap: set({ on: !f.on }) }],
+      buttons: [bk.autoAcceptLocked && !f.on ? { id: 'aa:on', label: 'Auto Accept: locked', sub: 'Needs the research Package Marketing (R32, Marketing & Prestige)', accent: C.textMuted, disabled: true, onTap: () => {} } : { id: 'aa:on', label: `Auto Accept: ${f.on ? 'On' : 'Off'}`, sub: f.on ? 'Tap to turn it off' : 'Tap to turn it on', accent: f.on ? C.action : C.textMuted, onTap: set({ on: !f.on }) }], // (M17: unlocks through R32)
     },
     { title: 'Room they ask for', std: 'aa:rate', columns: 3, buttons: AUTO_ACCEPT.minRates.map((m) => ({ id: `aa:rate:${m.id}`, label: f.minRate === m.id ? `✓ ${m.name}` : m.name, accent: f.minRate === m.id ? C.action : C.textMuted, onTap: set({ minRate: m.id }) })) },
     {

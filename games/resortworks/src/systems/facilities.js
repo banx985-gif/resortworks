@@ -8,6 +8,8 @@
 import { FACILITIES } from '../../data/lot.js';
 import { FACILITY_FX, LEVEL_MULT, FACILITY_INFO } from '../../data/facilities.js';
 import { GROWTH } from './staff.js';
+import { rx } from './research.js';
+import { EVENING_IDS } from '../../data/research.js';
 
 const def = (id) => FACILITIES.find((f) => f.id === id) ?? null;
 export const has = (id) => !!def(id);
@@ -34,7 +36,9 @@ export function categoryAdd(cat, { shareOf = () => 1, guests = 0, family = false
     const fx = FACILITY_FX[f.id];
     for (const e of fx?.cats ?? []) {
       if (e.cat !== cat || (e.who === 'family' && !family) || (e.who === 'luxury' && !luxury)) continue;
-      t += e.add * mult(f.id) * shareOf(f.id) * usersShare(fx.users, guests);
+      // (Milestone 17) Kitchen Basics: food places serve 10% more; Night Entertainment: evening places 15% more
+      const users = fx.users ? fx.users * (1 + (e.cat === 'food' ? rx('foodThroughput') : 0) + (EVENING_IDS.includes(f.id) ? rx('eveningThroughput') : 0)) : 0;
+      t += e.add * mult(f.id) * shareOf(f.id) * usersShare(users, guests);
     }
   }
   return t;

@@ -88,6 +88,8 @@ import { GRID, BUILD_LOOK, SCAFFOLD, DOUGIE, ROOM_BUILD, FACILITY_BUILD, landByI
 import { FACILITY_INFO } from '../../data/facilities.js';
 import { siteVersion, tileOwned } from '../systems/site.js';
 import { buildListSheet, buildItemSheet } from './buildSheets.js';
+import { researchSheet } from './researchSheet.js';
+import { researchById } from '../../data/research.js';
 
 const C = THEME.color;
 const S = THEME.size;
@@ -323,6 +325,8 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   });
   // (Milestone 11) a hire: the new person walks onto the lot (a new world with everyone where the band puts them).
   // (Milestone 12) Dougie Barnes' build lines and a new stage: toasts (one tap closes it; they queue)
+  // (Milestone 17) a project done: a toast with its picture and what it does now
+  bus.on('research:done', ({ id, name }) => toast(`Research done: ${name}`, researchById(id)?.line ?? '', researchById(id)?.art ?? null));
   bus.on('site:dougie', ({ line, id }) => toast(DOUGIE.name, line, DOUGIE.art, id && world?.byId(id) ? { open: id } : null));
   bus.on('progress:stage', ({ name }) => toast(`Welcome to the ${name} stage!`, 'New rooms and facilities are in the build list.', DOUGIE.art));
   // (Milestone 13) a level reached (a toast; Lv8 / Lv16 ask for a specialisation)
@@ -581,6 +585,21 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     pin(memberId, pattern) {
       if (run()?.staffing?.pin(memberId, pattern)) debug?.log(`pattern: ${memberId} → ${pattern ?? 'auto'}`);
     },
+    // --- (Milestone 17) research --------------------------------------------------------------------------------
+    researchSheet: () => openResearch(),
+    researchLine() {
+      const rs = run()?.research;
+      const a = rs?.active;
+      return a ? `Researching ${researchById(a.id).name} · ${Math.round(rs.progressOf() * 100)}%` : `${rs?.doneList.length ?? 0} of 36 done · nothing running`;
+    },
+    research(id) {
+      const r = run()?.research?.start(id);
+      if (!r?.ok) return built(r?.why) || say(r?.why);
+      debug?.log(`research: ${id}${r.queued ? ' (queued)' : ''}`);
+    },
+    unqueue(id) {
+      if (run()?.research?.unqueue(id)) debug?.log(`research: ${id} out of the queue`);
+    },
     // --- (Milestone 13) staff: let go (two taps), train, a specialisation, the book of all 50 ----------------------
     confirming: () => confirm,
     fire(id) {
@@ -705,6 +724,13 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     built(place.moving ? `${name} moved: it opens again tomorrow.` : `${name}: building started.`);
     debug?.log(`build: ${place.moving ? 'moved' : 'built'} ${r.id} at ${place.col},${place.row}`);
     place = null;
+  }
+  function openResearch(via = 'sheet') {
+    const o = run();
+    if (!o?.research) return;
+    sheet.open(() => researchSheet(o.research, { finance: o.finance, act, accent: palette.hex }));
+    opened = { id: 'research', via };
+    debug?.log(`sheet: research (${via})`);
   }
   function openBuildList(via = 'sheet') {
     const st = site();

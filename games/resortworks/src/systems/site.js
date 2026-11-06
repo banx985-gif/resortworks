@@ -21,6 +21,7 @@ import { GRID, LAND, landById, ROOM_BUILD, FACILITY_BUILD, CONSTRUCTION, UPGRADE
 import { FACILITY_INFO } from '../../data/facilities.js';
 import { ROOM_TYPES, ROOM_LEVEL, LOVED } from '../../data/bookings.js';
 import { MINUTES_PER_DAY } from './calendar.js';
+import { researched, researchOn } from './research.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const fmt = (n) => Math.round(n).toLocaleString('en-GB');
@@ -188,6 +189,7 @@ export function createSite({ saved = null, bus = null, now = () => 0, finance = 
     const b = buildOf(kind, def);
     if (!b || b.secret) return 'That can’t be built.';
     if (stageIndex(stage()) < stageIndex(b.stage)) return `Opens at the ${stageById(b.stage).name} stage.`;
+    if (kind === 'room' && def === 'RM12' && researchOn() && !researched('R06')) return 'Needs the research Signature Suites (R06).'; // (Milestone 17)
     if (kind === 'room') {
       const cap = stageById(stage()).rooms;
       if (s.items.filter((it) => it.kind === 'room').length >= cap) return `A ${stageById(stage()).name} has room for ${cap} rooms at most.`;

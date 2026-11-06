@@ -21,6 +21,7 @@
 import { lotGrid } from './site.js';
 import { teamBonus } from './staff.js';
 import { systemValue, mult } from './facilities.js';
+import { rx } from './research.js';
 import { findPath } from '../../../../core/Pathing.js';
 import { FACILITIES, ROOMS, roomById } from '../../data/lot.js';
 import { ROOM_TYPES } from '../../data/bookings.js';
@@ -137,14 +138,14 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
       s.where[m.id] = null;
     }
     const from = s.where[m.id] ?? m.station;
-    const walk = r2((walkTiles(from, q.room) * R.walkPerTile * Math.max(0, 1 - systemValue('hkTravel', eff))) / (1 + systemValue('routing', eff))); // (M16) Housekeeping Hub, Service Block
+    const walk = r2((walkTiles(from, q.room) * R.walkPerTile * Math.max(0, 1 - systemValue('hkTravel', eff) - rx('hkTravel'))) / (1 + systemValue('routing', eff))); // (M17) Housekeeping Routing // (M16) Housekeeping Hub, Service Block
     const need = linenFor(q.room);
     const short = s.linen.left < need;
     s.linen.used += Math.min(s.linen.left, need);
     s.linen.left = Math.max(0, s.linen.left - need);
     s.linen.rooms++;
     if (short) s.linen.short++;
-    const clean = r2(cleanMinutes(q.room, m.stats, short, R) / (m.pace ?? 1) / (1 + teamBonus(team, 'cleanSpeed'))); // (Milestone 10) tired: slower; (M13) Fast Turn …
+    const clean = r2(cleanMinutes(q.room, m.stats, short, R) / (m.pace ?? 1) / (1 + teamBonus(team, 'cleanSpeed')) / (1 + rx('routine'))); // (M17) Smart Resort // (Milestone 10) tired: slower; (M13) Fast Turn …
     const job = { id: q.id, room: q.room, created: q.created, staff: m.id, start: t, walk, clean, arrive: r2(t + walk), end: r2(t + walk + clean), short, phase: 'walk' };
     s.queue = s.queue.filter((x) => x !== q);
     s.active[m.id] = job;
@@ -215,7 +216,7 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
     onEdge(day, band) {
       if (band === BAND_I.morning && s.linen.day !== day) {
         const share = mt ? mt.eff('F04') : 1; // (Milestone 8) a worn Laundry washes less; an offline one none
-        s.linen = { day, left: Math.round(linenCap * mult('F04') * share * (1 + teamBonus(team, 'linen'))), used: 0, rooms: 0, short: 0, share }; // (M13) Laundry Rhythm …; (M16) the Laundry's level
+        s.linen = { day, left: Math.round(linenCap * mult('F04') * share * (1 + teamBonus(team, 'linen') + rx('laundry'))), used: 0, rooms: 0, short: 0, share }; // (M13) Laundry Rhythm …; (M16) the Laundry's level
       }
     },
     attachMaintenance(m) {

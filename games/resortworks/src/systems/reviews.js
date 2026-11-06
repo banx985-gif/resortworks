@@ -31,7 +31,9 @@ import { rankAtLeast as reached } from '../../../../core/CompanyRank.js';
 import { writeReview } from '../../../../core/ReviewText.js';
 import { FACILITIES, roomById } from '../../data/lot.js';
 import { teamBonus } from './staff.js';
-import { categoryAdd } from './facilities.js';
+import { categoryAdd, has as built } from './facilities.js';
+import { rx } from './research.js';
+import { POOL_IDS, PREMIUM_RANK } from '../../data/research.js';
 import { LUXURY_RANK } from '../../data/facilities.js';
 import { ROOM_TYPES, GUEST_TYPES } from '../../data/bookings.js';
 import { CATEGORY_IDS, STAY_INPUTS, GUEST_WEIGHTS, REVIEW_STARS, REP, RANKS, WINDOW_DAYS, HEADLINE_FIXED, QUALITY, STAR_TABLE, FIVE_STAR_HEADLINES, FIVE_STAR_MIN, GUIDE, REVIEW_TEXT } from '../../data/reviews.js';
@@ -70,17 +72,24 @@ export function stayCategories(b, { team = [], facilities = FACILITIES, roomType
   const budget = (GUEST_TYPES[b.type]?.budget ?? b.rate) * (place?.rateMult ?? 1);
   // (Milestone 15) place.roomPlus: the room's level and Loved bonus; place.rateMult: its rate ceiling (guests think a higher
   // level is worth more)
-  const room = (I.room.base[got] + (have.id === want.id ? I.room.wanted : have.rank < want.rank ? I.room.worse : 0) + (place?.roomPlus ?? 0)) * (1 + (place?.view ?? 0) / 100);
-  const clean = Math.min(I.clean.cap, I.clean.base + (b.shortLinen && !cancel.clean ? I.clean.short : 0));
+  // (Milestone 17) research: Room Standards / Bathroom Upgrade (+Room score), Signature Suites (+5 in luxury rooms), the Clean cap
+  const resRoom = rx('roomScore') + ((have?.rank ?? 0) >= LUXURY_RANK ? rx('luxRoom') : 0);
+  const room = (I.room.base[got] + (have.id === want.id ? I.room.wanted : have.rank < want.rank ? I.room.worse : 0) + (place?.roomPlus ?? 0) + resRoom) * (1 + (place?.view ?? 0) / 100);
+  const clean = Math.min(I.clean.cap + rx('cleanCap'), I.clean.base + (b.shortLinen && !cancel.clean ? I.clean.short : 0));
   const service = I.service.base - (cancel.service ? 0 : b.late?.serviceLoss ?? 0) + (roleStat(team, I.service.role, I.service.stat) - 50) / I.service.div;
   const share = (id, key) => (cancel[key] ? 1 : b.cond?.[id] ?? 1);
   // (Milestone 16) every facility built adds its category points × its level × its worst working share in the stay ×
   // each guest's share of its places (the café +6 Food and the pool +8 Activity as before)
   const who = { family: !!GUEST_TYPES[b.type]?.family, luxury: (have?.rank ?? 0) >= LUXURY_RANK, guests, list: facilities };
   const fac = (cat, key) => categoryAdd(cat, { ...who, shareOf: (id) => share(id, key) });
-  const food = Math.min(I.food.cap, I.food.base + fac('food', 'food') + (roleStat(team, I.food.role, I.food.stat) - 50) / I.food.div);
-  const activities = I.activities.base + fac('activities', 'activities') + (roleStat(team, I.activities.role, I.activities.stat) - 50) / I.activities.div;
-  const comfort = I.comfort.base[got] * share('room', 'comfort') - (place?.convenience ?? 0) - (cancel.comfort ? 0 : b.noise?.loss ?? 0) + fac('comfort', 'comfort');
+  // (Milestone 17) Menu Variety +5 Food, Fine Dining +8 with a Premium Restaurant, Pool Programming +5 with a pool, Better
+  // Bedding +6 Comfort, Luxury Amenities +8 in Premium rooms and better
+  const resFood = rx('food') + (facilities.some((f) => f.id === 'F25') ? rx('premiumFood') : 0);
+  const resAct = facilities.some((f) => POOL_IDS.includes(f.id)) ? rx('poolActivity') : 0;
+  const resComfort = rx('bedComfort') + ((have?.rank ?? 0) >= PREMIUM_RANK ? rx('amenity') : 0);
+  const food = Math.min(I.food.cap, I.food.base + fac('food', 'food') + resFood + (roleStat(team, I.food.role, I.food.stat) - 50) / I.food.div);
+  const activities = I.activities.base + fac('activities', 'activities') + resAct + (roleStat(team, I.activities.role, I.activities.stat) - 50) / I.activities.div;
+  const comfort = I.comfort.base[got] * share('room', 'comfort') - (place?.convenience ?? 0) - (cancel.comfort ? 0 : b.noise?.loss ?? 0) + fac('comfort', 'comfort') + resComfort;
   const value = cancel.value ? Math.max(I.value.base, I.value.base + (I.value.span * (budget - b.rate)) / budget) : I.value.base + (I.value.span * (budget - b.rate)) / budget;
   // (Milestone 13) the team's traits and specialisations: each category × (1 + its keys' total %); Quiet Worker cuts the noise lost
   const tb = (k) => teamBonus(team, k);
@@ -164,7 +173,7 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
     const fx = cp?.closeStay(b, day) ?? null; // (Milestone 7) the stay's complaints, settled
     const place = placeOf(b.room); // (Milestone 9) the room's view and walks; (M15) its level and Loved bonus
     const cats = stayCategories(b, { team, facilities, roomType: roomTypeOf(b), cancel: fx?.cancel ?? {}, place, guests: guestsNow() });
-    const base = finalSatisfaction(cats, b.type);
+    const base = finalSatisfaction(cats, b.type) + (GUEST_TYPES[b.type]?.family ? rx('familySat') : 0); // (M17) Family Activities
     const sat = fx ? r2(clamp(base + fx.bonus + fx.penalty)) : base;
     const stars = reviewStars(sat);
     const id = `V${s.nextId++}`;

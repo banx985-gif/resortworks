@@ -21,6 +21,7 @@
 import { gridFor } from './site.js';
 import { teamBonus } from './staff.js';
 import { systemValue, mult } from './facilities.js';
+import { rx } from './research.js';
 import { findPath } from '../../../../core/Pathing.js';
 import { LOT, FACILITIES, ROOMS } from '../../data/lot.js';
 import { GUEST_TYPES } from '../../data/bookings.js';
@@ -128,7 +129,7 @@ export function createLayout({ spec = null, mt = null } = {}) {
   function viewOf(views) {
     const g = gardenShare();
     const sum = views.reduce((t, v) => t + v.value * (v.condition ? (v.id === APPEAL.gardenId ? g : mt ? mt.eff(v.id) : 1) : 1) * mult(v.id), 0); // (M16) × the level
-    const k = sum > 0 ? 1 + teamBonus(team, 'view') : 1;
+    const k = sum > 0 ? 1 + teamBonus(team, 'view') + rx('view') : 1; // (M13) Landscaper; (M17) View Design +25%
     return r1(Math.max(-VIEW_CAP, Math.min(VIEW_CAP, sum * k)));
   }
   const viewPct = (id) => (factsOf(id) ? viewOf(factsOf(id).views) : 0);

@@ -26,6 +26,7 @@
 import { EconomySystem } from '../../../../core/EconomySystem.js';
 import { ROOMS, FACILITIES } from '../../data/lot.js';
 import { teamBonus } from './staff.js';
+import { rx } from './research.js';
 import { ROOM_TYPES, GUEST_TYPES } from '../../data/bookings.js';
 import { BANDS } from '../../data/calendar.js';
 import { WINDOW_DAYS } from '../../data/reviews.js';
@@ -154,7 +155,7 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
     const occupied = (bk?.staying ?? []).length; // they slept here last night (check-out is at Morning)
     move('facilityUpkeep', FACILITIES.reduce((t, f) => t + (FACILITY_UPKEEP[f.id] ?? 0), 0), d);
     move('roomUpkeep', ROOMS.reduce((t, r) => t + (ROOM_UPKEEP[r.typeId] ?? 0), 0), d);
-    for (const k of Object.keys(SUPPLIES)) move(k, SUPPLIES[k] * occupied, d);
+    for (const k of Object.keys(SUPPLIES)) move(k, SUPPLIES[k] * occupied * (k === 'utilities' ? 1 - rx('utilities') : 1), d); // (M17) Energy Efficiency
     if (day > 0 && day % WINDOW_DAYS === 0) {
       move('wages', team.reduce((t, m) => t + (WAGES[m.tier] ?? WAGES.standard), 0), d);
       if (s.debt > 0) move('interest', Math.round((s.debt * CREDIT.interestPct) / 100), d);

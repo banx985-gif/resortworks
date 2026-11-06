@@ -26,6 +26,8 @@ export function buildListSheet(site, { finance = null, progress = null, act, acc
       { text: `${stage?.name ?? 'Roadside Motel'} · ${plural(site.items.filter((it) => it.kind === 'room').length, 'room')} of ${stage?.rooms ?? 12}`, right: finance ? credits(finance.cash) : '' },
     ],
   });
+  // (Milestone 17) Develop: research sits with building (bible §6)
+  if (act.researchSheet) sections.push({ columns: 1, std: 'build:research', buttons: [{ id: 'build:research', label: 'Research', sub: act.researchLine?.() ?? 'Six branches, 36 projects', accent: C.progress, onTap: () => act.researchSheet() }] });
   if (site.jobs.length)
     sections.push({
       title: 'Being built',

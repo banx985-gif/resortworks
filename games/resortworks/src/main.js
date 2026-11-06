@@ -78,6 +78,8 @@ import { createLayout } from './systems/layout.js';
 import { createStaffing } from './systems/staffing.js';
 import { createSite } from './systems/site.js';
 import { createProgress } from './systems/progress.js';
+import { createResearch } from './systems/research.js';
+import { RESEARCH, BRANCHES, ART_REDO } from '../data/research.js';
 import { MajorFeedback } from '../../../core/MajorFeedback.js';
 import { skipMoment, opalWelcomeMoment } from './screens/reviewMoments.js';
 import { validateCast } from '../data/cast.js';
@@ -114,6 +116,23 @@ bus.on('renderer:resize', () => layout.refresh());
 const input = new Input(renderer, bus);
 const assets = new AssetManager({ bus });
 assets.sprites.maxUpscale = 1; // a copy never bigger than its picture (less GPU memory)
+// (Milestone 17) research_r01–r05 are "to redo" (assets/ART_STATUS.md): a code-drawn tile in the branch colour with the
+// project's number until the new files are added to data/assets.js (the same keys: no code change)
+for (const x of RESEARCH.filter((r) => ART_REDO.includes(r.id)))
+  assets.setFallback(x.art, (ctx, px, py, w, h) => {
+    const br = BRANCHES.find((b) => b.id === x.branch);
+    ctx.save();
+    ctx.fillStyle = br.color;
+    ctx.beginPath();
+    ctx.roundRect(px + w * 0.06, py + h * 0.06, w * 0.88, h * 0.88, Math.min(w, h) * 0.18);
+    ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = font(Math.round(h * 0.34), true);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(x.id, px + w / 2, py + h / 2);
+    ctx.restore();
+  });
 // (Milestone 13) the ??? staff: a code-drawn silhouette with a question mark
 assets.setFallback(
   'staff_silhouette',
@@ -342,6 +361,10 @@ function openRun(n, data) {
   run.reviews.attachGuests(() => run.bookings.staying.reduce((t, b) => t + (b.party ?? 1), 0)); // (Milestone 16) facility places
   run.maintenance.attachSite(run.site);
   run.site.onChange(() => run.layout.refresh());
+  // (Milestone 17) research: its effects are read by every system; it moves with the band edges
+  run.research = createResearch({ saved: data.research ?? null, bus, finance: run.finance, now: () => run.calendar.minute });
+  run.bookings.attachResearch(run.research);
+  bus.on('research:change', () => run.layout.refresh());
   open = run;
   run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;
@@ -372,15 +395,16 @@ async function saveRun() {
   data.staffing = open.staffing.serialize();
   data.site = open.site.serialize(); // (Milestone 12)
   data.progress = open.progress.serialize();
+  data.research = open.research.serialize(); // (Milestone 17)
   const c = calendar.clock;
   data.date = { year: c.year, month: c.month, day: c.day };
   await campaigns.save(n, data);
 }
 const autosave = new Autosave({
   bus,
-  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage'],
+  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage', 'research:change'],
   save: () => saveRun(),
-  stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize(), open.maintenance.serialize(), open.staffing.serialize(), open.site.serialize(), open.progress.serialize()]) : null),
+  stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize(), open.maintenance.serialize(), open.staffing.serialize(), open.site.serialize(), open.progress.serialize(), open.research.serialize()]) : null),
   enabled: () => !!open,
 });
 autosave.installBackground(); // the app going to the background (or the page closing) saves at once

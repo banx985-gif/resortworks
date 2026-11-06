@@ -58,6 +58,7 @@ import { ROOM_TYPES, PRICE_BAND, GUEST_TYPES, OFFERS, ROOM_STATES, FIT, FIRST_GU
 import { AUTO_ACCEPT, AUTO_MOVE } from '../../data/staffing.js';
 import { teamBonus } from './staff.js';
 import { systemValue } from './facilities.js';
+import { rx, researched, researchOn } from './research.js';
 
 const BAND = Object.fromEntries(BANDS.map((b, i) => [b.id, i])); // night 0 · morning 1 · midday 2 · afternoon 3 · evening 4
 export const BAND_INDEX = BAND;
@@ -99,7 +100,8 @@ function weighted(rng, entries) {
 // it is to come in at that rate (one that doesn't is counted as priced out). Without it: Standard, and all come in.
 export function makeOffers(seed, day, stats = null, pricing = null) {
   const rng = new Rng(`${seed}:offers:${day}`);
-  const n = rng.int(OFFERS.perMorning[0], OFFERS.perMorning[1]);
+  // (Milestone 17) Local Ads: booking demand +6% — that chance of one more offer each morning (its own seeded roll)
+  const n = rng.int(OFFERS.perMorning[0], OFFERS.perMorning[1]) + (rx('demand') > 0 && new Rng(`${seed}:ads:${day}`).next() < (rx('demand') * (OFFERS.perMorning[0] + OFFERS.perMorning[1])) / 2 ? 1 : 0);
   const out = [];
   for (let k = 1; k <= n; k++) {
     const t = GUEST_TYPES[weighted(rng, Object.values(GUEST_TYPES).map((g) => [g.id, g.weight]))];
@@ -149,6 +151,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   let ly = null; // (Milestone 9) the layout (walks, noise, views), once attached
   let st = null; // (Milestone 10) the team side (patterns, priorities, fatigue), once attached
   let site = null; // (Milestone 12) Build Mode, once attached
+  let rs = null; // (Milestone 17) research, once attached
   const fit = (x, r) => fitOf(x, r, ly?.fitParts(r.id) ?? null);
   const pricing = (day) => (fin ? { rateOf: fin.rateOf, chance: (o) => fin.offerChance(o, rv?.headline(day).service ?? null) } : null);
   const changed = () => {
@@ -385,6 +388,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
       while (s.at.day < day || (s.at.day === day && s.at.band < band)) {
         const next = s.at.band === BANDS.length - 1 ? { day: s.at.day + 1, band: 0 } : { day: s.at.day, band: s.at.band + 1 };
         site?.onEdge(next.day, next.band); // (Milestone 12) builds finish and moved things reopen at the edge's minute
+        rs?.onEdge(); // (Milestone 17) research finishes on time; the next in the queue starts
         hk?.advance(minuteOf(next.day, next.band)); // cleaning up to this edge first, then the edge
         mt?.advance(minuteOf(next.day, next.band)); // (Milestone 8) maintenance jobs up to this edge
         cp?.advance(minuteOf(next.day, next.band)); // (Milestone 7) late parties' 30 minutes up to this edge
@@ -469,6 +473,9 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     attachSite(x) {
       site = x;
     },
+    attachResearch(x) {
+      rs = x;
+    },
     hasBooking: (id) => s.bookings.some((b) => b.room === id && HOLDS.has(b.status)),
     // (Milestone 5) the reviews system: every check-out is scored, every band edge passed on.
     attachReviews(r) {
@@ -499,8 +506,14 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     get autoAcceptSettings() {
       return clone(s.autoAccept);
     },
+    // (Milestone 17) Auto Accept unlocks through R32 Package Marketing (a save that had it on keeps it: grandfathered).
+    get autoAcceptLocked() {
+      return researchOn() && !researched('R32') && !s.autoAccept.grand;
+    },
     setAutoAccept(patch) {
+      if (patch.on && !s.autoAccept.on && api.autoAcceptLocked) return null;
       const f = { ...s.autoAccept, ...patch };
+      if (!('grand' in f)) f.grand = false; // (M17: a resort that switched it on itself — not grandfathered)
       if (!AUTO_ACCEPT.minRates.some((m) => m.id === f.minRate)) f.minRate = 'any';
       if (!AUTO_ACCEPT.maxOccs.includes(f.maxOcc)) f.maxOcc = 100;
       if (!AUTO_ACCEPT.minSats.includes(f.minSat)) f.minSat = null;
@@ -652,6 +665,7 @@ function load(saved) {
   const s = clone(saved);
   s.autoAssign = s.autoAssign !== false;
   s.autoAccept = { ...clone(AUTO_ACCEPT.defaults), ...(s.autoAccept && typeof s.autoAccept === 'object' ? s.autoAccept : {}) }; // (Milestone 10)
+  if (s.autoAccept.on && !('grand' in s.autoAccept)) s.autoAccept.grand = true; // (M17) switched on before it needed R32: kept (grandfathered)
   s.nextId = Number.isFinite(s.nextId) ? s.nextId : 1;
   s.at = s.at && Number.isFinite(s.at.day) && Number.isFinite(s.at.band) ? s.at : { day: 0, band: 1 };
   s.rooms = Object.fromEntries(ROOMS.map((r) => [r.id, ROOM_STATES[s.rooms?.[r.id]] ? s.rooms[r.id] : 'ready']));
