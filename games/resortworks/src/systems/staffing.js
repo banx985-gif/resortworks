@@ -307,6 +307,7 @@ export function createStaffing({ saved = null, team = [], seed = 'resortworks', 
       s.trained[memberId] = weekOf(s.at.day);
       s.stats.trainings++;
       const up = addXp(m, XP.training);
+      bus?.emit('staff:trained', { id: memberId, day: d }); // (Milestone 14: a great session can bring a Staff Item)
       changed();
       bus?.emit('staff:priority', { role: m.role, id: null }); // (asks for a save)
       return { ok: true, levels: up };

@@ -79,7 +79,9 @@ import { createStaffing } from './systems/staffing.js';
 import { createSite } from './systems/site.js';
 import { createProgress } from './systems/progress.js';
 import { createResearch } from './systems/research.js';
+import { createItems } from './systems/items.js';
 import { RESEARCH, BRANCHES, ART_REDO } from '../data/research.js';
+import { ITEM_TYPES, ITEM_GROUPS, ITEM_RARITIES, ITEMS_ICON } from '../data/items.js';
 import { MajorFeedback } from '../../../core/MajorFeedback.js';
 import { skipMoment, opalWelcomeMoment } from './screens/reviewMoments.js';
 import { validateCast } from '../data/cast.js';
@@ -133,6 +135,45 @@ for (const x of RESEARCH.filter((r) => ART_REDO.includes(r.id)))
     ctx.fillText(x.id, px + w / 2, py + h / 2);
     ctx.restore();
   });
+// (Milestone 14) the Staff Item icons aren't drawn yet: a code-drawn rarity frame with the group's colour and letter; ui_35
+// (Staff Items) a little gift box. Aaron's files under the same names replace them with no code change.
+for (const t of ITEM_TYPES)
+  assets.setFallback(t.art, (ctx, x, y, w, h) => {
+    const g = ITEM_GROUPS.find((q) => q.id === t.group);
+    const s = Math.min(w, h);
+    const px = x + (w - s) / 2;
+    const py = y + (h - s) / 2;
+    ctx.save();
+    ctx.fillStyle = ITEM_RARITIES[t.rarity].frame;
+    ctx.beginPath();
+    ctx.roundRect(px + s * 0.04, py + s * 0.04, s * 0.92, s * 0.92, s * 0.2);
+    ctx.fill();
+    ctx.fillStyle = g.color;
+    ctx.beginPath();
+    ctx.roundRect(px + s * 0.14, py + s * 0.14, s * 0.72, s * 0.72, s * 0.14);
+    ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = font(Math.round(s * 0.34), true);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(g.letter, px + s / 2, py + s / 2 + 1);
+    ctx.restore();
+  });
+assets.setFallback(ITEMS_ICON, (ctx, x, y, w, h) => {
+  const s = Math.min(w, h);
+  const px = x + (w - s) / 2;
+  const py = y + (h - s) / 2;
+  ctx.save();
+  ctx.fillStyle = '#E0508A';
+  ctx.beginPath();
+  ctx.roundRect(px + s * 0.14, py + s * 0.36, s * 0.72, s * 0.52, s * 0.08);
+  ctx.fill();
+  ctx.fillStyle = '#F07A5A';
+  ctx.fillRect(px + s * 0.1, py + s * 0.26, s * 0.8, s * 0.16);
+  ctx.fillStyle = '#FFE08A';
+  ctx.fillRect(px + s * 0.44, py + s * 0.26, s * 0.12, s * 0.62);
+  ctx.restore();
+});
 // (Milestone 13) the ??? staff: a code-drawn silhouette with a question mark
 assets.setFallback(
   'staff_silhouette',
@@ -365,6 +406,9 @@ function openRun(n, data) {
   run.research = createResearch({ saved: data.research ?? null, bus, finance: run.finance, now: () => run.calendar.minute });
   run.bookings.attachResearch(run.research);
   bus.on('research:change', () => run.layout.refresh());
+  // (Milestone 14) Staff Items
+  run.items = createItems({ saved: data.items ?? null, bus, team: run.team, seed: data.seed, now: () => run.calendar.minute, progress: run.progress, finance: run.finance });
+  run.bookings.attachItems(run.items);
   open = run;
   run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;
@@ -396,15 +440,16 @@ async function saveRun() {
   data.site = open.site.serialize(); // (Milestone 12)
   data.progress = open.progress.serialize();
   data.research = open.research.serialize(); // (Milestone 17)
+  data.items = open.items.serialize(); // (Milestone 14)
   const c = calendar.clock;
   data.date = { year: c.year, month: c.month, day: c.day };
   await campaigns.save(n, data);
 }
 const autosave = new Autosave({
   bus,
-  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage', 'research:change'],
+  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage', 'research:change', 'items:change'],
   save: () => saveRun(),
-  stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize(), open.maintenance.serialize(), open.staffing.serialize(), open.site.serialize(), open.progress.serialize(), open.research.serialize()]) : null),
+  stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize(), open.maintenance.serialize(), open.staffing.serialize(), open.site.serialize(), open.progress.serialize(), open.research.serialize(), open.items.serialize()]) : null),
   enabled: () => !!open,
 });
 autosave.installBackground(); // the app going to the background (or the page closing) saves at once

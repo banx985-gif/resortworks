@@ -76,13 +76,13 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const partyWords = (n) => (n === 1 ? '1 person' : `${n} people`);
 const aOrAn = (w) => (/^[AEIOU]/i.test(w) ? 'an' : 'a');
 export const rateWords = (rate) => `${rate} Cr a night`;
-const NO_ACT = { upgrade() {}, fire() {}, train() {}, spec() {}, staffBook() {}, accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {}, review() {}, scores() {}, rates() {}, finance() {}, setBand() {}, complaint() {}, recover() {}, service() {}, autoAccept() {}, autoSet() {}, setPriority() {}, pin() {}, hire() {} };
+const NO_ACT = { items() {}, upgrade() {}, fire() {}, train() {}, spec() {}, staffBook() {}, accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {}, review() {}, scores() {}, rates() {}, finance() {}, setBand() {}, complaint() {}, recover() {}, service() {}, autoAccept() {}, autoSet() {}, setPriority() {}, pin() {}, hire() {} };
 // (Milestone 5) the star rating in a few characters: "3★", or "New" before the first month ends.
 export const starText = (stars) => (stars ? `${stars}★` : 'New');
 const starsLong = (n) => `${'★'.repeat(n)}${'☆'.repeat(5 - n)}`;
 const REVIEWS_SHOWN = 20;
 
-export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null, finance = null, complaints = null, mt = null, layout = null, staffing = null, confirm = null, site = null } = {}) {
+export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null, finance = null, complaints = null, mt = null, layout = null, staffing = null, confirm = null, site = null, items = null } = {}) {
   const it = world?.byId(id);
   if (!it) return null;
   const now = [world.stateOf(it)];
@@ -93,7 +93,7 @@ export function resortSheet(world, id, { accent = C.progress, bookings = null, t
   else if (it.id === 'F01' && bookings) spec = receptionSpec(it, { bookings, today, act, accent, reviews, dateOf, finance, complaints });
   else if (it.id === 'F04' && hk) spec = laundrySpec(it, { hk, now });
   else if (it.id === 'F05' && mt) spec = shedSpec(it, { mt, now, team: world.team });
-  else if (it.id === 'F02' && staffing) spec = serviceBlockSpec(it, { st: staffing, now, act, team: world.team?.map((w) => w.member).filter(Boolean) ?? null, finance, today }); // (Milestone 10; M11 Hire; M13 the applicant pool)
+  else if (it.id === 'F02' && staffing) spec = serviceBlockSpec(it, { st: staffing, now, act, team: world.team?.map((w) => w.member).filter(Boolean) ?? null, finance, today, items }); // (Milestone 10; M11 Hire; M13 the applicant pool; M14 Staff Items)
   else spec = { title: it.def.name, line: it.def.line, art: it.def.art, now };
   // (Milestone 16) every facility: its level, what it does at it, and its Upgrade
   if (it.kind === 'facility' && site) spec.body = [...(spec.body ?? []), facilityLevel(site, it.id, act)];
@@ -630,9 +630,11 @@ function teamSection(st, act) {
   }
   return body;
 }
-function serviceBlockSpec(it, { st, now, act, team = null, finance = null, today = 0 }) {
+function serviceBlockSpec(it, { st, now, act, team = null, finance = null, today = 0, items = null }) {
   const tired = st.rows.filter((r) => r.absent || r.fatigue > FATIGUE.tired).length;
-  return { title: it.def.name, line: it.def.line, art: it.def.art, now: [tired ? `${plural(tired, 'person', 'people')} tired or away` : 'The team is rested', ...now.map((x) => ({ text: x, color: C.textMuted }))], body: [...teamSection(st, act), ...(team ? hireSection(team, finance, act, st, today) : [])] };
+  // (Milestone 14) the Staff Items store, one tap from the team
+  const main = items ? [{ id: 'items', icon: 'ui_35', label: `Staff Items (${items.inventory.length})`, sub: items.inbox.length ? `${items.inbox.length} waiting in the Inbox` : 'Give items to raise stats for good', onTap: () => act.items() }] : [];
+  return { title: it.def.name, line: it.def.line, art: it.def.art, main, now: [tired ? `${plural(tired, 'person', 'people')} tired or away` : 'The team is rested', ...now.map((x) => ({ text: x, color: C.textMuted }))], body: [...teamSection(st, act), ...(team ? hireSection(team, finance, act, st, today) : [])] };
 }
 // (Milestone 13) Hire: this week's applicants (4, from the people the stage allows), each at their tier's fee and wage;
 // the next list's day; and the book of all 50 staff.

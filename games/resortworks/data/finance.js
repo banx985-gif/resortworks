@@ -60,6 +60,7 @@ export const LINES = {
   hiring: { kind: 'cost', name: 'Hiring fees' }, // (Milestone 11) a new staff member's one-off fee
   training: { kind: 'cost', name: 'Training' }, // (Milestone 13) 300 Cr a session
   research: { kind: 'cost', name: 'Research' }, // (Milestone 17) paid when a project starts
+  itemSales: { kind: 'income', name: 'Staff Items sold', noRevenue: true }, // (Milestone 14) spares sold back
   construction: { kind: 'cost', name: 'Building' }, // (Milestone 12) Build Mode: builds, upgrades and land, paid at once
   buildBack: { kind: 'income', name: 'Building sold or cancelled', noRevenue: true }, // (Milestone 12) sale and cancel refunds (not revenue)
   creditDraw: { kind: 'credit', name: 'Emergency Credit taken' },

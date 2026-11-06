@@ -152,6 +152,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   let st = null; // (Milestone 10) the team side (patterns, priorities, fatigue), once attached
   let site = null; // (Milestone 12) Build Mode, once attached
   let rs = null; // (Milestone 17) research, once attached
+  let items = null; // (Milestone 14) Staff Items, once attached
   const fit = (x, r) => fitOf(x, r, ly?.fitParts(r.id) ?? null);
   const pricing = (day) => (fin ? { rateOf: fin.rateOf, chance: (o) => fin.offerChance(o, rv?.headline(day).service ?? null) } : null);
   const changed = () => {
@@ -389,6 +390,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
         const next = s.at.band === BANDS.length - 1 ? { day: s.at.day + 1, band: 0 } : { day: s.at.day, band: s.at.band + 1 };
         site?.onEdge(next.day, next.band); // (Milestone 12) builds finish and moved things reopen at the edge's minute
         rs?.onEdge(); // (Milestone 17) research finishes on time; the next in the queue starts
+        items?.onEdge(next.day, next.band); // (Milestone 14) a new year's item points, the Inbox, a month's well-wisher
         hk?.advance(minuteOf(next.day, next.band)); // cleaning up to this edge first, then the edge
         mt?.advance(minuteOf(next.day, next.band)); // (Milestone 8) maintenance jobs up to this edge
         cp?.advance(minuteOf(next.day, next.band)); // (Milestone 7) late parties' 30 minutes up to this edge
@@ -475,6 +477,9 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     },
     attachResearch(x) {
       rs = x;
+    },
+    attachItems(x) {
+      items = x;
     },
     hasBooking: (id) => s.bookings.some((b) => b.room === id && HOLDS.has(b.status)),
     // (Milestone 5) the reviews system: every check-out is scored, every band edge passed on.

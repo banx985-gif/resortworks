@@ -10,6 +10,7 @@ import { FACILITY_INFO } from './facilities.js';
 import { ROOM_BUILD, LAND, DOUGIE } from './build.js';
 import { STAFF } from './roster.js';
 import { RESEARCH, ART_REDO } from './research.js';
+import { ITEM_TYPES, ITEMS_ICON } from './items.js';
 
 export const ASSETS = {
   // Milestone 0: the five Founders' portraits (setup cards, slot cards, the Founder's sheet).
@@ -41,6 +42,10 @@ export const ASSETS = {
   ...Object.fromEntries(STAFF.map((x) => [x.art, `assets/images/staff/${x.art}.png`])),
   // Milestone 17: the research pictures (r01–r05 are marked "to redo": code-drawn until the new files come — src/main.js)
   ...Object.fromEntries(RESEARCH.filter((x) => !ART_REDO.includes(x.id)).map((x) => [x.art, `assets/images/research/${x.art}.png`])),
+  // Milestone 14: the Staff Item icons and the Staff Items icon (not drawn yet: code-drawn stand-ins, src/main.js, until
+  // the files land under these names — then they load with no code change)
+  ...Object.fromEntries(ITEM_TYPES.map((t) => [t.art, `assets/images/items/${t.art}.png`])),
+  [ITEMS_ICON]: `assets/images/ui/${ITEMS_ICON}.png`,
   // Milestone 0 loader test (?screen=test): the placeholder PWA icon as a real image, and one deliberately missing file.
   m0Real: 'assets/branding/pwa/icon-192.png',
   m0Missing: 'assets/m0-missing-test.png',

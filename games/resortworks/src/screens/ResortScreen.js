@@ -89,6 +89,8 @@ import { FACILITY_INFO } from '../../data/facilities.js';
 import { siteVersion, tileOwned } from '../systems/site.js';
 import { buildListSheet, buildItemSheet } from './buildSheets.js';
 import { researchSheet } from './researchSheet.js';
+import { itemsSheet, itemSheet } from './itemSheets.js';
+import { itemType } from '../../data/items.js';
 import { researchById } from '../../data/research.js';
 
 const C = THEME.color;
@@ -326,6 +328,9 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   // (Milestone 11) a hire: the new person walks onto the lot (a new world with everyone where the band puts them).
   // (Milestone 12) Dougie Barnes' build lines and a new stage: toasts (one tap closes it; they queue)
   // (Milestone 17) a project done: a toast with its picture and what it does now
+  // (Milestone 14) a new Staff Item (or one waiting in the Inbox): a toast
+  bus.on('items:new', ({ item, name, source }) => toast(`New Staff Item: ${name}`, `${source}. Give it from the Motel Service Block.`, itemType(item.type)?.art ?? null));
+  bus.on('items:inbox', ({ entry }) => toast('The Staff Items store is full', `${itemType(entry.type)?.name} waits in the Inbox for 28 days.`, itemType(entry.type)?.art ?? null));
   bus.on('research:done', ({ id, name }) => toast(`Research done: ${name}`, researchById(id)?.line ?? '', researchById(id)?.art ?? null));
   bus.on('site:dougie', ({ line, id }) => toast(DOUGIE.name, line, DOUGIE.art, id && world?.byId(id) ? { open: id } : null));
   bus.on('progress:stage', ({ name }) => toast(`Welcome to the ${name} stage!`, 'New rooms and facilities are in the build list.', DOUGIE.art));
@@ -585,6 +590,29 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     pin(memberId, pattern) {
       if (run()?.staffing?.pin(memberId, pattern)) debug?.log(`pattern: ${memberId} → ${pattern ?? 'auto'}`);
     },
+    // --- (Milestone 14) Staff Items ------------------------------------------------------------------------------
+    items: () => openItems(),
+    staffItem: (uid) => openItem(uid),
+    giveItem(uid, staffId) {
+      const o = run();
+      const r = o?.items?.give(uid, staffId);
+      if (!r?.ok) return say(r?.why);
+      const m = o.team.find((x) => x.id === staffId);
+      say(`${m?.name}: ${r.stats.map((k) => `${k[0].toUpperCase()}${k.slice(1)} +${r.gains[k]}`).join(', ')}${r.like === 'love' ? ' · they love it (+3 Morale)' : ''}`);
+      openItems();
+      debug?.log(`item ${uid} → ${staffId}`);
+    },
+    sellItem(uid) {
+      const v = run()?.items?.sell(uid);
+      if (v == null) return;
+      say(`Sold for ${credits(v)}.`);
+      openItems();
+    },
+    claimItem(id) {
+      const r = run()?.items?.claim(id);
+      if (!r?.ok) return say(r?.why);
+      openItems();
+    },
     // --- (Milestone 17) research --------------------------------------------------------------------------------
     researchSheet: () => openResearch(),
     researchLine() {
@@ -725,6 +753,20 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     debug?.log(`build: ${place.moving ? 'moved' : 'built'} ${r.id} at ${place.col},${place.row}`);
     place = null;
   }
+  // (Milestone 14) the Staff Items store and one item's sheet (give it to whom, or sell it)
+  function openItems(via = 'sheet') {
+    const o = run();
+    if (!o?.items) return;
+    sheet.open(() => itemsSheet(o.items, o.team, { act, accent: palette.hex }));
+    opened = { id: 'items', via };
+    debug?.log(`sheet: staff items (${via})`);
+  }
+  function openItem(uid) {
+    const o = run();
+    if (!o?.items) return;
+    sheet.open(() => itemSheet(o.items, o.team, uid, { act, accent: palette.hex }) ?? itemsSheet(o.items, o.team, { act, accent: palette.hex }));
+    opened = { id: `item:${uid}`, via: 'sheet' };
+  }
   function openResearch(via = 'sheet') {
     const o = run();
     if (!o?.research) return;
@@ -766,7 +808,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     const x = calendar()?.clock.dateOf(d);
     return x ? `Y${x.year} · Month ${x.month} · Day ${x.day}` : `Day ${d + 1}`;
   };
-  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null, finance: run()?.finance ?? null, complaints: run()?.complaints ?? null, mt: run()?.maintenance ?? null, layout: run()?.layout ?? null, staffing: run()?.staffing ?? null, site: run()?.site ?? null });
+  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null, finance: run()?.finance ?? null, complaints: run()?.complaints ?? null, mt: run()?.maintenance ?? null, layout: run()?.layout ?? null, staffing: run()?.staffing ?? null, site: run()?.site ?? null, items: run()?.items ?? null });
   function openSheet(id, via = 'art') {
     if (!world?.byId(id)) return;
     sheet.open(() => resortSheet(world, id, sheetOpts()));
