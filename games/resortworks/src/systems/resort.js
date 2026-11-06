@@ -148,4 +148,10 @@ export const SAVE_MIGRATIONS = {
   // 10 → 11 (Milestone 12): the shipped lot as the site (nothing was ever moved before), the Roadside Motel stage — a
   // resort that already passes the Holiday Lodge gate moves on at its next band edge.
   10: (record) => ({ ...record, data: { ...record.data, site: record.data.site ?? freshSite(), progress: record.data.progress ?? freshProgress() } }),
+  // 11 → 12 (Milestone 13): nobody has trained yet; this week's applicants are drawn when the resort opens (from the run's
+  // seed and the week). Everyone keeps their level, starting at 0 XP.
+  11: (record) => {
+    const d = record.data;
+    return { ...record, data: { ...d, staffing: d.staffing ? { ...d.staffing, pool: d.staffing.pool ?? null, trained: d.staffing.trained ?? {} } : d.staffing } };
+  },
 };

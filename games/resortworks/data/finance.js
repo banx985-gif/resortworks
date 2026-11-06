@@ -58,6 +58,7 @@ export const LINES = {
   repairs: { kind: 'cost', name: 'Repairs' }, // (Milestone 8) 8% of the build cost a repair
   parts: { kind: 'cost', name: 'Maintenance parts' }, // (Milestone 8) 1% of the build cost a preventive service
   hiring: { kind: 'cost', name: 'Hiring fees' }, // (Milestone 11) a new staff member's one-off fee
+  training: { kind: 'cost', name: 'Training' }, // (Milestone 13) 300 Cr a session
   construction: { kind: 'cost', name: 'Building' }, // (Milestone 12) Build Mode: builds, upgrades and land, paid at once
   buildBack: { kind: 'income', name: 'Building sold or cancelled', noRevenue: true }, // (Milestone 12) sale and cancel refunds (not revenue)
   creditDraw: { kind: 'credit', name: 'Emergency Credit taken' },

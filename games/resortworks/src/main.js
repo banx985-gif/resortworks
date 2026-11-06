@@ -114,6 +114,27 @@ bus.on('renderer:resize', () => layout.refresh());
 const input = new Input(renderer, bus);
 const assets = new AssetManager({ bus });
 assets.sprites.maxUpscale = 1; // a copy never bigger than its picture (less GPU memory)
+// (Milestone 13) the ??? staff: a code-drawn silhouette with a question mark
+assets.setFallback(
+  'staff_silhouette',
+  (ctx, x, y, w, h) => {
+    ctx.save();
+    ctx.fillStyle = '#3B4A5C';
+    ctx.beginPath();
+    ctx.arc(x + w / 2, y + h * 0.34, Math.min(w, h) * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x + w / 2, y + h * 0.95, w * 0.42, h * 0.36, 0, Math.PI, 0);
+    ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = font(Math.round(h * 0.28), true);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('?', x + w / 2, y + h * 0.35);
+    ctx.restore();
+  },
+  { aspect: 0.8 },
+);
 watchCanvasLoss(renderer.canvas ?? document.getElementById('game')); // a wiped canvas → the caches are made again
 const router = new ScreenRouter(bus, { roots: ['menu', 'test', 'resort'] });
 const dialog = new Dialog({ layout, assets }); // confirm boxes (delete / replace a slot)
@@ -305,6 +326,7 @@ function openRun(n, data) {
   // (Milestone 9) walks, noise, views and the live Appeal
   run.layout = createLayout({ mt: run.maintenance });
   run.layout.attachComplaints(run.complaints);
+  run.layout.attachTeam(run.team); // (Milestone 13) traits on the Garden and the views
   run.bookings.attachLayout(run.layout);
   run.reviews.attachLayout(run.layout);
   // (Milestone 10) Auto Schedule, priorities, fatigue, Staff Wellbeing
@@ -314,6 +336,7 @@ function openRun(n, data) {
   // (Milestone 12) the stage, and Build Mode tied to everything it pays, checks and changes
   run.progress = createProgress({ saved: data.progress ?? null, bus, reviews: run.reviews, bookings: run.bookings, now: () => run.calendar.minute });
   run.site.attach({ finance: run.finance, reviews: run.reviews, bookings: run.bookings, maintenance: run.maintenance, progress: run.progress });
+  run.staffing.attachProgress(run.progress); // (Milestone 13) the team cap and who applies
   run.bookings.attachSite(run.site);
   run.maintenance.attachSite(run.site);
   run.site.onChange(() => run.layout.refresh());

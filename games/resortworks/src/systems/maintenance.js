@@ -26,6 +26,7 @@ import { BANDS } from '../../data/calendar.js';
 import { CONDITION, WEAR, JOBS, BUILD_COST, STAY_FACILITIES, COND_TEXT, LOG_MAX } from '../../data/maintenance.js';
 import { MINUTES_PER_DAY, minuteOf } from './calendar.js';
 import { lotGrid, doorOf, windowAt, nextShiftAfter } from './housekeeping.js';
+import { teamBonus } from './staff.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const r2 = (x) => Math.round(x * 100) / 100;
@@ -33,6 +34,7 @@ const BAND = Object.fromEntries(BANDS.map((b, i) => [b.id, i]));
 const MAX_STARTS = 40;
 // (Milestone 12) everything open on the land now (Build Mode changes it).
 export const targets = () => [...FACILITIES.map((f) => f.id), ...ROOMS.map((r) => r.id)];
+const POOLS = ['F03', 'F11', 'F28']; // (Milestone 13) Pool Tech's pools
 const orderOf = (id) => {
   const i = targets().indexOf(id);
   return i < 0 ? 1e9 : i;
@@ -103,7 +105,8 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
   // Job minutes for this worker's stats (k, ÷ the Maintenance Shed's working bonus).
   function minutesFor(kind, stats = {}) {
     const k = Math.max(0.1, R.base - (stats.skill ?? 0) / R.skillDiv - (stats.speed ?? 0) / R.speedDiv);
-    return r2(((kind === 'repair' ? R.repairMinutes : R.serviceMinutes) * k) / (1 + R.shedBonus * shedShare()));
+    const traits = 1 + teamBonus(team, 'repairSpeed') + teamBonus(team, 'efficiency') + (kind === 'repair' ? teamBonus(team, 'emergencyRepair') : 0); // (M13) Handy …
+    return r2(((kind === 'repair' ? R.repairMinutes : R.serviceMinutes) * k) / (1 + R.shedBonus * shedShare()) / traits);
   }
   const walkTiles = (from, to) => {
     const a = doorOf(from);
@@ -227,7 +230,7 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
       if (s.offline[id] || busy(id)) continue; // (someone working on it right now: it holds)
       if (s.cond[id] <= 0) breakDown(id, minute, 'worn out');
       else {
-        const p = breakdownChance(s.cond[id]);
+        const p = breakdownChance(s.cond[id]) * Math.max(0, 1 - teamBonus(team, 'prevention') - (POOLS.includes(id) ? teamBonus(team, 'poolReliability') : 0)); // (M13) Preventive, Pool Tech …
         if (p > 0 && new Rng(`${seed}:breakdown:${id}:${day}`).next() < p) breakDown(id, minute, 'roll');
       }
     }

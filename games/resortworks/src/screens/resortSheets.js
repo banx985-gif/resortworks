@@ -50,7 +50,11 @@ import { arrivalWords } from '../systems/bookings.js';
 import { ROLES } from '../../data/setup.js';
 import { STAT_KEYS, STAT_NAMES, TIERS, PATTERNS } from '../../data/staff.js';
 import { PRIORITIES, FATIGUE, EMERGENCY, AUTO_ACCEPT, HIRING } from '../../data/staffing.js';
-import { hireable, hireWhy } from '../systems/staffing.js';
+import { hireable, hireWhy, hireFee, fireWhy } from '../systems/staffing.js';
+import { STAFF, staffDef, TRAIT_KEYS, XP, xpToNext, TRAINING, WHEN_STAGE, WHEN_WORDS, HIREABLE_TIERS } from '../../data/roster.js';
+import { stageById, stageIndex } from '../../data/build.js';
+import { WAGES } from '../../data/finance.js';
+import { specChoice } from '../systems/staff.js';
 import { EARLY_STAFF } from '../../data/staff.js';
 import { staffById } from '../systems/staff.js';
 import { LINEN, LATE_BADGE } from '../../data/housekeeping.js';
@@ -71,24 +75,24 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const partyWords = (n) => (n === 1 ? '1 person' : `${n} people`);
 const aOrAn = (w) => (/^[AEIOU]/i.test(w) ? 'an' : 'a');
 export const rateWords = (rate) => `${rate} Cr a night`;
-const NO_ACT = { accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {}, review() {}, scores() {}, rates() {}, finance() {}, setBand() {}, complaint() {}, recover() {}, service() {}, autoAccept() {}, autoSet() {}, setPriority() {}, pin() {}, hire() {} };
+const NO_ACT = { fire() {}, train() {}, spec() {}, staffBook() {}, accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {}, review() {}, scores() {}, rates() {}, finance() {}, setBand() {}, complaint() {}, recover() {}, service() {}, autoAccept() {}, autoSet() {}, setPriority() {}, pin() {}, hire() {} };
 // (Milestone 5) the star rating in a few characters: "3★", or "New" before the first month ends.
 export const starText = (stars) => (stars ? `${stars}★` : 'New');
 const starsLong = (n) => `${'★'.repeat(n)}${'☆'.repeat(5 - n)}`;
 const REVIEWS_SHOWN = 20;
 
-export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null, finance = null, complaints = null, mt = null, layout = null, staffing = null } = {}) {
+export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null, finance = null, complaints = null, mt = null, layout = null, staffing = null, confirm = null } = {}) {
   const it = world?.byId(id);
   if (!it) return null;
   const now = [world.stateOf(it)];
   let spec;
   if (it.kind === 'guest') spec = guestSpec(world, it, { bookings, today, dateOf, complaints, act });
-  else if (it.kind === 'staff') spec = staffSpec(world, it, { hk, now, mt, st: staffing, act });
+  else if (it.kind === 'staff') spec = staffSpec(world, it, { hk, now, mt, st: staffing, act, finance, confirm });
   else if (it.kind === 'room') spec = roomSpec(world, it, { bookings, today, act, hk, finance, layout });
   else if (it.id === 'F01' && bookings) spec = receptionSpec(it, { bookings, today, act, accent, reviews, dateOf, finance, complaints });
   else if (it.id === 'F04' && hk) spec = laundrySpec(it, { hk, now });
   else if (it.id === 'F05' && mt) spec = shedSpec(it, { mt, now, team: world.team });
-  else if (it.id === 'F02' && staffing) spec = serviceBlockSpec(it, { st: staffing, now, act, team: world.team?.map((w) => w.member).filter(Boolean) ?? null, finance }); // (Milestone 10; M11 Hire)
+  else if (it.id === 'F02' && staffing) spec = serviceBlockSpec(it, { st: staffing, now, act, team: world.team?.map((w) => w.member).filter(Boolean) ?? null, finance, today }); // (Milestone 10; M11 Hire; M13 the applicant pool)
   else spec = { title: it.def.name, line: it.def.line, art: it.def.art, now };
   // (Milestone 8) every facility and room: its Condition (Reception's goes after its lists)
   if (mt && it.kind !== 'guest' && it.kind !== 'staff') {
@@ -291,7 +295,8 @@ const ordinal = (n) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 ===
 export const minutesWords = (m) => (m >= 60 ? `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, '0')} min` : `${Math.max(1, Math.ceil(m))} min`);
 
 // --- a staff member (Milestone 4) -----------------------------------------------------------------------------------
-function staffSpec(world, p, { hk, now, mt = null, st = null, act = NO_ACT }) {
+function staffSpec(world, p, opts) {
+  const { hk, now, mt = null, st = null, act = NO_ACT } = opts;
   const m = p.member;
   const tag = p.founder ? { text: 'FOUNDER', color: C.purple } : { text: 'STAFF', color: C.progress };
   if (!m?.stats) return { title: p.name, line: ROLES[p.role]?.name ?? world.role.name, art: m?.art ?? world.founder.art, tag, now };
@@ -302,6 +307,8 @@ function staffSpec(world, p, { hk, now, mt = null, st = null, act = NO_ACT }) {
     { title: 'Stats', lines: STAT_KEYS.map((k) => ({ text: STAT_NAMES[k], right: String(Math.round(m.stats[k])) })) },
     { title: 'Work', lines: [{ text: 'Level', right: `${m.level} · ${TIERS[m.tier]?.name ?? 'Standard'}` }, { text: 'Work pattern', right: patternWords(m.pattern) }] },
   ];
+  // (Milestone 13) tier, level and XP, trait, specialisations, wage; Train and Let go
+  if (m.model) body.splice(1, 1, ...growthSections(m, { st, act, finance: opts.finance, team: world.team?.map((w) => w.member).filter(Boolean) ?? [] }));
   if (m.role === 'HK' && hk) {
     body.push({
       title: 'Cleaning',
@@ -595,27 +602,97 @@ function teamSection(st, act) {
   }
   return body;
 }
-function serviceBlockSpec(it, { st, now, act, team = null, finance = null }) {
+function serviceBlockSpec(it, { st, now, act, team = null, finance = null, today = 0 }) {
   const tired = st.rows.filter((r) => r.absent || r.fatigue > FATIGUE.tired).length;
-  return { title: it.def.name, line: it.def.line, art: it.def.art, now: [tired ? `${plural(tired, 'person', 'people')} tired or away` : 'The team is rested', ...now.map((x) => ({ text: x, color: C.textMuted }))], body: [...teamSection(st, act), ...(team ? hireSection(team, finance, act) : [])] };
+  return { title: it.def.name, line: it.def.line, art: it.def.art, now: [tired ? `${plural(tired, 'person', 'people')} tired or away` : 'The team is rested', ...now.map((x) => ({ text: x, color: C.textMuted }))], body: [...teamSection(st, act), ...(team ? hireSection(team, finance, act, st, today) : [])] };
 }
-// (Milestone 11) Hire: the Early staff not on the team yet, while it has room.
-function hireSection(team, finance, act) {
-  const left = EARLY_STAFF.filter((e) => !team.some((m) => m.id === e.id));
-  if (!left.length) return [];
-  const full = team.length >= HIRING.cap;
+// (Milestone 13) Hire: this week's applicants (4, from the people the stage allows), each at their tier's fee and wage;
+// the next list's day; and the book of all 50 staff.
+function hireSection(team, finance, act, st, today) {
+  const cap = st.cap;
+  const full = team.length >= cap;
+  const pool = st.pool;
+  const left = Math.max(0, st.nextPoolDay() - today);
   return [
     {
-      title: `Hire (${team.length} of ${HIRING.cap} people)`,
+      title: `Hire (${team.length} of ${cap} people)`,
       std: 'hire',
-      lines: [{ text: full ? `Your team is full (${HIRING.cap} people).` : `A ${HIRING.fee} Cr fee now, then 850 Cr a month like everyone.`, color: full ? C.bad : C.textMuted }],
+      lines: [{ text: full ? `Your team is full (${cap} people).` : pool.length ? 'Looking for work this week. A fee now, then their wage each month.' : 'Nobody new is looking for work this week.', color: full ? C.bad : C.textMuted }, { text: 'New applicants', right: left <= 1 ? 'tomorrow' : `in ${left} days` }],
       columns: 1,
-      buttons: left.map((e) => {
-        const why = hireWhy(team, e.id, finance?.cash ?? Infinity);
-        return { id: `hire:${e.id}`, icon: e.art, label: e.name, sub: `${ROLES[e.role].name} · ${e.trait}`, cost: `${HIRING.fee} Cr`, accent: why ? C.textMuted : C.action, disabled: !!why, onTap: () => act.hire(e.id) };
-      }),
+      buttons: [
+        ...pool.map((id) => {
+          const e = staffDef(id);
+          const why = hireWhy(team, id, finance?.cash ?? Infinity, st);
+          return { id: `hire:${id}`, icon: e.art, label: `${e.name} · ${TIERS[e.tier].name}`, sub: why ?? `${ROLES[e.role].name} · ${e.trait}: ${traitWords(e.effect)} · ${credits(WAGES[e.tier])} a month`, cost: credits(hireFee(id)), accent: why ? C.textMuted : C.action, disabled: !!why, onTap: () => act.hire(id) };
+        }),
+        { id: 'staffBook', label: 'All 50 staff', sub: 'Who is on the team, who can apply, and who is still a secret', accent: C.progress, onTap: () => act.staffBook() },
+      ],
     },
   ];
+}
+// (Milestone 13) a trait's effect in plain words: "+4% check-in speed" (and when a later system makes it work).
+export function traitWords(e) {
+  const k = TRAIT_KEYS[e.key];
+  const n = e.key === 'hkGuard' ? 'stops the first housekeeping slip each week' : e.key === 'mgGuard' ? 'stops the first breakdown each month' : `${e.pct > 0 ? '+' : '−'}${Math.abs(e.pct)}% ${k?.words ?? e.key}`;
+  return k?.later ? `${n} (works from ${k.later})` : n;
+}
+// (Milestone 13) tier, level, the XP bar, trait, specialisations, wage; Train (once a week) and Let go (two taps).
+function growthSections(m, { st, act, finance, team }) {
+  const d = staffDef(m.id);
+  const top = m.level >= XP.cap;
+  const lines = [
+    { text: 'Tier', right: TIERS[m.tier]?.name ?? 'Standard' },
+    { text: 'Level', right: `${m.level} of ${XP.cap}` },
+    { text: 'Wage', right: `${credits(WAGES[m.tier] ?? WAGES.standard)} a month` },
+  ];
+  if (d) lines.push({ text: `Trait: ${d.trait}`, right: traitWords(d.effect) });
+  for (const x of m.specs ?? []) lines.push({ text: `Specialisation: ${x.name}`, right: x.line });
+  if (!st) lines.push({ text: 'Work pattern', right: patternWords(m.pattern) }); // (no team side: the pattern here)
+  const out = [{ title: 'Work', std: 'growth', lines, bars: [{ label: 'XP', value: top ? 1 : m.model.xp, max: top ? 1 : xpToNext(m.level), color: C.progress, text: top ? 'Top level' : `${Math.floor(m.model.xp)} / ${xpToNext(m.level)}` }] }];
+  const due = specChoice(m);
+  if (due)
+    out.push({
+      title: `Level ${due.level}: pick a specialisation`,
+      std: 'spec',
+      lines: [{ text: 'Choose one. It stays for good.', color: C.textMuted }],
+      columns: 1,
+      buttons: due.options.map((o) => ({ id: `spec:${o.id}`, label: o.name, sub: o.line, accent: C.gold, onTap: () => act.spec(m.id, o.id) })),
+    });
+  if (st) {
+    const tw = st.trainWhy(m.id, finance?.cash ?? Infinity);
+    const fw = fireWhy(team, m.id);
+    out.push({
+      std: 'staffActions',
+      columns: 1,
+      buttons: [
+        { id: `train:${m.id}`, label: 'Train', sub: tw ?? `+${XP.training} XP · once a week`, cost: credits(TRAINING.fee), accent: tw ? C.textMuted : C.progress, disabled: !!tw, onTap: () => act.train(m.id) },
+        { id: `fire:${m.id}`, label: act.confirming?.() === `fire:${m.id}` ? `Tap again to let ${m.name} go` : 'Let go', sub: fw ?? 'They leave the team today (no refund of the hiring fee).', accent: C.bad, disabled: !!fw, onTap: () => act.fire(m.id) },
+      ],
+    });
+  }
+  return out;
+}
+// (Milestone 13) the book of all 50 staff: on the team, could apply (and from which stage), or ??? (Legendary / Secret).
+export function staffBookSheet(team, { st = null, accent = C.progress, act = NO_ACT, stage = 'roadside' } = {}) {
+  const sections = [];
+  for (const role of Object.keys(ROLES)) {
+    const people = STAFF.filter((x) => x.role === role);
+    sections.push({
+      title: ROLES[role].name,
+      std: `book:${role}`,
+      columns: 1,
+      buttons: people.map((x) => {
+        const on = team.some((m) => m.id === x.id);
+        if (!HIREABLE_TIERS.includes(x.tier)) return { id: `book:${x.id}`, icon: 'staff_silhouette', label: '???', sub: WHEN_WORDS[x.when], accent: C.textMuted, disabled: true, onTap: () => {} };
+        const need = WHEN_STAGE[x.when];
+        const open = stageIndex(stage) >= stageIndex(need);
+        const sub = on ? 'On your team' : st?.pool.includes(x.id) ? 'Looking for work this week' : open ? 'May apply in a later week' : `Applies from the ${stageById(need).name} stage`;
+        return { id: `book:${x.id}`, icon: x.art, label: `${on ? '✓ ' : ''}${x.name} · ${TIERS[x.tier].name}`, sub: `${sub} · ${x.trait}: ${traitWords(x.effect)}`, accent: on ? C.good : open ? C.action : C.textMuted, disabled: true, onTap: () => {} };
+      }),
+    });
+  }
+  sections.push({ columns: 1, buttons: [{ id: 'back', label: '‹ Back to the team', accent: C.textMuted, onTap: () => act.open('F02') }] });
+  return { key: 'staffBook', title: 'All 50 staff', subtitle: 'Legendary and Secret staff stay hidden until their secrets are found.', art: 'facility_f02', accent, sections };
 }
 // A staff member's (Milestone 10) part: fatigue, their department's priority, and their pattern (Auto or pinned).
 function staffWork(m, st, act) {

@@ -5,11 +5,16 @@
 //   loadTeam(saved, seed, founderId) → team: [{ id, name, role, tier, level, stats, pattern, founder, art, sprite, model }]
 //   statsFor(role, tierId, level) → { service, speed, skill, stamina, charm }
 //   onShiftAt(pattern, bandId) → do they work this band?
+// Milestone 13: anyone of the 50 (data/roster.js) can be on the team. Each member carries their trait (its bible effect)
+// and their Lv8 / Lv16 specialisations (kept in the model's traits as "spec:<id>"). gainXp(m, n) moves XP and levels
+// (the stats follow the level: statsFor + any permanent bonus); teamBonus(team, key) adds up a trait key over the people
+// at work today (absent ones don't count); specChoice(m) → the two options when one is due.
 import { Rng } from '../../../../core/Rng.js';
 import { StaffModel } from '../../../../core/StaffModel.js';
 import { STAT_KEYS, ROLE_TEMPLATES, TIERS, LEVEL_ADD, PATTERNS, rolePattern, START_STAFF, EARLY_STAFF } from '../../data/staff.js';
 import { founderById } from '../../data/setup.js';
 import { STAFF_ROLES } from '../../data/lot.js';
+import { staffDef, XP, xpToNext, SPECIALISATIONS, SPEC_LEVELS, specById } from '../../data/roster.js';
 
 const r2 = (x) => Math.round(x * 100) / 100;
 
@@ -37,12 +42,12 @@ export function makeTeam(seed, founderId) {
 }
 
 // Anyone the team may hold: a Founder (the Start staff) or (Milestone 10) one of the Early staff.
-export const staffById = (id) => founderById(id) ?? EARLY_STAFF.find((m) => m.id === id) ?? null;
+export const staffById = (id) => founderById(id) ?? staffDef(id) ?? EARLY_STAFF.find((m) => m.id === id) ?? null;
 // One Early staff member as a new hire: Standard tier, a seeded level 1–3, their role's stats and most common pattern.
 export function makeHire(seed, id) {
-  const f = EARLY_STAFF.find((m) => m.id === id);
+  const f = staffDef(id); // (Milestone 13: any of the 50, at their own tier)
   if (!f) return null;
-  const tier = TIERS.standard;
+  const tier = TIERS[f.tier] ?? TIERS.standard;
   const level = new Rng(`${seed}:staff:${id}`).int(tier.levels[0], tier.levels[1]);
   const model = new StaffModel({ id, name: f.name, role: f.role, tier: tier.id, level, stats: statsFor(f.role, tier.id, level), art: f.art, activity: 'resting' });
   return { ...model.toJSON(), pattern: rolePattern(f.role), founder: false };
@@ -70,8 +75,63 @@ export function memberFrom(m, founderId) {
     sprite: STAFF_ROLES[model.role].art,
     station: STAFF_ROLES[model.role].station,
     model,
+    // (Milestone 13) the trait and specialisations as effects
+    trait: staffDef(model.id)?.trait ?? null,
+    get xp() {
+      return model.xp;
+    },
+    get specs() {
+      return model.traits.filter((t) => t.startsWith('spec:')).map((t) => specById(t.slice(5))).filter(Boolean);
+    },
+    get effects() {
+      const d = staffDef(model.id);
+      return [...(d ? [d.effect] : []), ...this.specs.map((x) => x.effect)];
+    },
   };
 }
+// (Milestone 13) permanent stat bonuses (items, M14) are kept in the model's counters as bonus_<stat>.
+const bonusOf = (model, k) => model.counters?.[`bonus_${k}`] ?? 0;
+export function restat(m) {
+  const base = statsFor(m.role, m.tier, m.level);
+  const stats = Object.fromEntries(STAT_KEYS.map((k) => [k, r2(Math.min(LEVEL_ADD.cap, base[k] + bonusOf(m.model, k)))]));
+  m.model.stats = stats;
+  m.stats = m.model.stats;
+  return stats;
+}
+// XP for this member (bible §27D): levels while it is enough, up to the cap; the stats follow. → levels gained.
+export function gainXp(m, n) {
+  if (m.level >= XP.cap) return 0;
+  m.model.xp = r2(m.model.xp + n);
+  let up = 0;
+  while (m.level < XP.cap && m.model.xp >= xpToNext(m.level)) {
+    m.model.xp = r2(m.model.xp - xpToNext(m.level));
+    m.level++;
+    m.model.level = m.level;
+    up++;
+  }
+  if (m.level >= XP.cap) m.model.xp = 0;
+  if (up) restat(m);
+  return up;
+}
+// The specialisation due now (Lv8 or Lv16 reached and not chosen): { level, options } or null.
+export function specChoice(m) {
+  for (const lv of SPEC_LEVELS) {
+    if (m.level < lv) continue;
+    const opts = SPECIALISATIONS[m.role]?.[lv] ?? [];
+    if (!opts.some((o) => m.model.traits.includes(`spec:${o.id}`))) return { level: lv, options: opts };
+  }
+  return null;
+}
+export function chooseSpec(m, specId) {
+  const due = specChoice(m);
+  if (!due || !due.options.some((o) => o.id === specId)) return false;
+  m.model.traits.push(`spec:${specId}`);
+  return true;
+}
+// Tests of the older milestones switch Milestone 13's growth off (their formulas stay exactly as written then).
+export const GROWTH = { traits: true, xp: true };
+// The team's total for a trait key, as a share (8% → 0.08): everyone at work today (not away).
+export const teamBonus = (team, key) => (!GROWTH.traits ? 0 : (team ?? []).reduce((t, m) => t + (m.absent ? 0 : (m.effects ?? []).reduce((a, e) => a + (e.key === key ? e.pct : 0), 0)), 0) / 100);
 export const saveTeam = (team) => team.map((m) => ({ ...m.model.toJSON(), pattern: m.pattern, founder: m.founder }));
 
 export const onShiftAt = (pattern, bandId) => (PATTERNS[pattern] ?? PATTERNS.day).bands.includes(bandId);

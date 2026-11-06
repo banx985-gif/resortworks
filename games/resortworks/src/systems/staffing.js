@@ -15,12 +15,20 @@
 //     st.onEdge(day, band) · setPriority(role, id) · priority(role) · pin(memberId, pattern | null) · pinned(memberId)
 //     fatigue(memberId) · wellbeing() · rows (one per person, for the sheets) · stats · serialize()
 //   On the bus: 'staff:change' · 'staff:absent' { id, day } · 'staff:priority' { role, id } (asks for a save)
+// Milestone 13 (bible §8 / §27D): XP — 3 for every band worked, +2 to everyone at work for each 5★ review, +12 a
+// training session (300 Credits, once a week each) — levels to 20 (the stats follow); the applicant pool (4 people a
+// week from those the stage allows, seeded by the run and the week); hire anyone in the pool (their tier's fee), fire
+// anyone but the Founder and the last of a role; the team cap is the stage's (Roadside 8).
+//   st.pool (ids) · poolWeek · st.train(memberId, finance, day) · trainWhy(memberId, cash) · st.left(memberId) ·
+//   st.attachProgress(pg) · st.cap · 'staff:levelUp' { id, level } on the bus
 import { Rng } from '../../../../core/Rng.js';
 import { BANDS } from '../../data/calendar.js';
 import { PATTERNS, ROLE_PATTERN_SHARES } from '../../data/staff.js';
 import { PRIORITIES, DEFAULT_PRIORITY, FATIGUE, EMERGENCY, WELLBEING, HIRING, priorityById } from '../../data/staffing.js';
 import { EARLY_STAFF } from '../../data/staff.js';
-import { makeHire, memberFrom } from './staff.js';
+import { makeHire, memberFrom, gainXp, GROWTH } from './staff.js';
+import { STAFF, staffDef, TIER_FEES, HIREABLE_TIERS, WHEN_STAGE, XP, TRAINING, POOL } from '../../data/roster.js';
+import { stageById, stageIndex } from '../../data/build.js';
 import { STAFF_ROLES } from '../../data/lot.js';
 import { onShiftAt } from './staff.js';
 
@@ -62,7 +70,7 @@ export function patternCounts(role, n, pinnedCounts = {}) {
 }
 
 export function freshStaffing({ day = 0, band = 1 } = {}) {
-  return { at: { day, band }, priority: {}, pins: {}, patterns: {}, fatigue: {}, peak: {}, absent: {}, streak: {}, days: [], today: { sum: 0, n: 0, em: 0 }, stats: { absences: 0, tiredBands: 0, emergencyDays: 0, rebalances: 0 } };
+  return { at: { day, band }, priority: {}, pins: {}, patterns: {}, fatigue: {}, peak: {}, absent: {}, streak: {}, days: [], today: { sum: 0, n: 0, em: 0 }, pool: null, trained: {}, stats: { absences: 0, tiredBands: 0, emergencyDays: 0, rebalances: 0, xpBands: 0, levelUps: 0, trainings: 0, hires: 0, fires: 0 } };
 }
 
 export function createStaffing({ saved = null, team = [], seed = 'resortworks', bus = null, day = 0, band = 'morning' } = {}) {
@@ -89,9 +97,41 @@ export function createStaffing({ saved = null, team = [], seed = 'resortworks', 
       streak: Object.fromEntries(Object.entries(o.streak ?? {}).filter(([r, n]) => ROLE_IDS.includes(r) && Number.isFinite(n))),
       days: Array.isArray(o.days) ? o.days.filter((d) => Number.isFinite(d?.day)).slice(-WELLBEING.window) : [],
       today: { ...f.today, ...(o.today ?? {}) },
+      pool: o.pool && Number.isFinite(o.pool.week) && Array.isArray(o.pool.ids) ? { week: o.pool.week, ids: o.pool.ids.filter((id) => staffDef(id)) } : null, // (Milestone 13)
+      trained: Object.fromEntries(Object.entries(o.trained ?? {}).filter(([id, w]) => ids.has(id) && Number.isFinite(w))),
       stats: { ...f.stats, ...(o.stats ?? {}) },
     };
   }
+  // (Milestone 13) the stage (for the team cap and who applies); levels and XP
+  let progress = null;
+  const stageId = () => progress?.stage ?? 'roadside';
+  const capNow = () => stageById(stageId()).staff;
+  const weekOf = (d) => Math.floor(Math.max(0, d) / POOL.weekDays);
+  // Everyone the stage lets apply (Standard / Rare / Elite), not on the team.
+  const eligible = () => STAFF.filter((x) => HIREABLE_TIERS.includes(x.tier) && WHEN_STAGE[x.when] && stageIndex(stageId()) >= stageIndex(WHEN_STAGE[x.when]) && !team.some((m) => m.id === x.id));
+  function refreshPool(d) {
+    const list = eligible();
+    const rng = new Rng(`${seed}:pool:${weekOf(d)}`);
+    const ids = [];
+    const left = [...list];
+    while (ids.length < POOL.size && left.length) ids.push(left.splice(rng.int(0, left.length - 1), 1)[0].id);
+    s.pool = { week: weekOf(d), ids };
+  }
+  if (!s.pool) refreshPool(s.at.day);
+  function addXp(m, n) {
+    if (!GROWTH.xp) return 0;
+    const up = gainXp(m, n);
+    if (up) {
+      s.stats.levelUps += up;
+      bus?.emit('staff:levelUp', { id: m.id, level: m.level });
+    }
+    return up;
+  }
+  // (Milestone 13) exceptional service: each 5★ review gives +2 XP to everyone at work today.
+  bus?.on('review:new', ({ review } = {}) => {
+    if (review?.stars !== 5) return;
+    for (const m of team) if (!m.absent) addXp(m, XP.exceptional);
+  });
 
   const priorityOf = (role) => priorityById(s.priority[role] ?? DEFAULT_PRIORITY);
   const fatigueOf = (id) => s.fatigue[id] ?? 0;
@@ -143,6 +183,10 @@ export function createStaffing({ saved = null, team = [], seed = 'resortworks', 
     for (const m of team) {
       const away = s.absent[m.id] === prev.day;
       const working = !away && onShiftAt(m.pattern, bandId);
+      if (working) {
+        addXp(m, XP.band); // (Milestone 13) 3 XP for every band worked
+        s.stats.xpBands++;
+      }
       const f0 = fatigueOf(m.id);
       const pr = priorityOf(m.role);
       const extra = pr.extra * (pr.id === 'emergency' && (s.streak[m.role] ?? 0) > EMERGENCY.maxDays ? 2 : 1);
@@ -182,6 +226,7 @@ export function createStaffing({ saved = null, team = [], seed = 'resortworks', 
         bus?.emit('staff:absent', { id: m.id, day });
       }
     s.peak = {};
+    if (weekOf(day) !== s.pool?.week) refreshPool(day); // (Milestone 13) new applicants each week
     rebalance();
   }
   const avgNow = () => (team.length ? r2(team.reduce((t, m) => t + fatigueOf(m.id), 0) / team.length) : 0);
@@ -222,6 +267,57 @@ export function createStaffing({ saved = null, team = [], seed = 'resortworks', 
       return true;
     },
     pinned: (memberId) => s.pins[memberId] ?? null,
+    get team() {
+      return team;
+    },
+    // (Milestone 13) the applicant pool, training, leaving, the cap
+    get pool() {
+      return (s.pool?.ids ?? []).filter((id) => !team.some((m) => m.id === id));
+    },
+    get poolWeek() {
+      return s.pool?.week ?? 0;
+    },
+    nextPoolDay: () => ((s.pool?.week ?? 0) + 1) * POOL.weekDays,
+    // Tests and ?debug=1: these people are this week's applicants.
+    debugPool(ids) {
+      s.pool = { week: weekOf(s.at.day), ids: ids.filter((id) => staffDef(id)) };
+      changed();
+    },
+    get cap() {
+      return capNow();
+    },
+    attachProgress(pg) {
+      progress = pg;
+    },
+    trainedThisWeek: (memberId) => s.trained[memberId] === weekOf(s.at.day),
+    trainWhy(memberId, cash = Infinity) {
+      const m = team.find((x) => x.id === memberId);
+      if (!m) return 'Not on the team.';
+      if (m.level >= XP.cap) return 'Already at the top level.';
+      if (s.trained[memberId] === weekOf(s.at.day)) return 'Trained this week already.';
+      if (cash < TRAINING.fee) return `Training costs ${TRAINING.fee} Cr.`;
+      return null;
+    },
+    // A training session: the fee on the Training line, +12 XP.
+    train(memberId, finance = null, d = s.at.day) {
+      const why = st.trainWhy(memberId, finance?.cash ?? Infinity);
+      if (why) return { ok: false, why };
+      const m = team.find((x) => x.id === memberId);
+      finance?.spend('training', TRAINING.fee, d, memberId);
+      s.trained[memberId] = weekOf(s.at.day);
+      s.stats.trainings++;
+      const up = addXp(m, XP.training);
+      changed();
+      bus?.emit('staff:priority', { role: m.role, id: null }); // (asks for a save)
+      return { ok: true, levels: up };
+    },
+    // Someone left the team (fireStaff): forget their pattern, pin and fatigue; Auto Schedule shares the work again.
+    left(memberId) {
+      for (const k of ['pins', 'patterns', 'fatigue', 'peak', 'absent', 'trained']) delete s[k][memberId];
+      rebalance();
+      apply();
+      changed();
+    },
     // (Milestone 11) someone new has joined the team (hireStaff): Auto Schedule gives them a pattern now.
     joined() {
       rebalance();
@@ -257,26 +353,53 @@ export function createStaffing({ saved = null, team = [], seed = 'resortworks', 
 }
 export { PRIORITIES };
 
-// (Milestone 11) Who can be hired now: the Early staff not on the team, while it has fewer than HIRING.cap people.
-export const hireable = (team) => (team.length >= HIRING.cap ? [] : EARLY_STAFF.filter((e) => !team.some((m) => m.id === e.id)));
+// (Milestone 13) Who can be hired now: this week's applicants not on the team, while it has room (the stage's cap).
+export const hireable = (team, staffing = null) => (team.length >= (staffing?.cap ?? HIRING.cap) ? [] : (staffing?.pool ?? []).map(staffDef));
+export const hireFee = (id) => TIER_FEES[staffDef(id)?.tier] ?? HIRING.fee;
 // Why this person can't be hired (one plain line), or null.
-export function hireWhy(team, id, cash = Infinity) {
-  if (!EARLY_STAFF.some((e) => e.id === id)) return 'Not someone you can hire yet.';
+export function hireWhy(team, id, cash = Infinity, staffing = null) {
+  const d = staffDef(id);
+  if (!d || !HIREABLE_TIERS.includes(d.tier)) return 'Not someone you can hire yet.';
   if (team.some((m) => m.id === id)) return 'Already on your team.';
-  if (team.length >= HIRING.cap) return `Your team is full (${HIRING.cap} people).`;
-  if (cash < HIRING.fee) return `Hiring costs ${HIRING.fee} Cr.`;
+  if (staffing && !staffing.pool.includes(id)) return 'Not looking for work this week.';
+  const cap = staffing?.cap ?? HIRING.cap;
+  if (team.length >= cap) return `Your team is full (${cap} people).`;
+  if (cash < hireFee(id)) return `Hiring costs ${hireFee(id).toLocaleString('en-GB')} Cr.`;
   return null;
+}
+// (Milestone 13) Why this person can't be let go, or null: never the Founder, never the last of a role.
+export function fireWhy(team, id) {
+  const m = team.find((x) => x.id === id);
+  if (!m) return 'Not on the team.';
+  if (m.founder) return 'The Founder stays.';
+  if (team.filter((x) => x.role === m.role).length <= 1) return `They are your only ${ROLE_WORDS[m.role] ?? 'person in that role'}.`;
+  return null;
+}
+const ROLE_WORDS = { FO: 'Front Office person', HK: 'housekeeper', HS: 'Hospitality person', AE: 'Activities person', MG: 'Maintenance person' };
+// Let someone go: off the team (every system reads the same list), housekeeping and maintenance told, the work shared again.
+// run: { team, staffing, housekeeping, maintenance, bus }. → { ok, why? }
+export function fireStaff(run, id) {
+  const why = fireWhy(run.team, id);
+  if (why) return { ok: false, why };
+  const i = run.team.findIndex((m) => m.id === id);
+  run.team.splice(i, 1);
+  run.housekeeping?.refresh();
+  run.maintenance?.refresh();
+  run.staffing?.left(id);
+  run.bus?.emit('staff:fired', { id });
+  run.bus?.emit('staff:priority', { role: null, id: null }); // (asks for a save)
+  return { ok: true };
 }
 // Hire one of the Early staff: the fee on the ledger, them on the team (the same list every system reads), housekeeping
 // and maintenance told, Auto Schedule's pattern for them. run: { team, staffing, finance, housekeeping, maintenance, seed,
 // day, bus }. → { ok, member?, why? }
 export function hireStaff(run, id) {
-  const why = hireWhy(run.team, id, run.finance?.cash ?? Infinity);
+  const why = hireWhy(run.team, id, run.finance?.cash ?? Infinity, run.staffing ?? null);
   if (why) return { ok: false, why };
   const founderId = run.team.find((m) => m.founder)?.id ?? null;
   const m = memberFrom(makeHire(run.seed, id), founderId);
   run.team.push(m);
-  run.finance?.spend('hiring', HIRING.fee, run.day);
+  run.finance?.spend('hiring', hireFee(id), run.day); // (Milestone 13: the tier's fee)
   run.housekeeping?.refresh();
   run.maintenance?.refresh();
   run.staffing?.joined();

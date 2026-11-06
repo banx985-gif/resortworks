@@ -56,6 +56,7 @@ import { minuteOf, bandAtMinute } from './calendar.js';
 import { ROOMS, roomById } from '../../data/lot.js';
 import { ROOM_TYPES, PRICE_BAND, GUEST_TYPES, OFFERS, ROOM_STATES, FIT, FIRST_GUEST } from '../../data/bookings.js';
 import { AUTO_ACCEPT, AUTO_MOVE } from '../../data/staffing.js';
+import { teamBonus } from './staff.js';
 
 const BAND = Object.fromEntries(BANDS.map((b, i) => [b.id, i])); // night 0 · morning 1 · midday 2 · afternoon 3 · evening 4
 export const BAND_INDEX = BAND;
@@ -216,7 +217,8 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   function lateCheckIn(w, id, minute) {
     const at = bandAtMinute(minute);
     const mins = Math.max(0, Math.round((minute - w.waitFrom) * 100) / 100);
-    w.late = { minutes: mins, serviceLoss: Math.min(LATE.lossCap, Math.round(mins / LATE.lossPerMinutes)) };
+    const traits = Math.max(0, 1 - teamBonus(st?.team, 'readiness') + teamBonus(st?.team, 'backlog')); // (M13) Smooth Check-In, Zero Delay …
+    w.late = { minutes: mins, serviceLoss: Math.min(LATE.lossCap, Math.round((mins / LATE.lossPerMinutes) * traits)) };
     s.stats.lateMinutes = Math.round((s.stats.lateMinutes + mins) * 100) / 100;
     setRoom(id, 'reserved');
     checkIn(w, at.day, at.band, minute);

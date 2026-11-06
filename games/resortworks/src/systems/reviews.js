@@ -30,6 +30,7 @@ import { ReputationSystem } from '../../../../core/ReputationSystem.js';
 import { rankAtLeast as reached } from '../../../../core/CompanyRank.js';
 import { writeReview } from '../../../../core/ReviewText.js';
 import { FACILITIES, roomById } from '../../data/lot.js';
+import { teamBonus } from './staff.js';
 import { ROOM_TYPES, GUEST_TYPES } from '../../data/bookings.js';
 import { CATEGORY_IDS, STAY_INPUTS, GUEST_WEIGHTS, REVIEW_STARS, REP, RANKS, WINDOW_DAYS, HEADLINE_FIXED, QUALITY, STAR_TABLE, FIVE_STAR_HEADLINES, FIVE_STAR_MIN, GUIDE, REVIEW_TEXT } from '../../data/reviews.js';
 import { BANDS } from '../../data/calendar.js';
@@ -74,7 +75,10 @@ export function stayCategories(b, { team = [], facilities = FACILITIES, roomType
   const activities = I.activities.base + fac(I.activities, 'activities') + (roleStat(team, I.activities.role, I.activities.stat) - 50) / I.activities.div;
   const comfort = I.comfort.base[got] * share('room', 'comfort') - (place?.convenience ?? 0) - (cancel.comfort ? 0 : b.noise?.loss ?? 0);
   const value = cancel.value ? Math.max(I.value.base, I.value.base + (I.value.span * (budget - b.rate)) / budget) : I.value.base + (I.value.span * (budget - b.rate)) / budget;
-  const raw = { room, clean, service, food, activities, comfort, value };
+  // (Milestone 13) the team's traits and specialisations: each category × (1 + its keys' total %); Quiet Worker cuts the noise lost
+  const tb = (k) => teamBonus(team, k);
+  const comfortT = comfort + (cancel.comfort ? 0 : (b.noise?.loss ?? 0) * -tb('disturbance'));
+  const raw = { room: room * (1 + tb('presentation')), clean: clean * (1 + tb('cleanliness')), service: service * (1 + tb('deskService') + tb('serviceSpeed')), food: food * (1 + tb('food')), activities: activities * (1 + tb('activity') + tb('utilisation')), comfort: comfortT, value };
   return Object.fromEntries(CATEGORY_IDS.map((k) => [k, Math.round(clamp(raw[k]))]));
 }
 

@@ -25,6 +25,7 @@
 //   the screen's small "+N") · 'finance:month' { month } · 'finance:credit' { taken | repaid, debt } · 'finance:warning'
 import { EconomySystem } from '../../../../core/EconomySystem.js';
 import { ROOMS, FACILITIES } from '../../data/lot.js';
+import { teamBonus } from './staff.js';
 import { ROOM_TYPES, GUEST_TYPES } from '../../data/bookings.js';
 import { BANDS } from '../../data/calendar.js';
 import { WINDOW_DAYS } from '../../data/reviews.js';
@@ -181,7 +182,7 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
     onEdge(day, band, bk) {
       if (band === BAND.evening) {
         const guests = (bk?.staying ?? []).reduce((t, b) => t + (b.party ?? 1), 0);
-        if (guests && FACILITIES.some((f) => f.id === CAFE.facility) && !mt?.isOffline(CAFE.facility)) move('cafe', guests * CAFE.perGuestDay, day, CAFE.facility);
+        if (guests && FACILITIES.some((f) => f.id === CAFE.facility) && !mt?.isOffline(CAFE.facility)) move('cafe', guests * CAFE.perGuestDay * (1 + teamBonus(team, 'leisureSpend')), day, CAFE.facility); // (M13) Bar Flair …
       }
       if (band === BAND.night) dayChange(day, bk);
       bookDay = day;

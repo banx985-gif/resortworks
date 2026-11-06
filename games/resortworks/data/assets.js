@@ -8,6 +8,7 @@ import { JOBS } from './maintenance.js';
 import { NAMED_CAST } from './cast.js';
 import { FACILITY_INFO } from './facilities.js';
 import { ROOM_BUILD, LAND, DOUGIE } from './build.js';
+import { STAFF } from './roster.js';
 
 export const ASSETS = {
   // Milestone 0: the five Founders' portraits (setup cards, slot cards, the Founder's sheet).
@@ -35,6 +36,8 @@ export const ASSETS = {
   ...Object.fromEntries(Object.keys(ROOM_BUILD).map((id) => [`room_${id.toLowerCase()}`, `assets/images/rooms/room_${id.toLowerCase()}.png`])),
   ...Object.fromEntries(LAND.map((l) => [l.art, `assets/images/expansions/${l.art}.png`])),
   [DOUGIE.art]: `assets/images/cast/${DOUGIE.art}.png`,
+  // Milestone 13: every staff portrait (the Founders are above; the rest join the applicant pool and the staff book).
+  ...Object.fromEntries(STAFF.map((x) => [x.art, `assets/images/staff/${x.art}.png`])),
   // Milestone 0 loader test (?screen=test): the placeholder PWA icon as a real image, and one deliberately missing file.
   m0Real: 'assets/branding/pwa/icon-192.png',
   m0Missing: 'assets/m0-missing-test.png',

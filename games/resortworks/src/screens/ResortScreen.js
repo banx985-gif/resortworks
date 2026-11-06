@@ -70,7 +70,10 @@ import { BANDS, TINT_FADE } from '../../data/calendar.js';
 import { founderById, paletteById, ROLES } from '../../data/setup.js';
 import { LOT, ART_LOOK, ART_TWEAK, PERSON, LOOK, roomById } from '../../data/lot.js';
 import { createResortWorld } from '../systems/resortWorld.js';
-import { hireStaff } from '../systems/staffing.js';
+import { hireStaff, fireStaff } from '../systems/staffing.js';
+import { chooseSpec } from '../systems/staff.js';
+import { staffDef } from '../../data/roster.js';
+import { staffBookSheet } from './resortSheets.js';
 import { resortSheet, pickRoomSheet, resortScoresSheet, starText, ratesSheet, financeSheet, complaintSheet, autoAcceptSheet } from './resortSheets.js';
 import { COMPLAINT_TYPES } from '../../data/complaints.js';
 import { BADGE } from '../../data/maintenance.js';
@@ -322,6 +325,12 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   // (Milestone 12) Dougie Barnes' build lines and a new stage: toasts (one tap closes it; they queue)
   bus.on('site:dougie', ({ line, id }) => toast(DOUGIE.name, line, DOUGIE.art, id && world?.byId(id) ? { open: id } : null));
   bus.on('progress:stage', ({ name }) => toast(`Welcome to the ${name} stage!`, 'New rooms and facilities are in the build list.', DOUGIE.art));
+  // (Milestone 13) a level reached (a toast; Lv8 / Lv16 ask for a specialisation)
+  bus.on('staff:levelUp', ({ id, level }) => {
+    const m = run()?.team.find((x) => x.id === id);
+    if (!m) return;
+    toast(`${m.name} reached Level ${level}`, level === 8 || level === 16 ? 'Open their sheet to pick a specialisation.' : `${ROLES[m.role].name} · their stats went up.`, m.art, world?.byId(id === m.id && m.founder ? 'staff' : id) ? { open: m.founder ? 'staff' : id } : null);
+  });
   bus.on('staff:hired', ({ id }) => {
     if (!active) return;
     ensureWorld();
@@ -571,6 +580,40 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     },
     pin(memberId, pattern) {
       if (run()?.staffing?.pin(memberId, pattern)) debug?.log(`pattern: ${memberId} → ${pattern ?? 'auto'}`);
+    },
+    // --- (Milestone 13) staff: let go (two taps), train, a specialisation, the book of all 50 ----------------------
+    confirming: () => confirm,
+    fire(id) {
+      if (confirm !== `fire:${id}`) {
+        confirm = `fire:${id}`;
+        return;
+      }
+      confirm = null;
+      const o = run();
+      const name = o?.team.find((m) => m.id === id)?.name ?? id;
+      const r = fireStaff({ team: o.team, staffing: o.staffing, housekeeping: o.housekeeping, maintenance: o.maintenance, bus }, id);
+      if (!r.ok) return say(r.why);
+      sheet.close();
+      toast(`${name} has left the team`, 'They can apply again in a later week.', staffDef(id)?.art ?? null);
+      debug?.log(`let go ${id}`);
+    },
+    train(id) {
+      const r = run()?.staffing?.train(id, run()?.finance, today());
+      if (!r?.ok) return say(r?.why);
+      debug?.log(`trained ${id}${r.levels ? ` (+${r.levels} level)` : ''}`);
+    },
+    spec(id, specId) {
+      const m = run()?.team.find((x) => x.id === id);
+      if (!m || !chooseSpec(m, specId)) return;
+      bus.emit('staff:priority', { role: m.role, id: null }); // (asks for a save)
+      debug?.log(`specialisation ${id} → ${specId}`);
+    },
+    staffBook() {
+      const o = run();
+      if (!o) return;
+      sheet.open(() => staffBookSheet(o.team, { st: o.staffing, accent: palette.hex, act, stage: o.progress?.stage ?? 'roadside' }));
+      opened = { id: 'staffBook', via: 'sheet' };
+      debug?.log('sheet: all 50 staff');
     },
     // --- (Milestone 12) Build Mode -------------------------------------------------------------------------------
     list: () => openBuildList(),

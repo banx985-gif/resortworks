@@ -27,6 +27,7 @@ import { Rng } from '../../../../core/Rng.js';
 import { GUEST_TYPES, ROOM_TYPES } from '../../data/bookings.js';
 import { FACILITIES, roomById } from '../../data/lot.js';
 import { BANDS } from '../../data/calendar.js';
+import { teamBonus } from './staff.js';
 import { COMPLAINT_TYPES, TRIGGERS, DESK, ACTIONS, ACTION_IDS, RECOVERY, HISTORY_MAX } from '../../data/complaints.js';
 import { FELT, CONDITION } from '../../data/maintenance.js';
 import { minuteOf, bandAtMinute } from './calendar.js';
@@ -120,7 +121,8 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
     const start = Math.max(t, s.desk.freeAt);
     const desk = mt ? Math.max(CONDITION.halfFactor, mt.eff('F01')) : 1; // (Milestone 8) worn: slower; offline: twice as long
     const pace = Math.max(...here.map((m) => (m.workload ?? 1) * (m.pace ?? 1))); // (Milestone 10) priority and fatigue
-    s.desk.freeAt = r2(start + DESK.checkInMinutes / desk / pace);
+    const traits = 1 + teamBonus(team, 'checkin') + teamBonus(team, 'queue'); // (Milestone 13) Warm Welcome, Quick Desk …
+    s.desk.freeAt = r2(start + DESK.checkInMinutes / desk / pace / traits);
     return r2(start - t);
   }
 
@@ -143,7 +145,7 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
     return ACTION_IDS.map((aid) => {
       const a = ACTIONS[aid];
       const best = t.best.includes(aid);
-      const o = { id: aid, name: a.name, line: a.line, best, on: a.on, ok: true, why: null, chance: recoveryChance({ service: service(), best, bandsWaited: waited }), cost: 0, room: null };
+      const o = { id: aid, name: a.name, line: a.line, best, on: a.on, ok: true, why: null, chance: Math.min(RECOVERY.max, Math.round(recoveryChance({ service: service(), best, bandsWaited: waited }) * (1 + teamBonus(team, 'recovery')))), cost: 0, room: null }; // (M13: Problem Solver …)
       if (!a.on) return { ...o, ok: false, why: `Comes with ${a.from === 'later' ? 'a later update' : `Milestone ${a.from.slice(1)}`}.` };
       if (a.only && a.only !== c.kind) return { ...o, on: false, hidden: true, ok: false, why: 'Only for a breakdown.' }; // (not shown for other complaints)
       if (closed) return { ...o, ok: false, why: c.status === 'recovered' ? 'Already sorted out.' : 'No more tries.' };

@@ -19,6 +19,7 @@
 //     ly.tileNoise(col, row) · ly.tileView(col, row) (the map overlay) · ly.onEdge(day, band, bookings)
 //     ly.attachMaintenance(mt) · ly.attachComplaints(cp) · ly.items · ly.facts
 import { gridFor } from './site.js';
+import { teamBonus } from './staff.js';
 import { findPath } from '../../../../core/Pathing.js';
 import { LOT, FACILITIES, ROOMS } from '../../data/lot.js';
 import { GUEST_TYPES } from '../../data/bookings.js';
@@ -118,6 +119,7 @@ export function createLayout({ spec = null, mt = null } = {}) {
   let items = layoutItems(spec);
   let facts = measureLayout(items);
   let cp = null;
+  let team = null; // (Milestone 13) Green Thumb / Perfect Grounds lift the Garden's Appeal; Landscaper the views
   const gardenShare = () => (mt ? mt.eff(APPEAL.gardenId) : 1);
   const factsOf = (id) => facts.rooms[id] ?? null;
 
@@ -125,7 +127,8 @@ export function createLayout({ spec = null, mt = null } = {}) {
   function viewOf(views) {
     const g = gardenShare();
     const sum = views.reduce((t, v) => t + v.value * (v.condition ? g : 1), 0);
-    return r1(Math.max(-VIEW_CAP, Math.min(VIEW_CAP, sum)));
+    const k = sum > 0 ? 1 + teamBonus(team, 'view') : 1;
+    return r1(Math.max(-VIEW_CAP, Math.min(VIEW_CAP, sum * k)));
   }
   const viewPct = (id) => (factsOf(id) ? viewOf(factsOf(id).views) : 0);
   const noiseAt = (id, band, shedOn = false) => (factsOf(id) ? noiseIn(factsOf(id).noise, band, shedOn) : 0);
@@ -140,7 +143,7 @@ export function createLayout({ spec = null, mt = null } = {}) {
     return ids.reduce((t, id) => t + viewPct(id), 0) / ids.length;
   };
   const appeal = () => {
-    const garden = items.facilities.some((f) => f.id === APPEAL.gardenId) ? APPEAL.garden * gardenShare() : 0;
+    const garden = items.facilities.some((f) => f.id === APPEAL.gardenId) ? APPEAL.garden * gardenShare() * (1 + teamBonus(team, 'grounds') + teamBonus(team, 'outdoor')) : 0;
     return r2(Math.max(0, Math.min(100, APPEAL.base + garden + APPEAL.viewMult * avgView())));
   };
 
@@ -243,6 +246,9 @@ export function createLayout({ spec = null, mt = null } = {}) {
     },
     attachComplaints(c) {
       cp = c;
+    },
+    attachTeam(t) {
+      team = t;
     },
   };
 }

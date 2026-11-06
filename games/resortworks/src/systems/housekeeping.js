@@ -19,6 +19,7 @@
 // Milestone 8: with maintenance attached (attachMaintenance(mt)) the Morning restock is the linen × the Laundry Room's
 // working share (offline: none).
 import { lotGrid } from './site.js';
+import { teamBonus } from './staff.js';
 import { findPath } from '../../../../core/Pathing.js';
 import { FACILITIES, ROOMS, roomById } from '../../data/lot.js';
 import { ROOM_TYPES } from '../../data/bookings.js';
@@ -141,7 +142,7 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
     s.linen.left = Math.max(0, s.linen.left - need);
     s.linen.rooms++;
     if (short) s.linen.short++;
-    const clean = r2(cleanMinutes(q.room, m.stats, short, R) / (m.pace ?? 1)); // (Milestone 10) tired: slower
+    const clean = r2(cleanMinutes(q.room, m.stats, short, R) / (m.pace ?? 1) / (1 + teamBonus(team, 'cleanSpeed'))); // (Milestone 10) tired: slower; (M13) Fast Turn …
     const job = { id: q.id, room: q.room, created: q.created, staff: m.id, start: t, walk, clean, arrive: r2(t + walk), end: r2(t + walk + clean), short, phase: 'walk' };
     s.queue = s.queue.filter((x) => x !== q);
     s.active[m.id] = job;
@@ -212,7 +213,7 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
     onEdge(day, band) {
       if (band === BAND_I.morning && s.linen.day !== day) {
         const share = mt ? mt.eff('F04') : 1; // (Milestone 8) a worn Laundry washes less; an offline one none
-        s.linen = { day, left: Math.round(linenCap * share), used: 0, rooms: 0, short: 0, share };
+        s.linen = { day, left: Math.round(linenCap * share * (1 + teamBonus(team, 'linen'))), used: 0, rooms: 0, short: 0, share }; // (M13) Laundry Rhythm …
       }
     },
     attachMaintenance(m) {
