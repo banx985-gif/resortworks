@@ -57,6 +57,7 @@ import { ROOMS, roomById } from '../../data/lot.js';
 import { ROOM_TYPES, PRICE_BAND, GUEST_TYPES, OFFERS, ROOM_STATES, FIT, FIRST_GUEST, CAPACITY } from '../../data/bookings.js';
 import { AUTO_ACCEPT, AUTO_MOVE } from '../../data/staffing.js';
 import { teamBonus } from './staff.js';
+import { systemValue } from './facilities.js';
 
 const BAND = Object.fromEntries(BANDS.map((b, i) => [b.id, i])); // night 0 · morning 1 · midday 2 · afternoon 3 · evening 4
 export const BAND_INDEX = BAND;
@@ -199,6 +200,9 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   }
   // Why an offer can't be accepted (one plain line), or null when it can.
   function whyNot(x) {
+    // (Milestone 16) the Parking Area takes 20 arrivals a day (× its level)
+    const cap = systemValue('arrivals');
+    if (cap > 0 && s.bookings.filter((b) => b.arrival === x.arrival && b !== x && HOLDS.has(b.status)).length >= cap) return 'Parking is full on their arrival day.';
     if (freeRoomsFor(x).length) return null;
     const dirty = ROOMS.filter((r) => roomState(r.id) === 'dirty').length;
     return dirty ? `No free room: ${dirty} ${dirty === 1 ? 'room is' : 'rooms are'} Dirty and the rest are taken.` : 'No free room: every room is taken.';

@@ -55,6 +55,7 @@ import { STAFF, staffDef, TRAIT_KEYS, XP, xpToNext, TRAINING, WHEN_STAGE, WHEN_W
 import { stageById, stageIndex } from '../../data/build.js';
 import { WAGES } from '../../data/finance.js';
 import { specChoice } from '../systems/staff.js';
+import { effectWords } from '../systems/facilities.js';
 import { EARLY_STAFF } from '../../data/staff.js';
 import { staffById } from '../systems/staff.js';
 import { LINEN, LATE_BADGE } from '../../data/housekeeping.js';
@@ -94,6 +95,8 @@ export function resortSheet(world, id, { accent = C.progress, bookings = null, t
   else if (it.id === 'F05' && mt) spec = shedSpec(it, { mt, now, team: world.team });
   else if (it.id === 'F02' && staffing) spec = serviceBlockSpec(it, { st: staffing, now, act, team: world.team?.map((w) => w.member).filter(Boolean) ?? null, finance, today }); // (Milestone 10; M11 Hire; M13 the applicant pool)
   else spec = { title: it.def.name, line: it.def.line, art: it.def.art, now };
+  // (Milestone 16) every facility: its level, what it does at it, and its Upgrade
+  if (it.kind === 'facility' && site) spec.body = [...(spec.body ?? []), facilityLevel(site, it.id, act)];
   // (Milestone 8) every facility and room: its Condition (Reception's goes after its lists)
   if (mt && it.kind !== 'guest' && it.kind !== 'staff') {
     const sec = conditionSection(mt, it.id, act);
@@ -292,6 +295,16 @@ function roomSpec(world, it, { bookings: bk, today, act, hk = null, finance = nu
   };
 }
 
+// (Milestone 16) a facility's level, its effect now and at the next level, and its Upgrade (cost, days, the Rank it needs).
+function facilityLevel(site, id, act) {
+  const lv = site.levelOf(id);
+  const job = site.jobFor(id);
+  const lines = [{ text: 'Level', right: `${lv} of 3` }, { text: 'Now', right: effectWords(id, lv) }];
+  if (lv < 3) lines.push({ text: `At Level ${lv + 1}`, right: effectWords(id, lv + 1), color: C.textMuted });
+  if (job) lines.push({ text: `Upgrading to Level ${job.level}: ${Math.round(site.progressOf(job) * 100)}% done`, color: C.actionDark });
+  const why = site.whyNoUpgrade(id);
+  return { title: 'Level', std: 'facilityLevel', lines, columns: 1, buttons: lv < 3 && !job ? [{ id: `upgrade:${id}`, label: `Upgrade to Level ${lv + 1}`, sub: why ?? `×${[1, 1.5, 2][lv]} effect · ${site.upgradeInfo(id).days} days`, cost: credits(site.upgradeCost(id)), accent: why ? C.textMuted : C.progress, disabled: !!why, onTap: () => act.upgrade(id) }] : [] };
+}
 // (Milestone 15) a room's level and Loved points, and its Upgrade (the build sheet: cost, days, Rank).
 function roomGrowth(site, id, act) {
   const lv = site.levelOf(id);

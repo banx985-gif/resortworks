@@ -27,6 +27,7 @@ import { CONDITION, WEAR, JOBS, BUILD_COST, STAY_FACILITIES, COND_TEXT, LOG_MAX 
 import { MINUTES_PER_DAY, minuteOf } from './calendar.js';
 import { lotGrid, doorOf, windowAt, nextShiftAfter } from './housekeeping.js';
 import { teamBonus } from './staff.js';
+import { systemValue, mult } from './facilities.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const r2 = (x) => Math.round(x * 100) / 100;
@@ -106,7 +107,7 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
   function minutesFor(kind, stats = {}) {
     const k = Math.max(0.1, R.base - (stats.skill ?? 0) / R.skillDiv - (stats.speed ?? 0) / R.speedDiv);
     const traits = 1 + teamBonus(team, 'repairSpeed') + teamBonus(team, 'efficiency') + (kind === 'repair' ? teamBonus(team, 'emergencyRepair') : 0); // (M13) Handy …
-    return r2(((kind === 'repair' ? R.repairMinutes : R.serviceMinutes) * k) / (1 + R.shedBonus * shedShare()) / traits);
+    return r2(((kind === 'repair' ? R.repairMinutes : R.serviceMinutes) * k) / (1 + R.shedBonus * mult(R.shed) * shedShare()) / traits); // (M16) the Shed's level
   }
   const walkTiles = (from, to) => {
     const a = doorOf(from);
@@ -140,7 +141,7 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
       s.where[m.id] = null;
     }
     const from = s.where[m.id] ?? m.station ?? R.shed;
-    const walk = r2(walkTiles(from, q.target) * R.walkPerTile);
+    const walk = r2((walkTiles(from, q.target) * R.walkPerTile) / (1 + systemValue('routing', eff))); // (M16) the Service Block's routing
     const work = r2(minutesFor(q.kind, m.stats) / (m.pace ?? 1)); // (Milestone 10) tired: slower
     const cost = costOf(q.target, q.kind);
     const day = Math.floor(t / MINUTES_PER_DAY);

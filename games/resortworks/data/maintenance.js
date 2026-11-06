@@ -1,6 +1,7 @@
 // Maintenance / Condition numbers (Milestone 8, bible §12 / §27E / §27G). Plain data — src/systems/maintenance.js runs it.
 // Cowork's starting picks (M8 card) and Claude Code's, logged in docs/DECISIONS.md.
 import { FACILITY_BUILD, ROOM_BUILD } from './build.js';
+import { FACILITY_FX } from './facilities.js';
 
 // Condition 0–100 on every facility and room (bible §12). Everything starts at `start`.
 //   70+ (full): full effect · 40–70: the main effect × Condition / 70 · under 40 (half): × halfFactor, and a daily breakdown
@@ -55,7 +56,8 @@ export const BUILD_COST = { ...Object.fromEntries(Object.entries(FACILITY_BUILD)
 //   either) · F08 Garden: the +6 Appeal · a room: the stay's Comfort.
 // The worst share a stay saw is kept on the booking (src/systems/maintenance.js), so a review counts the pool that was
 // broken on day 2 even if it was fixed by check-out.
-export const STAY_FACILITIES = ['F03', 'F06'];
+// (Milestone 16) every facility that adds to a stay category (data/facilities.js FACILITY_FX cats)
+export const STAY_FACILITIES = Object.keys(FACILITY_FX).filter((id) => FACILITY_FX[id].cats);
 
 // A breakdown guests feel (M8 card: the breakdown complaint trigger, severity in data/complaints.js): a room breaking with a
 // party in it always gives them a breakdown complaint (they need a room change); a facility they use going offline is a

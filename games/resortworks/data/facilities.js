@@ -42,3 +42,54 @@ export const FACILITY_INFO = Object.fromEntries(
   ].map((x) => [x.id, x]),
 );
 export const facilityInfo = (id) => FACILITY_INFO[id] ?? null;
+
+// --- Milestone 16: what each facility's Lv1 effect does (bible §27G), × LEVEL_MULT at Lv1 / Lv2 / Lv3 (×1.0 / ×1.5 / ×2.0).
+//   cats   — stay categories it adds to: { cat, add, who? } (who: 'family' guests only, 'luxury' = guests in a Luxury Suite
+//            or better); users = guests it serves each part of the day (more guests than that: each gets a share)
+//   system — what it changes elsewhere (the system that reads it): desk (Reception check-in speed ×), routing (housekeeping
+//            and maintenance walks ÷ (1 + n)), linen (linen a day ×), repair (the Shed's repair bonus ×), arrivals (arrivals
+//            a day), hkTravel (housekeeping walks × (1 − n)), walkPenalty (the Convenience penalty × (1 − n)), appeal
+//            (+ Resort Appeal, with radius: a view source too)
+//   later  — a system that comes with a later milestone: stored now, works then ("works from M18" on its sheet)
+// The shipped eight's Lv1 effects were already in the game (M1–M9): desk, linen, repair, the café's +6 Food, the pool's +8
+// Activity, the Garden's +6 Appeal. M16 adds the Service Block's routing, Parking's arrivals and every level's multiplier.
+export const LEVEL_MULT = [1, 1.5, 2];
+export const FACILITY_FX = {
+  F01: { system: { desk: 1 } },
+  F02: { system: { routing: 0.1 } },
+  F03: { cats: [{ cat: 'activities', add: 8 }] },
+  F04: { system: { linen: 1 } },
+  F05: { system: { repair: 1 } },
+  F06: { cats: [{ cat: 'food', add: 6 }], users: 20 },
+  F07: { system: { arrivals: 20 } },
+  F08: { system: { appeal: 6, radius: 4 } },
+  F09: { cats: [{ cat: 'food', add: 10 }], users: 50 },
+  F10: { cats: [{ cat: 'activities', add: 12, who: 'family' }], users: 20 },
+  F11: { cats: [{ cat: 'activities', add: 14, who: 'family' }], users: 35 },
+  F12: { cats: [{ cat: 'activities', add: 9 }], users: 24 },
+  F13: { cats: [{ cat: 'activities', add: 12 }], users: 20 },
+  F14: { later: 'M18', what: '16 tour places a day' },
+  F15: { system: { hkTravel: 0.2 } },
+  F16: { cats: [{ cat: 'comfort', add: 10 }, { cat: 'activities', add: 10 }], users: 25 },
+  F17: { cats: [{ cat: 'comfort', add: 16 }], users: 18 },
+  F18: { cats: [{ cat: 'comfort', add: 10 }], users: 12 },
+  F19: { later: 'M19', what: 'events for 80' },
+  F20: { later: 'M19', what: 'outdoor events for 100' },
+  F21: { cats: [{ cat: 'activities', add: 12 }], users: 60 },
+  F22: { cats: [{ cat: 'food', add: 10 }, { cat: 'activities', add: 10 }], users: 40 },
+  F23: { system: { walkPenalty: 0.35 } },
+  F24: { later: 'M18', what: 'retail spend +8%' },
+  F25: { cats: [{ cat: 'food', add: 18 }], users: 60 },
+  F26: { later: 'M18', what: '+15 evening spend' },
+  F27: { cats: [{ cat: 'comfort', add: 14, who: 'luxury' }], users: 20 },
+  F28: { cats: [{ cat: 'activities', add: 20 }], users: 60, system: { appeal: 20 } },
+  F29: { later: 'M22', what: '+18 Service for VIPs' },
+  F30: { cats: [{ cat: 'comfort', add: 22 }], users: 30 },
+  F31: { later: 'M19', what: 'rare events +20%' },
+  F32: { later: 'M19', what: 'events for 220' },
+  F33: { system: { appeal: 18, radius: 7 } },
+  F34: { later: 'M29', what: 'Prestige guests +10 satisfaction' },
+  F35: { later: 'M29', what: 'Prestige guest cap +25' },
+};
+// Guests in a room of this rank or better count as 'luxury' (RM09 Luxury Suite and up).
+export const LUXURY_RANK = 9;

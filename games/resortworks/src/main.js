@@ -339,6 +339,7 @@ function openRun(n, data) {
   run.staffing.attachProgress(run.progress); // (Milestone 13) the team cap and who applies
   run.bookings.attachSite(run.site);
   run.reviews.attachSite(run.site); // (Milestone 15) room levels and Loved points in the stays
+  run.reviews.attachGuests(() => run.bookings.staying.reduce((t, b) => t + (b.party ?? 1), 0)); // (Milestone 16) facility places
   run.maintenance.attachSite(run.site);
   run.site.onChange(() => run.layout.refresh());
   open = run;

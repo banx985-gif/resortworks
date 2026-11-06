@@ -28,6 +28,7 @@ import { GUEST_TYPES, ROOM_TYPES } from '../../data/bookings.js';
 import { FACILITIES, roomById } from '../../data/lot.js';
 import { BANDS } from '../../data/calendar.js';
 import { teamBonus } from './staff.js';
+import { mult } from './facilities.js';
 import { COMPLAINT_TYPES, TRIGGERS, DESK, ACTIONS, ACTION_IDS, RECOVERY, HISTORY_MAX } from '../../data/complaints.js';
 import { FELT, CONDITION } from '../../data/maintenance.js';
 import { minuteOf, bandAtMinute } from './calendar.js';
@@ -119,7 +120,7 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
     const here = people.filter((m) => !m.absent && onShiftAtMinute(m.pattern, t)); // (Milestone 10) nobody away today
     if (!here.length) return DESK.offShiftWait;
     const start = Math.max(t, s.desk.freeAt);
-    const desk = mt ? Math.max(CONDITION.halfFactor, mt.eff('F01')) : 1; // (Milestone 8) worn: slower; offline: twice as long
+    const desk = (mt ? Math.max(CONDITION.halfFactor, mt.eff('F01')) : 1) * mult('F01'); // (Milestone 8) worn: slower; offline: twice as long; (M16) its level
     const pace = Math.max(...here.map((m) => (m.workload ?? 1) * (m.pace ?? 1))); // (Milestone 10) priority and fatigue
     const traits = 1 + teamBonus(team, 'checkin') + teamBonus(team, 'queue'); // (Milestone 13) Warm Welcome, Quick Desk …
     s.desk.freeAt = r2(start + DESK.checkInMinutes / desk / pace / traits);

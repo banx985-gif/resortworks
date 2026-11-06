@@ -41,6 +41,7 @@ import { CLEAN } from '../../data/housekeeping.js';
 import { JOBS } from '../../data/maintenance.js';
 import { lotGrid } from './housekeeping.js';
 import { onShiftAt } from './staff.js';
+import { FACILITY_FX } from '../../data/facilities.js';
 
 const ARRIVE_SHARE = 0.6; // arrive with at least 40% of the stop's time left to stand there
 // Where each stands on a doorway tile, as [right, depth] shares of a tile on screen: the Founder a little left, guests
@@ -104,11 +105,27 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
   // The stop a plan asks for at this band and point in it.
   function stopFor(person, b, frac, d) {
     const list = person.kind === 'guest' ? guestPlan(person, b, d) : staffPlan(person, b);
-    const stop = list.find((s) => s.until == null || frac < s.until) ?? list[list.length - 1];
+    let stop = list.find((s) => s.until == null || frac < s.until) ?? list[list.length - 1];
+    if (person.kind === 'guest') stop = venueFor(person, stop, d);
     if (itemById(stop.at)) return stop;
     // (Milestone 12) a place sold in Build Mode: guests stay in their room, staff rest at the Motel Service Block
     const at = person.kind === 'guest' && itemById(person.stay?.room) ? person.stay.room : itemById(STAFF_PLAN.night[0].at) ? STAFF_PLAN.night[0].at : 'F01';
     return { ...stop, at, going: person.kind === 'guest' ? 'Walking back to their room' : 'Walking to the rest point', doing: person.kind === 'guest' ? 'In their room' : 'Resting', until: stop.until };
+  }
+  // (Milestone 16) a guest's food / activity stop: one of the places built that give that category (the café or the
+  // Restaurant, the pool or the Games Room …), picked by the party and the day, so guests spread over what is built.
+  function venueFor(person, stop, d) {
+    const cat = FACILITY_FX[stop.at]?.cats?.[0]?.cat;
+    if (!cat) return stop;
+    const fam = !!GUEST_TYPES[person.stay?.type]?.family;
+    const opts = items.filter((it) => it.kind === 'facility' && (FACILITY_FX[it.id]?.cats ?? []).some((c) => c.cat === cat && (c.who !== 'family' || fam) && c.who !== 'luxury'));
+    if (opts.length < 2) return stop;
+    let h = d * 31;
+    for (const ch of String(person.id)) h = (h * 33 + ch.charCodeAt(0)) >>> 0;
+    const at = opts[h % opts.length];
+    if (at.id === stop.at) return stop;
+    const name = at.def.name;
+    return { ...stop, at: at.id, going: `Walking to the ${name}`, doing: `At the ${name}` };
   }
   const sameStop = (a, b) => a && b && a.at === b.at && a.doing === b.doing && a.going === b.going;
 

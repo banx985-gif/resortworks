@@ -659,8 +659,9 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     },
     upgrade(id) {
       const r = site()?.upgrade(id);
-      if (!r?.ok) return built(r?.why);
-      openBuildItem(id);
+      if (!r?.ok) return buildMode ? built(r?.why) : say(r?.why);
+      if (buildMode) openBuildItem(id);
+      else openSheet(world?.byId(id) ? id : 'F01', 'sheet'); // (M15 / M16: from a room or facility sheet, back to it)
       debug?.log(`build: upgrade ${id}`);
     },
     buyLand(id) {

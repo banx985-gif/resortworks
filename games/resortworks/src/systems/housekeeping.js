@@ -20,6 +20,7 @@
 // working share (offline: none).
 import { lotGrid } from './site.js';
 import { teamBonus } from './staff.js';
+import { systemValue, mult } from './facilities.js';
 import { findPath } from '../../../../core/Pathing.js';
 import { FACILITIES, ROOMS, roomById } from '../../data/lot.js';
 import { ROOM_TYPES } from '../../data/bookings.js';
@@ -108,6 +109,7 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
     return o;
   }
 
+  const eff = (id) => (mt ? mt.eff(id) : 1);
   const walkTiles = (from, to) => {
     const a = doorOf(from);
     const b = doorOf(to);
@@ -135,7 +137,7 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
       s.where[m.id] = null;
     }
     const from = s.where[m.id] ?? m.station;
-    const walk = r2(walkTiles(from, q.room) * R.walkPerTile);
+    const walk = r2((walkTiles(from, q.room) * R.walkPerTile * Math.max(0, 1 - systemValue('hkTravel', eff))) / (1 + systemValue('routing', eff))); // (M16) Housekeeping Hub, Service Block
     const need = linenFor(q.room);
     const short = s.linen.left < need;
     s.linen.used += Math.min(s.linen.left, need);
@@ -213,7 +215,7 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
     onEdge(day, band) {
       if (band === BAND_I.morning && s.linen.day !== day) {
         const share = mt ? mt.eff('F04') : 1; // (Milestone 8) a worn Laundry washes less; an offline one none
-        s.linen = { day, left: Math.round(linenCap * share * (1 + teamBonus(team, 'linen'))), used: 0, rooms: 0, short: 0, share }; // (M13) Laundry Rhythm …
+        s.linen = { day, left: Math.round(linenCap * mult('F04') * share * (1 + teamBonus(team, 'linen'))), used: 0, rooms: 0, short: 0, share }; // (M13) Laundry Rhythm …; (M16) the Laundry's level
       }
     },
     attachMaintenance(m) {

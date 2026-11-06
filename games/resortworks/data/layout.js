@@ -16,6 +16,14 @@ export const NOISE = [
   { id: 'F05', strength: 15, radius: 2, job: true },
   { id: 'F07', strength: 10, radius: 2, bands: ['morning', 'midday'] },
   { id: 'road', strength: 10, radius: 1, always: true, name: 'the road' },
+  // (Milestone 16, Claude Code's picks: the loud new places, like the ones above)
+  { id: 'F11', strength: 30, radius: 3, bands: ['afternoon'] },
+  { id: 'F12', strength: 15, radius: 2, bands: ['afternoon', 'evening'] },
+  { id: 'F10', strength: 20, radius: 2, bands: ['midday', 'afternoon'] },
+  { id: 'F22', strength: 20, radius: 2, bands: ['evening'] },
+  { id: 'F21', strength: 15, radius: 2, bands: ['evening'] },
+  { id: 'F19', strength: 25, radius: 3, bands: ['evening'] },
+  { id: 'F26', strength: 20, radius: 2, bands: ['evening', 'night'] },
 ];
 // The effect on a stay: each band they stay (Claude Code's reading: every band of the stay counts — the walkers' day plan
 // is a picture, the room is theirs all day), noise over half their Noise tolerance (bible §27F) takes
@@ -32,6 +40,9 @@ export const VIEWS = [
   { id: 'F04', add: -3, radius: 2, name: 'Laundry' },
   { id: 'F05', add: -3, radius: 2, name: 'Maintenance Shed' },
   { id: 'F07', add: -3, radius: 2, name: 'Car park' },
+  { id: 'F33', add: 18, radius: 7, condition: true, name: 'Signature Garden' }, // (Milestone 16: bible §27G "+18 Appeal in radius 7")
+  { id: 'F28', add: 6, radius: 3, name: 'Infinity Pool' }, // (Milestone 16, Claude Code's pick: a pool view like the Small Pool's, a little stronger)
+  { id: 'F11', add: 4, radius: 3, name: 'Family Pool' },
 ];
 export const VIEW_CAP = 12;
 
@@ -71,7 +82,7 @@ export const TEST_LAYOUTS = {
 };
 
 // Short names in the sheets' lines and review comments.
-export const SHORT_NAMES = { F01: 'Reception', F03: 'pool', F04: 'laundry', F05: 'maintenance shed', F06: 'café', F07: 'car park', F08: 'garden', road: 'road' };
+export const SHORT_NAMES = { F01: 'Reception', F03: 'pool', F04: 'laundry', F05: 'maintenance shed', F06: 'café', F07: 'car park', F08: 'garden', road: 'road', F09: 'restaurant', F10: 'kids club', F11: 'family pool', F12: 'games room', F19: 'event hall', F21: 'cinema', F22: 'BBQ terrace', F26: 'rooftop lounge', F28: 'infinity pool', F33: 'signature garden' };
 
 // The review comment (core ReviewText picks the best and worst category): a view of goodView % or more is the Room's
 // strong line, badView % or less its weak line; a stay that lost noisy Comfort points or more to noise has a noise line

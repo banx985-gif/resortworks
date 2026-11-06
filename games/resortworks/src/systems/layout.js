@@ -20,6 +20,7 @@
 //     ly.attachMaintenance(mt) · ly.attachComplaints(cp) · ly.items · ly.facts
 import { gridFor } from './site.js';
 import { teamBonus } from './staff.js';
+import { systemValue, mult } from './facilities.js';
 import { findPath } from '../../../../core/Pathing.js';
 import { LOT, FACILITIES, ROOMS } from '../../data/lot.js';
 import { GUEST_TYPES } from '../../data/bookings.js';
@@ -126,7 +127,7 @@ export function createLayout({ spec = null, mt = null } = {}) {
   // View % at a room (the Garden by its working share), capped ±12, one decimal.
   function viewOf(views) {
     const g = gardenShare();
-    const sum = views.reduce((t, v) => t + v.value * (v.condition ? g : 1), 0);
+    const sum = views.reduce((t, v) => t + v.value * (v.condition ? (v.id === APPEAL.gardenId ? g : mt ? mt.eff(v.id) : 1) : 1) * mult(v.id), 0); // (M16) × the level
     const k = sum > 0 ? 1 + teamBonus(team, 'view') : 1;
     return r1(Math.max(-VIEW_CAP, Math.min(VIEW_CAP, sum * k)));
   }
@@ -143,8 +144,10 @@ export function createLayout({ spec = null, mt = null } = {}) {
     return ids.reduce((t, id) => t + viewPct(id), 0) / ids.length;
   };
   const appeal = () => {
-    const garden = items.facilities.some((f) => f.id === APPEAL.gardenId) ? APPEAL.garden * gardenShare() * (1 + teamBonus(team, 'grounds') + teamBonus(team, 'outdoor')) : 0;
-    return r2(Math.max(0, Math.min(100, APPEAL.base + garden + APPEAL.viewMult * avgView())));
+    const garden = items.facilities.some((f) => f.id === APPEAL.gardenId) ? APPEAL.garden * mult(APPEAL.gardenId) * gardenShare() * (1 + teamBonus(team, 'grounds') + teamBonus(team, 'outdoor')) : 0;
+    // (Milestone 16) the other Appeal facilities (the Signature Garden, the Infinity Pool), × level × working share
+    const others = systemValue('appeal', (id) => (id === APPEAL.gardenId ? 0 : mt ? mt.eff(id) : 1));
+    return r2(Math.max(0, Math.min(100, APPEAL.base + garden + others + APPEAL.viewMult * avgView())));
   };
 
   // Each band edge: every party staying hears its room's noise for this band.
@@ -236,7 +239,8 @@ export function createLayout({ spec = null, mt = null } = {}) {
     avgWalk: (id) => factsOf(id)?.avgWalk ?? 0,
     avgNoise: (id) => factsOf(id)?.avgNoise ?? 0,
     // The review's inputs for a stay in this room now.
-    place: (id) => ({ view: viewPct(id), convenience: factsOf(id)?.convenience ?? 0 }),
+    // (M16) the Shuttle Stop cuts the long-walk penalty (−35% a level step, at most all of it)
+    place: (id) => ({ view: viewPct(id), convenience: r2((factsOf(id)?.convenience ?? 0) * Math.max(0, 1 - systemValue('walkPenalty'))) }),
     lines,
     tileNoise,
     tileView,

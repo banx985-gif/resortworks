@@ -129,7 +129,7 @@ export function chooseSpec(m, specId) {
   return true;
 }
 // Tests of the older milestones switch Milestone 13's growth off (their formulas stay exactly as written then).
-export const GROWTH = { traits: true, xp: true };
+export const GROWTH = { traits: true, xp: true, facilities: true }; // (facilities: M16's new effects of the shipped eight)
 // The team's total for a trait key, as a share (8% → 0.08): everyone at work today (not away).
 export const teamBonus = (team, key) => (!GROWTH.traits ? 0 : (team ?? []).reduce((t, m) => t + (m.absent ? 0 : (m.effects ?? []).reduce((a, e) => a + (e.key === key ? e.pct : 0), 0)), 0) / 100);
 export const saveTeam = (team) => team.map((m) => ({ ...m.model.toJSON(), pattern: m.pattern, founder: m.founder }));

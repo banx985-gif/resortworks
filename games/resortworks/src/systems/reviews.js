@@ -31,6 +31,8 @@ import { rankAtLeast as reached } from '../../../../core/CompanyRank.js';
 import { writeReview } from '../../../../core/ReviewText.js';
 import { FACILITIES, roomById } from '../../data/lot.js';
 import { teamBonus } from './staff.js';
+import { categoryAdd } from './facilities.js';
+import { LUXURY_RANK } from '../../data/facilities.js';
 import { ROOM_TYPES, GUEST_TYPES } from '../../data/bookings.js';
 import { CATEGORY_IDS, STAY_INPUTS, GUEST_WEIGHTS, REVIEW_STARS, REP, RANKS, WINDOW_DAYS, HEADLINE_FIXED, QUALITY, STAR_TABLE, FIVE_STAR_HEADLINES, FIVE_STAR_MIN, GUIDE, REVIEW_TEXT } from '../../data/reviews.js';
 import { BANDS } from '../../data/calendar.js';
@@ -60,7 +62,7 @@ function roleStat(team, role, stat) {
 // (1 when missing); a recovered breakdown cancels comfort / activities / food's share. (Milestone 9) place: { view,
 // convenience } of their room (src/systems/layout.js place()) — Room × (1 + view / 100); Comfort − convenience − the
 // stay's noise loss (b.noise.loss; cancelled with comfort).
-export function stayCategories(b, { team = [], facilities = FACILITIES, roomType = null, cancel = {}, place = null } = {}) {
+export function stayCategories(b, { team = [], facilities = FACILITIES, roomType = null, cancel = {}, place = null, guests = 0 } = {}) {
   const I = STAY_INPUTS;
   const got = roomType ?? b.roomType;
   const want = ROOM_TYPES[b.roomType];
@@ -72,10 +74,13 @@ export function stayCategories(b, { team = [], facilities = FACILITIES, roomType
   const clean = Math.min(I.clean.cap, I.clean.base + (b.shortLinen && !cancel.clean ? I.clean.short : 0));
   const service = I.service.base - (cancel.service ? 0 : b.late?.serviceLoss ?? 0) + (roleStat(team, I.service.role, I.service.stat) - 50) / I.service.div;
   const share = (id, key) => (cancel[key] ? 1 : b.cond?.[id] ?? 1);
-  const fac = (x, key) => (hasFacility(x.facility.id, facilities) ? x.facility.add * share(x.facility.id, key) : 0);
-  const food = Math.min(I.food.cap, I.food.base + fac(I.food, 'food') + (roleStat(team, I.food.role, I.food.stat) - 50) / I.food.div);
-  const activities = I.activities.base + fac(I.activities, 'activities') + (roleStat(team, I.activities.role, I.activities.stat) - 50) / I.activities.div;
-  const comfort = I.comfort.base[got] * share('room', 'comfort') - (place?.convenience ?? 0) - (cancel.comfort ? 0 : b.noise?.loss ?? 0);
+  // (Milestone 16) every facility built adds its category points × its level × its worst working share in the stay ×
+  // each guest's share of its places (the café +6 Food and the pool +8 Activity as before)
+  const who = { family: !!GUEST_TYPES[b.type]?.family, luxury: (have?.rank ?? 0) >= LUXURY_RANK, guests, list: facilities };
+  const fac = (cat, key) => categoryAdd(cat, { ...who, shareOf: (id) => share(id, key) });
+  const food = Math.min(I.food.cap, I.food.base + fac('food', 'food') + (roleStat(team, I.food.role, I.food.stat) - 50) / I.food.div);
+  const activities = I.activities.base + fac('activities', 'activities') + (roleStat(team, I.activities.role, I.activities.stat) - 50) / I.activities.div;
+  const comfort = I.comfort.base[got] * share('room', 'comfort') - (place?.convenience ?? 0) - (cancel.comfort ? 0 : b.noise?.loss ?? 0) + fac('comfort', 'comfort');
   const value = cancel.value ? Math.max(I.value.base, I.value.base + (I.value.span * (budget - b.rate)) / budget) : I.value.base + (I.value.span * (budget - b.rate)) / budget;
   // (Milestone 13) the team's traits and specialisations: each category × (1 + its keys' total %); Quiet Worker cuts the noise lost
   const tb = (k) => teamBonus(team, k);
@@ -148,6 +153,7 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
 
   // (Milestone 15) the room's place facts (layout) and its level / Loved extras (site)
   let site = null;
+  let guestsNow = () => 0; // (Milestone 16) guests staying now (a facility full of guests shares its places)
   const placeOf = (roomId) => {
     const p = ly?.place(roomId) ?? null;
     if (!site) return p;
@@ -157,7 +163,7 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
   function checkout(b, day) {
     const fx = cp?.closeStay(b, day) ?? null; // (Milestone 7) the stay's complaints, settled
     const place = placeOf(b.room); // (Milestone 9) the room's view and walks; (M15) its level and Loved bonus
-    const cats = stayCategories(b, { team, facilities, roomType: roomTypeOf(b), cancel: fx?.cancel ?? {}, place });
+    const cats = stayCategories(b, { team, facilities, roomType: roomTypeOf(b), cancel: fx?.cancel ?? {}, place, guests: guestsNow() });
     const base = finalSatisfaction(cats, b.type);
     const sat = fx ? r2(clamp(base + fx.bonus + fx.penalty)) : base;
     const stars = reviewStars(sat);
@@ -218,11 +224,14 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
     attachSite(x) {
       site = x;
     },
+    attachGuests(fn) {
+      guestsNow = fn;
+    },
     // (Milestone 10) Auto Accept's expected satisfaction: the stay scored as if it went perfectly (no late room, short
     // linen, noise or complaint) in this room, for this guest type at this rate.
     expected(x, roomId) {
       const b = { type: x.type, roomType: x.roomType, room: roomId, rate: x.rate };
-      const cats = stayCategories(b, { team, facilities, roomType: roomTypeOf(b), place: placeOf(roomId) });
+      const cats = stayCategories(b, { team, facilities, roomType: roomTypeOf(b), place: placeOf(roomId), guests: guestsNow() });
       return finalSatisfaction(cats, x.type);
     },
     onEdge(day, band) {
