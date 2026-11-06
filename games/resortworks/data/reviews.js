@@ -26,12 +26,13 @@ export const CATEGORY_IDS = CATEGORIES.map((c) => c.id);
 // facility: the bonus only counts while that facility stands on the lot. role / stat: whose stat counts (the best one
 // on the team in that role).
 export const STAY_INPUTS = {
-  room: { base: { RM01: 60, RM02: 70 }, wanted: 10, worse: -15 },
+  // (Milestone 15: the ten new types are Claude Code's picks, rising with the rate; the Roadside pair unchanged)
+  room: { base: { RM01: 60, RM02: 70, RM03: 72, RM04: 76, RM05: 78, RM06: 82, RM07: 82, RM08: 85, RM09: 88, RM10: 90, RM11: 92, RM12: 95 }, wanted: 10, worse: -15 },
   clean: { base: 85, short: -15, cap: 82 },
   service: { base: 75, role: 'FO', stat: 'service', div: 2 },
   food: { base: 60, facility: { id: 'F06', add: 6 }, role: 'HS', stat: 'skill', div: 4, cap: 78 },
   activities: { base: 55, facility: { id: 'F03', add: 8 }, role: 'AE', stat: 'charm', div: 4 },
-  comfort: { base: { RM01: 62, RM02: 70 } },
+  comfort: { base: { RM01: 62, RM02: 70, RM03: 72, RM04: 75, RM05: 76, RM06: 80, RM07: 80, RM08: 85, RM09: 88, RM10: 90, RM11: 92, RM12: 95 } },
   value: { base: 70, span: 60 },
 };
 

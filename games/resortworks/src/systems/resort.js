@@ -154,4 +154,10 @@ export const SAVE_MIGRATIONS = {
     const d = record.data;
     return { ...record, data: { ...d, staffing: d.staffing ? { ...d.staffing, pool: d.staffing.pool ?? null, trained: d.staffing.trained ?? {} } : d.staffing } };
   },
+  // 12 → 13 (Milestone 15): every room starts with no Loved points.
+  12: (record) => {
+    const d = record.data;
+    if (!d.site?.items) return record;
+    return { ...record, data: { ...d, site: { ...d.site, items: d.site.items.map((it) => (it.kind === 'room' ? { loved: 0, ...it } : it)) } } };
+  },
 };

@@ -19,7 +19,7 @@ import { Grid } from '../../../../core/Grid.js';
 import { LOT, FACILITIES, ROOMS, START_FACILITIES, START_ROOMS, makeRoom } from '../../data/lot.js';
 import { GRID, LAND, landById, ROOM_BUILD, FACILITY_BUILD, CONSTRUCTION, UPGRADE, LEVEL_RANKS, stageById, stageIndex, rankAtLeast, DOUGIE } from '../../data/build.js';
 import { FACILITY_INFO } from '../../data/facilities.js';
-import { ROOM_TYPES } from '../../data/bookings.js';
+import { ROOM_TYPES, ROOM_LEVEL, LOVED } from '../../data/bookings.js';
 import { MINUTES_PER_DAY } from './calendar.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -79,7 +79,7 @@ export function setLive(state) {
 export function freshSite() {
   const items = [
     ...START_FACILITIES.map((f) => ({ id: f.id, kind: 'facility', def: f.id, fp: { ...f.fp }, door: { ...f.door }, level: 1, spent: FACILITY_BUILD[f.id].cost, open: true })),
-    ...START_ROOMS.map((r) => ({ id: r.id, kind: 'room', def: r.typeId, number: r.number, fp: { ...r.fp }, door: { ...r.door }, level: 1, spent: ROOM_BUILD[r.typeId].cost, open: true })),
+    ...START_ROOMS.map((r) => ({ id: r.id, kind: 'room', def: r.typeId, number: r.number, fp: { ...r.fp }, door: { ...r.door }, level: 1, spent: ROOM_BUILD[r.typeId].cost, open: true, loved: 0 })),
   ];
   return { land: ['roadside'], items, nextRoom: START_ROOMS.length + 1, nextJob: 1, jobs: [], closed: {}, stats: { built: 0, sold: 0, moved: 0, cancelled: 0, upgraded: 0, land: 0, spent: 0, back: 0 } };
 }
@@ -106,6 +106,15 @@ export function createSite({ saved = null, bus = null, now = () => 0, finance = 
   const rank = () => reviews?.rank?.id ?? 'E';
   const cash = () => finance?.cash ?? Infinity;
 
+  // (Milestone 15) a room's Loved points: each review of 4★ or more for a stay in it.
+  bus?.on('review:new', ({ review } = {}) => {
+    const it = review && review.stars >= LOVED.minStars ? itemById(review.room) : null;
+    if (!it || it.kind !== 'room') return;
+    const before = lovedBonus(it);
+    it.loved = (it.loved ?? 0) + 1;
+    if (lovedBonus(it) > before) bus?.emit('site:loved', { id: it.id, add: lovedBonus(it) });
+  });
+  const lovedBonus = (it) => LOVED.steps.reduce((t, x) => ((it?.loved ?? 0) >= x.at ? x.add : t), 0);
   function changed(what, data = {}) {
     setLive(s);
     bus?.emit('site:change', { what, ...data });
@@ -204,7 +213,7 @@ export function createSite({ saved = null, bus = null, now = () => 0, finance = 
     if (!c.ok) return c;
     const b = buildOf(kind, def);
     const id = kind === 'room' ? `R${s.nextRoom}` : def;
-    const it = { id, kind, def, fp: c.fp, door: c.door, level: 1, spent: b.cost, open: false };
+    const it = { id, kind, def, fp: c.fp, door: c.door, level: 1, spent: b.cost, open: false, ...(kind === 'room' ? { loved: 0 } : {}) };
     if (kind === 'room') it.number = s.nextRoom++;
     s.items.push(it);
     const t = now();
@@ -425,6 +434,17 @@ export function createSite({ saved = null, bus = null, now = () => 0, finance = 
     isClosed: (id) => s.closed[id] != null,
     closedUntil: (id) => s.closed[id] ?? null,
     levelOf: (id) => itemById(id)?.level ?? 1,
+    // (Milestone 15) a room's extra Room score (+8 a level above 1, + its Loved bonus) and its rate multiplier (+10% a level)
+    roomScoreBonus: (id) => {
+      const it = itemById(id);
+      return it?.kind === 'room' ? ((it.level ?? 1) - 1) * ROOM_LEVEL.score + lovedBonus(it) : 0;
+    },
+    rateMult: (id) => {
+      const it = itemById(id);
+      return it?.kind === 'room' ? Math.round((1 + ((it.level ?? 1) - 1) * ROOM_LEVEL.rate) * 100) / 100 : 1;
+    },
+    lovedOf: (id) => itemById(id)?.loved ?? 0,
+    lovedBonus: (id) => lovedBonus(itemById(id)),
     owns: (id) => s.land.includes(id),
     onChange(fn) {
       listeners.push(fn);
@@ -467,7 +487,7 @@ function load(saved) {
   const ids = new Set(items.map((it) => it.id));
   return {
     land: Array.isArray(s.land) && s.land.includes('roadside') ? s.land.filter((id) => landById(id)) : ['roadside'],
-    items: items.map((it) => ({ ...it, level: Math.max(1, Math.min(UPGRADE.maxLevel, it.level ?? 1)), spent: Number.isFinite(it.spent) ? it.spent : 0, open: it.open !== false })),
+    items: items.map((it) => ({ ...it, level: Math.max(1, Math.min(UPGRADE.maxLevel, it.level ?? 1)), spent: Number.isFinite(it.spent) ? it.spent : 0, open: it.open !== false, ...(it.kind === 'room' ? { loved: Number.isFinite(it.loved) ? it.loved : 0 } : {}) })),
     nextRoom: Number.isFinite(s.nextRoom) ? s.nextRoom : Math.max(0, ...items.filter((it) => it.kind === 'room').map((it) => it.number)) + 1,
     nextJob: Number.isFinite(s.nextJob) ? s.nextJob : 1,
     jobs: Array.isArray(s.jobs) ? s.jobs.filter((j) => j && ids.has(j.target) && Number.isFinite(j.end)) : [],

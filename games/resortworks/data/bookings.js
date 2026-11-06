@@ -4,10 +4,32 @@
 // The two Roadside room types (bible §27E). cap = guests it sleeps; rate = base nightly rate in Credits (the Standard
 // pricing band is 1.00×, so it is also the offer's rate until pricing bands arrive). Milestone 4: clean = base clean
 // minutes (bible §27E); beds = bed spaces (linen: 2 units each, data/housekeeping.js).
+// (Milestone 15) all twelve (bible §27E: capacity, base rate, clean minutes; build cost / upkeep / stage in data/build.js
+// and data/finance.js). rank = the order of their base rates (an "upgrade" in Fit is a higher rank); beds = one linen bed
+// space a guest it sleeps (the Roadside pair keep their 2).
 export const ROOM_TYPES = {
   RM01: { id: 'RM01', name: 'Budget Room', cap: 2, rate: 70, rank: 1, clean: 35, beds: 2 },
   RM02: { id: 'RM02', name: 'Standard Room', cap: 2, rate: 105, rank: 2, clean: 40, beds: 2 },
+  RM03: { id: 'RM03', name: 'Family Room', cap: 4, rate: 155, rank: 3, clean: 55, beds: 4 },
+  RM04: { id: 'RM04', name: 'Garden Room', cap: 2, rate: 175, rank: 4, clean: 45, beds: 2 },
+  RM05: { id: 'RM05', name: 'Poolside Room', cap: 4, rate: 210, rank: 5, clean: 55, beds: 4 },
+  RM06: { id: 'RM06', name: 'Premium Room', cap: 2, rate: 275, rank: 6, clean: 50, beds: 2 },
+  RM07: { id: 'RM07', name: 'Family Suite', cap: 5, rate: 345, rank: 7, clean: 70, beds: 5 },
+  RM08: { id: 'RM08', name: 'Spa Suite', cap: 2, rate: 390, rank: 8, clean: 55, beds: 2 },
+  RM09: { id: 'RM09', name: 'Luxury Suite', cap: 2, rate: 540, rank: 9, clean: 60, beds: 2 },
+  RM10: { id: 'RM10', name: 'Private Villa', cap: 4, rate: 720, rank: 10, clean: 80, beds: 4 },
+  RM11: { id: 'RM11', name: 'Honeymoon Villa', cap: 2, rate: 840, rank: 11, clean: 70, beds: 2 },
+  RM12: { id: 'RM12', name: 'Presidential Retreat', cap: 6, rate: 1350, rank: 12, clean: 110, beds: 6 },
 };
+// (Milestone 15) rooms by level and use (bible §27E; Cowork's "Loved" numbers, Kairosoft rule 6):
+//   Lv2 / Lv3: +8 Room score each and +10% on the rate ceiling each (the room's nightly rate and what guests think is
+//   fair both rise by it — Claude Code's reading of "rate ceiling"). Loved: each stay of 4★ or more gives the room a point;
+//   at 25 / 75 / 150 points it has +2 / +4 / +6 Room score (capped at +6), shown as a small heart on the map.
+export const ROOM_LEVEL = { score: 8, rate: 0.1 };
+export const LOVED = { minStars: 4, steps: [{ at: 25, add: 2 }, { at: 75, add: 4 }, { at: 150, add: 6 }] };
+// (Milestone 15) capacity rules (bible §27B): a party must fit one room (Claude Code's pick: splitting a group across rooms
+// is the World-Class "group allocation" unlock, so no party splits before it); a family needs a room for 4 or more.
+export const CAPACITY = { familyMin: 4, splitStage: 'worldclass' };
 export const PRICE_BAND = { id: 'standard', name: 'Standard', mult: 1.0 }; // bible §27E pricing band used for offers
 
 // The Roadside guest types (Cowork's pick: all fit a 2-person room). budget / nights from bible §27F. party = people in

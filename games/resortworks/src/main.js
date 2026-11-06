@@ -338,6 +338,7 @@ function openRun(n, data) {
   run.site.attach({ finance: run.finance, reviews: run.reviews, bookings: run.bookings, maintenance: run.maintenance, progress: run.progress });
   run.staffing.attachProgress(run.progress); // (Milestone 13) the team cap and who applies
   run.bookings.attachSite(run.site);
+  run.reviews.attachSite(run.site); // (Milestone 15) room levels and Loved points in the stays
   run.maintenance.attachSite(run.site);
   run.site.onChange(() => run.layout.refresh());
   open = run;

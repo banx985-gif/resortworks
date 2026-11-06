@@ -45,7 +45,7 @@
 import { stationSheet } from '../../../../core/ui/StationSheet.js';
 import { THEME } from '../../../../core/Theme.js';
 import { GUEST, ROOMS, roomById } from '../../data/lot.js';
-import { ROOM_TYPES, GUEST_TYPES, ROOM_STATES, PRICE_BAND } from '../../data/bookings.js';
+import { ROOM_TYPES, GUEST_TYPES, ROOM_STATES, PRICE_BAND, ROOM_LEVEL, LOVED } from '../../data/bookings.js';
 import { arrivalWords } from '../systems/bookings.js';
 import { ROLES } from '../../data/setup.js';
 import { STAT_KEYS, STAT_NAMES, TIERS, PATTERNS } from '../../data/staff.js';
@@ -75,20 +75,20 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const partyWords = (n) => (n === 1 ? '1 person' : `${n} people`);
 const aOrAn = (w) => (/^[AEIOU]/i.test(w) ? 'an' : 'a');
 export const rateWords = (rate) => `${rate} Cr a night`;
-const NO_ACT = { fire() {}, train() {}, spec() {}, staffBook() {}, accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {}, review() {}, scores() {}, rates() {}, finance() {}, setBand() {}, complaint() {}, recover() {}, service() {}, autoAccept() {}, autoSet() {}, setPriority() {}, pin() {}, hire() {} };
+const NO_ACT = { upgrade() {}, fire() {}, train() {}, spec() {}, staffBook() {}, accept() {}, decline() {}, pick() {}, open() {}, setAuto() {}, choose() {}, review() {}, scores() {}, rates() {}, finance() {}, setBand() {}, complaint() {}, recover() {}, service() {}, autoAccept() {}, autoSet() {}, setPriority() {}, pin() {}, hire() {} };
 // (Milestone 5) the star rating in a few characters: "3★", or "New" before the first month ends.
 export const starText = (stars) => (stars ? `${stars}★` : 'New');
 const starsLong = (n) => `${'★'.repeat(n)}${'☆'.repeat(5 - n)}`;
 const REVIEWS_SHOWN = 20;
 
-export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null, finance = null, complaints = null, mt = null, layout = null, staffing = null, confirm = null } = {}) {
+export function resortSheet(world, id, { accent = C.progress, bookings = null, today = 0, dateOf = null, act = NO_ACT, hk = null, reviews = null, finance = null, complaints = null, mt = null, layout = null, staffing = null, confirm = null, site = null } = {}) {
   const it = world?.byId(id);
   if (!it) return null;
   const now = [world.stateOf(it)];
   let spec;
   if (it.kind === 'guest') spec = guestSpec(world, it, { bookings, today, dateOf, complaints, act });
   else if (it.kind === 'staff') spec = staffSpec(world, it, { hk, now, mt, st: staffing, act, finance, confirm });
-  else if (it.kind === 'room') spec = roomSpec(world, it, { bookings, today, act, hk, finance, layout });
+  else if (it.kind === 'room') spec = roomSpec(world, it, { bookings, today, act, hk, finance, layout, site });
   else if (it.id === 'F01' && bookings) spec = receptionSpec(it, { bookings, today, act, accent, reviews, dateOf, finance, complaints });
   else if (it.id === 'F04' && hk) spec = laundrySpec(it, { hk, now });
   else if (it.id === 'F05' && mt) spec = shedSpec(it, { mt, now, team: world.team });
@@ -255,7 +255,7 @@ export function roomStateLine(bk, room, today) {
   if (st === 'cleaning') return 'Cleaning';
   return 'Broken — closed for repairs';
 }
-function roomSpec(world, it, { bookings: bk, today, act, hk = null, finance = null, layout = null }) {
+function roomSpec(world, it, { bookings: bk, today, act, hk = null, finance = null, layout = null, site = null }) {
   const room = it.def;
   const rt = ROOM_TYPES[room.typeId];
   if (!bk) return { title: room.name, line: room.type, art: room.art, now: [world.stateOf(it)] };
@@ -286,9 +286,24 @@ function roomSpec(world, it, { bookings: bk, today, act, hk = null, finance = nu
     body: [
       // (Milestone 9) its noise, view and walks in three plain lines
       ...(layout ? [{ title: 'Where it is', std: 'place', lines: layout.lines(room.id) }] : []),
-      { title: 'Room', lines: [finance ? { text: `${bandById(finance.bandOf(rt.id)).name} rate (Reception → Rates)`, right: rateWords(finance.rateOf(rt.id)) } : { text: `${PRICE_BAND.name} rate`, right: rateWords(Math.round(rt.rate * PRICE_BAND.mult)) }] },
+      { title: 'Room', lines: [finance ? { text: `${bandById(finance.bandOf(rt.id)).name} rate (Reception → Rates)`, right: rateWords(Math.round(finance.rateOf(rt.id) * (site?.rateMult(room.id) ?? 1))) } : { text: `${PRICE_BAND.name} rate`, right: rateWords(Math.round(rt.rate * PRICE_BAND.mult)) }] },
+      ...(site ? [roomGrowth(site, room.id, act)] : []), // (Milestone 15) level, Loved points, Upgrade
     ],
   };
+}
+
+// (Milestone 15) a room's level and Loved points, and its Upgrade (the build sheet: cost, days, Rank).
+function roomGrowth(site, id, act) {
+  const lv = site.levelOf(id);
+  const loved = site.lovedOf(id);
+  const next = LOVED.steps.find((x) => loved < x.at);
+  const job = site.jobFor(id);
+  const lines = [
+    { text: 'Level', right: `${lv} of 3${lv > 1 ? ` · +${(lv - 1) * ROOM_LEVEL.score} Room score, +${Math.round((lv - 1) * ROOM_LEVEL.rate * 100)}% rate` : ''}` },
+    { text: `Loved: ${loved} great stay${loved === 1 ? '' : 's'}`, right: site.lovedBonus(id) ? `♥ +${site.lovedBonus(id)} Room score` : next ? `♥ at ${next.at}` : '' },
+  ];
+  if (job) lines.push({ text: `Upgrading to Level ${job.level}: ${Math.round(site.progressOf(job) * 100)}% done`, color: C.actionDark });
+  return { title: 'Level', std: 'roomLevel', lines, columns: 1, buttons: lv < 3 && !job ? [{ id: `upgrade:${id}`, label: `Upgrade to Level ${lv + 1}`, sub: site.whyNoUpgrade(id) ?? `+${ROOM_LEVEL.score} Room score, +${Math.round(ROOM_LEVEL.rate * 100)}% rate · ${site.upgradeInfo(id).days} days`, cost: credits(site.upgradeCost(id)), accent: site.whyNoUpgrade(id) ? C.textMuted : C.progress, disabled: !!site.whyNoUpgrade(id), onTap: () => act.upgrade(id) }] : [] };
 }
 
 const ordinal = (n) => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;

@@ -65,8 +65,10 @@ export function stayCategories(b, { team = [], facilities = FACILITIES, roomType
   const got = roomType ?? b.roomType;
   const want = ROOM_TYPES[b.roomType];
   const have = ROOM_TYPES[got];
-  const budget = GUEST_TYPES[b.type]?.budget ?? b.rate;
-  const room = (I.room.base[got] + (have.id === want.id ? I.room.wanted : have.rank < want.rank ? I.room.worse : 0)) * (1 + (place?.view ?? 0) / 100);
+  const budget = (GUEST_TYPES[b.type]?.budget ?? b.rate) * (place?.rateMult ?? 1);
+  // (Milestone 15) place.roomPlus: the room's level and Loved bonus; place.rateMult: its rate ceiling (guests think a higher
+  // level is worth more)
+  const room = (I.room.base[got] + (have.id === want.id ? I.room.wanted : have.rank < want.rank ? I.room.worse : 0) + (place?.roomPlus ?? 0)) * (1 + (place?.view ?? 0) / 100);
   const clean = Math.min(I.clean.cap, I.clean.base + (b.shortLinen && !cancel.clean ? I.clean.short : 0));
   const service = I.service.base - (cancel.service ? 0 : b.late?.serviceLoss ?? 0) + (roleStat(team, I.service.role, I.service.stat) - 50) / I.service.div;
   const share = (id, key) => (cancel[key] ? 1 : b.cond?.[id] ?? 1);
@@ -144,9 +146,17 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
     s.list = s.list.filter((v, i) => i < LIST_MAX || v.day > today - WINDOW_DAYS - 1);
   }
 
+  // (Milestone 15) the room's place facts (layout) and its level / Loved extras (site)
+  let site = null;
+  const placeOf = (roomId) => {
+    const p = ly?.place(roomId) ?? null;
+    if (!site) return p;
+    const extra = { roomPlus: site.roomScoreBonus(roomId), rateMult: site.rateMult(roomId) };
+    return p ? { ...p, ...extra } : extra;
+  };
   function checkout(b, day) {
     const fx = cp?.closeStay(b, day) ?? null; // (Milestone 7) the stay's complaints, settled
-    const place = ly?.place(b.room) ?? null; // (Milestone 9) the room's view and walks
+    const place = placeOf(b.room); // (Milestone 9) the room's view and walks; (M15) its level and Loved bonus
     const cats = stayCategories(b, { team, facilities, roomType: roomTypeOf(b), cancel: fx?.cancel ?? {}, place });
     const base = finalSatisfaction(cats, b.type);
     const sat = fx ? r2(clamp(base + fx.bonus + fx.penalty)) : base;
@@ -205,11 +215,14 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
     attachLayout(l) {
       ly = l;
     },
+    attachSite(x) {
+      site = x;
+    },
     // (Milestone 10) Auto Accept's expected satisfaction: the stay scored as if it went perfectly (no late room, short
     // linen, noise or complaint) in this room, for this guest type at this rate.
     expected(x, roomId) {
       const b = { type: x.type, roomType: x.roomType, room: roomId, rate: x.rate };
-      const cats = stayCategories(b, { team, facilities, roomType: roomTypeOf(b), place: ly?.place(roomId) ?? null });
+      const cats = stayCategories(b, { team, facilities, roomType: roomTypeOf(b), place: placeOf(roomId) });
       return finalSatisfaction(cats, x.type);
     },
     onEdge(day, band) {

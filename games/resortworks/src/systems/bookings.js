@@ -54,7 +54,7 @@ import { BANDS } from '../../data/calendar.js';
 import { LATE } from '../../data/housekeeping.js';
 import { minuteOf, bandAtMinute } from './calendar.js';
 import { ROOMS, roomById } from '../../data/lot.js';
-import { ROOM_TYPES, PRICE_BAND, GUEST_TYPES, OFFERS, ROOM_STATES, FIT, FIRST_GUEST } from '../../data/bookings.js';
+import { ROOM_TYPES, PRICE_BAND, GUEST_TYPES, OFFERS, ROOM_STATES, FIT, FIRST_GUEST, CAPACITY } from '../../data/bookings.js';
 import { AUTO_ACCEPT, AUTO_MOVE } from '../../data/staffing.js';
 import { teamBonus } from './staff.js';
 
@@ -177,8 +177,10 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     return x.arrival === s.at.day && s.at.band < BAND.midday && !!hk?.hasJob(id); // (M12 same-day turnaround)
   }
   const upcomingIn = (id) => s.bookings.some((b) => b.room === id && b.status === 'upcoming');
+  // (Milestone 15) capacity: the whole party in one room (no splitting before World-Class); a family needs 4+ beds
+  const fitsParty = (r, x) => ROOM_TYPES[r.typeId].cap >= x.party && (!GUEST_TYPES[x.type]?.family || ROOM_TYPES[r.typeId].cap >= CAPACITY.familyMin);
   function freeRoomsFor(x) {
-    return ROOMS.filter((r) => ROOM_TYPES[r.typeId].cap >= x.party && freeBy(r.id, x));
+    return ROOMS.filter((r) => fitsParty(r, x) && freeBy(r.id, x));
   }
   // A booking takes its room: a Ready room turns Reserved (a Dirty / Cleaning one stays so until it is clean).
   const hold = (id) => roomState(id) === 'ready' && setRoom(id, 'reserved');
@@ -289,7 +291,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   // time began: they check in straight away.
   function take(o, r, pinned, auto = false) {
     s.offers = s.offers.filter((x) => x !== o);
-    const b = { id: `B${s.nextId++}`, type: o.type, party: o.party, nights: o.nights, arrival: o.arrival, roomType: o.roomType, rate: o.rate, room: r.id, pinned, status: 'upcoming', nightsLeft: o.nights, inDay: null, inBand: null, outDay: null };
+    const b = { id: `B${s.nextId++}`, type: o.type, party: o.party, nights: o.nights, arrival: o.arrival, roomType: o.roomType, rate: Math.round(o.rate * (site?.rateMult(r.id) ?? 1)), room: r.id, pinned, status: 'upcoming', nightsLeft: o.nights, inDay: null, inBand: null, outDay: null };
     if (auto) b.auto = true;
     s.bookings.push(b);
     hold(r.id);
@@ -626,7 +628,8 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     get version() {
       return version;
     },
-    serialize: () => clone(s),
+    // (Milestone 12) the room states of the rooms open now (a room built since is Ready; a sold one is gone), as a reload has them
+    serialize: () => clone({ ...s, rooms: Object.fromEntries(ROOMS.map((r) => [r.id, s.rooms[r.id] ?? 'ready'])) }),
   };
   return api;
 }

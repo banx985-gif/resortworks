@@ -739,7 +739,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     const x = calendar()?.clock.dateOf(d);
     return x ? `Y${x.year} · Month ${x.month} · Day ${x.day}` : `Day ${d + 1}`;
   };
-  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null, finance: run()?.finance ?? null, complaints: run()?.complaints ?? null, mt: run()?.maintenance ?? null, layout: run()?.layout ?? null, staffing: run()?.staffing ?? null });
+  const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null, finance: run()?.finance ?? null, complaints: run()?.complaints ?? null, mt: run()?.maintenance ?? null, layout: run()?.layout ?? null, staffing: run()?.staffing ?? null, site: run()?.site ?? null });
   function openSheet(id, via = 'art') {
     if (!world?.byId(id)) return;
     sheet.open(() => resortSheet(world, id, sheetOpts()));
@@ -1474,6 +1474,16 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       ctx.fill();
       text(ctx, String(b.number), r.x + 5 * k + d / 2, r.y + r.h / 2 + 1, { size: 28 * k, bold: true, color: b.st.color, align: 'center', baseline: 'middle' });
       text(ctx, b.st.name, r.x + r.h + 8 * k, r.y + r.h / 2 + 1, { size: 26 * k, bold: true, color: '#FFFFFF', baseline: 'middle' });
+      // (Milestone 15) a Loved room: a small heart right of its badge
+      const lb = site()?.lovedBonus(b.id) ?? 0;
+      if (lb) {
+        const hx = r.x + r.w + 8 * k + r.h * 0.4;
+        ctx.fillStyle = '#E0508A';
+        ctx.beginPath();
+        ctx.arc(hx, r.y + r.h / 2, r.h * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+        text(ctx, '♥', hx, r.y + r.h / 2 + 1, { size: 26 * k, bold: true, color: '#FFFFFF', align: 'center', baseline: 'middle' });
+      }
       ctx.restore();
     }
   }
