@@ -79,6 +79,7 @@ export function newCampaign(setup, now = Date.now()) {
     ending: null, // (Milestone 28) the Year-20 ending, once reached
     legacy: null, // (Milestone 28) an NG+ run's Legacy Staff and Signature legacy
     parent: null, // (Milestone 28) an NG+ run's parent (its name, level and grade; never its slot)
+    guide: null, // (Milestone 33) the first-time guide starts with the resort
     opal: { welcomed: false }, // (M6b) Dame Opal's welcome card is due (a save from before M6b has none: no welcome)
     playSec: 0,
     ngPlus: 0,
@@ -225,6 +226,8 @@ export const SAVE_MIGRATIONS = {
   25: (record) => ({ ...record, data: { ...record.data, ending: record.data.ending ?? null, legacy: record.data.legacy ?? null, parent: record.data.parent ?? null } }),
   // 26 → 27 (Milestone 28b): no gods yet — their secrets' run half starts empty inside the secrets' save.
   26: (record) => (record.data.secrets ? { ...record, data: { ...record.data, secrets: { ...record.data.secrets, gods: record.data.secrets.gods ?? null } } } : record),
+  // 27 → 28 (Milestone 33): a resort already under way gets the guide switched off (it can be replayed from Help).
+  27: (record) => ({ ...record, data: { ...record.data, guide: record.data.guide ?? { state: { done: [], seen: [], events: [], off: true }, understood: false, finished: false, answers: [] } } }),
 };
 
 // (Milestone 32) The campaign's own check (core SaveSlot validate): a copy whose checksum is fine but whose data is not

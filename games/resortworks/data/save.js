@@ -8,7 +8,7 @@ export const SAVE = {
   count: 4,
   prefix: 'campaign_',
   accountKey: 'resortworks:account',
-  version: 27, // 2 = Milestone 2 (the calendar: day, progress in the day, band, speed); 3 = Milestone 3 (bookings, stays, room states);
+  version: 28, // 2 = Milestone 2 (the calendar: day, progress in the day, band, speed); 3 = Milestone 3 (bookings, stays, room states);
   // 4 = Milestone 4 (the opening team; housekeeping: cleaning jobs, queue, linen, late rooms); 5 = Milestone 5 (reviews,
   // the rolling scores, REP / Rank and the star rating); 6 = Milestone 6 (Credits, the ledger, Emergency Credit, pricing bands); 7 = Milestone 7 (complaints, recovery actions and results);
   // 8 = Milestone 8 (Condition of every facility and room, maintenance jobs, offline state); 9 = Milestone 9 (each stay's
@@ -29,7 +29,8 @@ export const SAVE = {
   // themselves are in the account store); 25 = Milestone 27 (the secrets' run half: found this run, clue stages, rewards
   // fired, the applicants' windows, this run's counters; what was found in any run is in the account store); 26 =
   // Milestone 28 (the Year-20 ending and its grade; an NG+ run's Legacy Staff / Signature legacy and its parent's name);
-  // 27 = Milestone 28b (the Works Gods' secrets' run half and their counters, inside the secrets' save)
+  // 27 = Milestone 28b (the Works Gods' secrets' run half and their counters, inside the secrets' save); 28 = Milestone 33
+  // (the first-time guide: steps done / seen, the Stars-vs-Prestige answer)
 };
 
 // (Milestone 32, bible §33) Autosave: every 7 game days (each 7th day's Morning) and at the critical boundaries —

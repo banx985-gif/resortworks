@@ -90,6 +90,8 @@ import { siteVersion, tileOwned } from '../systems/site.js';
 import { buildListSheet, buildItemSheet } from './buildSheets.js';
 import { LATE_SHEETS, LATE_OPS, nextStep } from './lateSheets.js';
 import { drawWalker } from './walkers.js';
+import { CoachMark } from '../../../../core/ui/CoachMark.js'; // (Milestone 33) Dame Opal's tips
+import { GUIDE_FACE } from '../../data/guide.js';
 import { eventById, RESULT, ROCCO } from '../../data/events.js';
 import { PRIYA } from '../../data/partners.js';
 import { awardById, rivalById, EXPO, VICTOR } from '../../data/awards.js';
@@ -115,6 +117,8 @@ const PEOPLE_FIRST = 1e6; // people are picked over the building behind them
 
 export function createResortScreen({ renderer, layout, assets, bus, sheet, feedback = null, run, onMenu, debug = null, reducedFlashes = () => false, showMenu = () => true, showHints = () => true, highContrast = () => false, reducedMotion = () => false, onSkip = () => {}, onRep = () => {} }) {
   let walkClock = 0; // (Milestone 27b) seconds, for the walking sheets
+  const coach = new CoachMark({ layout, assets, face: { key: GUIDE_FACE.key, crop: { x: 0.28, y: 0.04, w: 0.44, h: 0.3 } } }); // (Milestone 33)
+  let coachOn = false;
   const W = renderer.width;
   const iso = new IsoProjection({ tileSize: CELL, halfW: HW, halfH: HH, originX: LOT.margin + ROWS_DRAWN * HW, originY: LOT.margin + LOT.topOverhang });
   const worldW = (GRID.cols + ROWS_DRAWN) * HW + LOT.margin * 2; // (M12: the land beyond the lot too)
@@ -840,10 +844,23 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     opened = { id: `item:${uid}`, via: 'sheet' };
   }
   // (Milestone 18 on) a Resort Office sheet (lateSheets.js)
+  // (Milestone 33) the guide's targets on screen, and whether a tip may show
+  function guideTarget(name) {
+    if (!name) return null;
+    if (/^F\d\d$/.test(name)) {
+      const q = world?.byId(name) ? (screen.visiblePointOf?.(name) ?? screen.pointOf?.(name)) : null;
+      return q ? { x: q.x - 60, y: q.y - 60, w: 120, h: 120 } : null;
+    }
+    return screen.rectOf?.(name) ?? null;
+  }
+  function guideOk() {
+    return !!world && !buildMode && !sheet.active && !feedback?.active;
+  }
   function openPanel(key, arg = null, via = 'sheet') {
     const o = run();
     if (!o || !LATE_SHEETS[key]) return;
     sheet.open(() => LATE_SHEETS[key](run() ?? o, arg, { act, accent: palette.hex, today: today(), dateOf: dateWords, minute: minuteNow() }));
+    bus.emit('sheet:open', { id: `panel:${key}` });
     opened = { id: `panel:${key}`, via };
     debug?.log(`sheet: ${key} (${via})`);
   }
@@ -891,6 +908,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   const sheetOpts = () => ({ accent: palette.hex, bookings: bookings(), today: today(), dateOf: dateWords, act, hk: run()?.housekeeping ?? null, team: run()?.team ?? null, reviews: run()?.reviews ?? null, finance: run()?.finance ?? null, complaints: run()?.complaints ?? null, mt: run()?.maintenance ?? null, layout: run()?.layout ?? null, staffing: run()?.staffing ?? null, site: run()?.site ?? null, items: run()?.items ?? null });
   function openSheet(id, via = 'art') {
     if (!world?.byId(id)) return;
+    bus.emit('sheet:open', { id }); // (Milestone 33) the guide's 'open:<id>' steps
     sheet.open(() => resortSheet(world, id, sheetOpts()));
     opened = { id, via };
     debug?.log(`sheet: ${id} (${via})`);
@@ -1161,6 +1179,19 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         taps.push({ x: p.x, y: p.y, picked });
         if (taps.length > 50) taps.shift();
       };
+      // (Milestone 33) Opal's tip: ✕ closes it (that step counts as skipped); the last one's box opens the question
+      if (coachOn && !buildMode) {
+        const h = coach.hit(p);
+        const g = run()?.guide;
+        if (h === 'close') {
+          g?.skip();
+          return log('guide:close');
+        }
+        if (h === 'box' && g?.current?.quiz) {
+          openPanel('starsQuiz', null, 'guide');
+          return log('guide:quiz');
+        }
+      }
       if (buildMode) {
         if (hitRect(p, doneRect())) {
           setBuildMode(false);
@@ -1331,6 +1362,15 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         drawButton(ctx, shortcutRect(), 'Reception', { accent: C.action });
         drawButton(ctx, buildRect(), 'Build', { accent: C.gold }); // (Milestone 12)
         drawLayoutButton(ctx);
+        // (Milestone 33) Dame Opal's tip (never blocks: the map and buttons still work round it)
+        const g = run()?.guide;
+        if (g) {
+          g.attachScreen({ targetRect: guideTarget, canShow: guideOk });
+          g.update();
+        }
+        const step = g?.current;
+        coachOn = !!step && guideOk();
+        if (coachOn) coach.render(ctx, { ...step, text: step.id === 'reception' ? `${g.hello} ${step.text}` : step.text }, step.target ? guideTarget(step.target) : null, { block: false, style: 'tip', bottom: toastRect()?.y ?? null });
       }
     },
 

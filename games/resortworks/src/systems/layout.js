@@ -23,6 +23,7 @@ import { teamBonus } from './staff.js';
 import { systemValue, mult } from './facilities.js';
 import { rx } from './research.js';
 import { findPath } from '../../../../core/Pathing.js';
+import { Grid } from '../../../../core/Grid.js';
 import { LOT, FACILITIES, ROOMS } from '../../data/lot.js';
 import { GUEST_TYPES } from '../../data/bookings.js';
 import { BANDS } from '../../data/calendar.js';
@@ -87,8 +88,17 @@ const noiseIn = (noise, band, shedOn) => r2(noise.reduce((t, x) => t + (activeIn
 const shedBand = (band) => NOISE_EFFECT.shedBands.includes(BANDS[band].id);
 
 // The fixed facts for every room on a layout.
+// (Milestone 34 soak fix) The lot plus the road along its front, always free: Build Mode lets a door reach the lanes from ANY
+// part of the front row, so two parts of the lot may be joined only by the road outside it — guests walk round that way.
+function withRoad(g) {
+  const out = new Grid({ cols: g.cols, rows: g.rows + 1, tileSize: g.tileSize, x: g.x, y: g.y });
+  for (let r = 0; r < g.rows; r++) for (let c = 0; c < g.cols; c++) if (g.isBlocked(c, r)) out.setBlocked(c, r, true);
+  return out;
+}
 export function measureLayout(items = layoutItems()) {
-  const grid = gridFor([...items.facilities, ...items.rooms].map((it) => it.fp));
+  const lot = gridFor([...items.facilities, ...items.rooms].map((it) => it.fp));
+  let road = null;
+  const grid = lot;
   const doorOf = (id) => items.facilities.find((f) => f.id === id)?.door ?? null;
   const rooms = {};
   for (const r of items.rooms) {
@@ -96,8 +106,9 @@ export function measureLayout(items = layoutItems()) {
     for (const id of WALK.to) {
       const d = doorOf(id);
       if (!d) continue;
-      const p = findPath(grid, r.door, d);
-      if (!p) throw new Error(`Layout: no lane from ${r.id} to ${id}`);
+      let p = findPath(grid, r.door, d);
+      if (!p) p = findPath((road ??= withRoad(lot)), r.door, d); // (round by the road)
+      if (!p) p = Array(WALK.fitDiv ?? 30).fill(null); // (never a crash: a door Build Mode let through counts as a long walk)
       walk[id] = p.length;
     }
     const trips = Object.values(walk);

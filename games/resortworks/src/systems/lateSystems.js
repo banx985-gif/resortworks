@@ -16,6 +16,7 @@ import { createWeather } from './weather.js';
 import { createAchievements } from './achievements.js';
 import { createSecrets } from './secrets.js';
 import { createEnding } from './ending.js';
+import { createGuide } from './guide.js';
 import { teamBonus } from './staff.js';
 import { SIGNATURE_LEGACY } from '../../data/ngplus.js';
 import { themeById } from '../../data/themes.js';
@@ -45,6 +46,7 @@ export function attachLate(run, data = {}, { bus = null, account = {} } = {}) {
     run.awards?.onEdge(day, band); // (Milestone 23)
     run.secrets?.onEdge(day, band); // (Milestone 27)
     run.ending?.onEdge(day, band); // (Milestone 28) the Year-20 ending, once
+    run.guide?.update(); // (Milestone 33)
     run.achievements?.onEdge(day, band); // (Milestone 26) last: everything else has moved
   });
   run.staffing.setExtraLoad((day) => run.events.loadOn(day));
@@ -95,6 +97,8 @@ export function attachLate(run, data = {}, { bus = null, account = {} } = {}) {
   const legacyFor = (typeId) => !!legacyTheme && legacyTheme.tags.some((t) => GUEST_TYPES[typeId]?.tags?.includes(t));
   if (legacyTheme) run.demand.set('Legacy', (typeId) => (typeId && legacyFor(typeId) ? { type: SIGNATURE_LEGACY.demand, words: `Legacy: ${legacyTheme.name}` } : null));
   run.legacySat = (b) => (legacyFor(b.type) ? SIGNATURE_LEGACY.sat : 0);
+  // (Milestone 33) the first-time guide (Dame Opal): on for a new resort, off for NG+ or a player who has done it
+  run.guide = createGuide({ saved: data.guide ?? null, bus, founder: data.resort?.founder?.id ?? 'S01', account, ngPlus: data.ngPlus ?? 0 });
   run.reviews.attachPrestige(() => run.awards.prestige);
   run.themes.setPrestige(() => run.awards.prestige);
   bus?.on('review:new', ({ review }) => run.awards.onReview(review));
@@ -117,6 +121,7 @@ export function saveLate(run, data) {
   data.weather = run.weather?.serialize() ?? data.weather; // (Milestone 24)
   data.achv = run.achievements?.serialize() ?? data.achv; // (Milestone 26) this run's achievement counters
   data.secrets = run.secrets?.serialize() ?? data.secrets; // (Milestone 27) the secrets' run half
+  data.guide = run.guide?.serialize() ?? data.guide ?? null; // (Milestone 33)
   data.ending = run.ending?.serialize() ?? data.ending ?? null; // (Milestone 28) the Year-20 ending, once reached
   if (data.ending) data.grade = data.ending.grade; // (the slot card's grade)
   return data;

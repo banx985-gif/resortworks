@@ -85,7 +85,9 @@ export const GUEST_IDS = Object.keys(GUEST_TYPES).sort();
 
 // Offers (Cowork's starting pick): 2–4 new offers each Morning, arriving today to +3 days. Unanswered offers expire at
 // the end of the day.
-export const OFFERS = { perMorning: [2, 3], arriveWithin: [0, 3] }; // (M12: 2–3, was 2–4 — rooms now held from the arrival day, see DECISIONS)
+// (Milestone 34 soak) a bigger resort gets more offers: perExtraRoom more each Morning for every open room beyond baseRooms
+// (Claude Code's tuning: without it a 30-room resort filled only ~20% — growing lost money). The motel's eight: unchanged.
+export const OFFERS = { perMorning: [2, 3], arriveWithin: [0, 3], baseRooms: 8, perExtraRoom: 0.2 }; // (M12: 2–3, was 2–4 — rooms now held from the arrival day, see DECISIONS)
 
 // Room states (bible §10). sellable = can be sold / assigned. Cleaning is used from M4 (src/systems/housekeeping.js);
 // Maintenance from M8 (a broken room, src/systems/maintenance.js). colour = the code-drawn badge on the map.

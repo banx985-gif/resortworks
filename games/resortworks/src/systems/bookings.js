@@ -110,6 +110,9 @@ export function makeOffers(seed, day, stats = null, pricing = null, pk = null, s
   const base = Math.max(-DEMAND_CAP, Math.min(DEMAND_CAP, rx('demand') + (book ?? { rawBaseDemand }).rawBaseDemand()));
   const avgN = (OFFERS.perMorning[0] + OFFERS.perMorning[1]) / 2;
   let n = rng.int(OFFERS.perMorning[0], OFFERS.perMorning[1]);
+  // (Milestone 34) more rooms, more offers (its own roll: an eight-room motel's offers are exactly as before)
+  const extra = Math.max(0, ROOMS.length - OFFERS.baseRooms) * OFFERS.perExtraRoom;
+  if (extra > 0) n += Math.floor(extra) + (new Rng(`${seed}:more-rooms:${day}`).next() < extra % 1 ? 1 : 0);
   if (base !== 0) {
     const roll = new Rng(`${seed}:ads:${day}`).next();
     if (base > 0 && roll < base * avgN) n++;

@@ -24,6 +24,7 @@ import { has } from './facilities.js';
 import { rx } from './research.js';
 import { activeCombos } from './themes.js';
 import { RIVAL_NG } from '../../data/ngplus.js';
+import { RIVAL_TUNE } from '../../data/awards.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const r2 = (x) => Math.round(x * 100) / 100;
@@ -144,9 +145,12 @@ export function createAwards({ saved = null, bus = null, seed = 'resortworks', r
   let ngPlus = () => 0; // (Milestone 28)
   function rivalScore(rid, id, year = yearOf(today), strong = null) {
     const r = rivalById(rid);
-    let v = r.base + r.growth * (year - 1) + (s.variance[id]?.[rid] ?? 0) + RIVAL_NG * (ngPlus() ?? 0); // (Milestone 28) stronger rivals in NG+
+    // (Milestone 34 tuning) rivals mature: they grow for RIVAL_TUNE.growthYears years, then hold; and their strength is
+    // capped at RIVAL_TUNE.cap before the year's ±4 — without it Crown Bay passed 100 in the world awards by Year 10.
+    let v = Math.min(RIVAL_TUNE.cap, r.base + r.growth * Math.min(year - 1, RIVAL_TUNE.growthYears)) + (s.variance[id]?.[rid] ?? 0) + RIVAL_NG * (ngPlus() ?? 0); // (Milestone 28) stronger rivals in NG+
     if (r.spec.includes(id)) v += r.bonus;
     if (r.adaptive && strong === id) v += r.bonus;
+    v = Math.min(v, RIVAL_TUNE.cap + VARIANCE + RIVAL_NG * (ngPlus() ?? 0)); // (M34: a specialty never lifts a rival past the cap + its ±4)
     return r2(v);
   }
   // Eligible for this award now? (one plain line why not, or null)

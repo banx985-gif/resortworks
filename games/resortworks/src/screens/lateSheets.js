@@ -28,6 +28,7 @@ import { FACILITY_INFO } from '../../data/facilities.js';
 import { STAFF, LEGENDS } from '../../data/roster.js';
 import { ACHIEVEMENTS } from '../../data/achievements.js';
 import { NG_LEVELS } from '../../data/ngplus.js';
+import { HELP_TOPICS, STARS_VS_PRESTIGE } from '../../data/guide.js';
 import { PRODUCTS, TOKEN_SINKS, REWARDED } from '../../data/monetisation.js';
 import { PALETTES } from '../../data/setup.js';
 import { ngOptions, ngWhy } from '../systems/ending.js';
@@ -68,6 +69,7 @@ function officeSheet(run, arg, { act, accent }) {
     if (aw.expo && !aw.expo.done) rows.push({ id: 'office:expo', icon: 'ui_28', label: EXPO.name, sub: 'This month: enter for a ranked result against the rivals (or skip)', accent: C.action, onTap: () => act.panel('expo') });
     rows.push({ id: 'office:awards', icon: 'ui_29', label: 'Awards & Rivals', sub: `${plural(aw.wins.length, 'award')} won · Prestige ${Math.round(aw.prestige)}`, accent: C.progress, onTap: () => act.panel('awards') });
   }
+  rows.push({ id: 'office:help', icon: 'ui_19', label: 'Help', sub: run.guide && !run.guide.isOff && !run.guide.finished ? 'Dame Opal’s guide is on · how everything works' : 'How everything works · replay the guide', accent: C.progress, onTap: () => act.panel('help') });
   if (run.saves) rows.push({ id: 'office:saves', icon: 'ui_33', label: 'Saves', sub: run.saves.lastWords?.() ?? 'Saved automatically every 7 days and at every big moment', accent: C.progress, onTap: () => act.panel('saves') });
   if (run.money?.enabled) rows.push({ id: 'office:store', icon: 'ui_31', label: 'Store', sub: `${run.money.tokens} Resort Tokens${run.money.removeAds ? ' · no ads' : ''}`, accent: C.progress, onTap: () => act.panel('store') });
   if (run.ending?.reached) rows.push({ id: 'office:ending', icon: 'ui_30', label: `Year 20: Grade ${run.ending.result.grade}`, sub: run.ngPlus >= 3 ? 'Your twenty years, graded.' : `${run.ending.result.total} / 100 · New Game+${Math.min(3, run.ngPlus + 1)} is ready`, accent: C.gold, onTap: () => act.panel('ending') });
@@ -513,9 +515,61 @@ function savesSheet(run, arg, { act, accent }) {
   };
 }
 
-export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet, awards: awardsSheet, expo: expoSheet, weather: weatherSheet, achievements: achievementsSheet, secrets: secretsSheet, secret: secretSheet, ending: endingSheet, ngSetup: ngSetupSheet, store: storeSheet, saves: savesSheet };
+// (Milestone 33) Help: the pages, the guide's tips seen, replay / switch off
+function helpSheet(run, arg, { act, accent }) {
+  const g = run.guide;
+  const topic = HELP_TOPICS.find((t) => t.id === arg);
+  if (topic) return { key: `panel:help:${topic.id}`, title: topic.title, art: topic.icon, accent, sections: [{ std: 'help:page', columns: 1, lines: topic.paras.map((t) => ({ text: t })) }, { columns: 1, buttons: [{ id: 'panel:back', label: '‹ Help', accent: C.textMuted, onTap: () => act.panel('help') }] }] };
+  return {
+    key: 'panel:help',
+    title: 'Help',
+    subtitle: 'How the resort works. Dame Opal’s tips are here too.',
+    art: 'ui_19',
+    accent,
+    sections: [
+      { title: 'Pages', std: 'help:topics', columns: 1, buttons: HELP_TOPICS.map((t) => ({ id: `help:${t.id}`, icon: t.icon, label: t.title, sub: t.paras[0].slice(0, 70) + '…', accent: C.progress, onTap: () => act.panel('help', t.id) })) },
+      ...(g?.seen.length ? [{ title: 'Tips seen', std: 'help:seen', columns: 1, lines: g.seen.map((st) => ({ text: `${st.title}: ${st.text}` })) }] : []),
+      { columns: 1, buttons: [
+        { id: 'help:replay', label: 'Replay the guide', sub: 'Dame Opal walks you through again from the start.', accent: C.action, onTap: () => act.do('guideReplay') },
+        ...(g && !g.isOff ? [{ id: 'help:off', label: 'Turn the guide off', accent: C.textMuted, onTap: () => act.do('guideOff') }] : []),
+      ] },
+      back(act),
+    ],
+  };
+}
+// (Milestone 33) the guide's last step: Stars vs Prestige explained, then one question (the scripted check)
+function starsQuizSheet(run, arg, { act, accent }) {
+  const q = STARS_VS_PRESTIGE;
+  const g = run.guide;
+  return {
+    key: 'panel:starsQuiz',
+    title: q.title,
+    subtitle: 'Dame Opal',
+    art: 'cast_opal',
+    accent,
+    sections: [
+      { std: 'quiz:explain', columns: 1, lines: q.explain.map((t) => ({ text: t })) },
+      { title: q.question, std: 'quiz:q', columns: 1, lines: g?.understood ? [{ text: q.answers.find((a) => a.right).reply, color: C.good }] : [], buttons: g?.understood ? [{ id: 'quiz:done', label: 'Thank you, Dame Opal', accent: C.good, onTap: () => act.close?.() ?? act.panel('office') }] : q.answers.map((a) => ({ id: `quiz:${a.id}`, label: a.label, accent: C.action, onTap: () => act.do('guideAnswer', a.id) })) },
+    ],
+  };
+}
+
+export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet, awards: awardsSheet, expo: expoSheet, weather: weatherSheet, achievements: achievementsSheet, secrets: secretsSheet, secret: secretSheet, ending: endingSheet, ngSetup: ngSetupSheet, store: storeSheet, saves: savesSheet, help: helpSheet, starsQuiz: starsQuizSheet };
 
 export const LATE_OPS = {
+  // (Milestone 33) the guide
+  guideAnswer(run, id) {
+    const r = run.guide?.answer(id);
+    return r ? { [r.right ? 'say' : 'why']: r.reply, panel: ['starsQuiz'] } : null;
+  },
+  guideReplay(run) {
+    run.guide?.replay();
+    return { say: 'Dame Opal will show you round again.', panel: ['office'] };
+  },
+  guideOff(run) {
+    run.guide?.off();
+    return { say: 'The guide is off. Replay it from Help any time.', panel: ['help'] };
+  },
   // (Milestone 32) Saves
   saveNow(run) {
     run.saves?.now();

@@ -13,6 +13,9 @@ export const RIVALS = [
   { id: 'RV08', name: 'Mirage One', base: 84, growth: 1.0, bonus: 8, spec: [], adaptive: true, specWords: 'adaptive +8 to your strongest category' },
 ].map((r) => ({ ...r, art: `rival_${r.id.toLowerCase()}` }));
 export const rivalById = (id) => RIVALS.find((r) => r.id === id) ?? null;
+// (Milestone 34 tuning, DECISIONS M34) rivals grow for their first 10 years, then hold; no rival is stronger than 92 (+ the
+// year's ±4) in any award, specialty included.
+export const RIVAL_TUNE = { growthYears: 10, cap: 92 };
 export const VARIANCE = 4; // ± seeded per rival per award per year, rolled and saved at the start of each year
 
 // The visible awards: the month judged (bible §27L), the category formula (weights out of 100), the field of rivals
