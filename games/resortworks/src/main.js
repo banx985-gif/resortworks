@@ -101,6 +101,8 @@ import { createCampaigns } from './app/campaigns.js';
 import { slotSummary } from './systems/resort.js';
 import { newGamePlus } from './systems/ending.js'; // (Milestone 28)
 import { createMonetisation } from './systems/monetisation.js'; // (Milestone 29)
+import { AudioManager } from '../../../core/AudioManager.js'; // (Milestone 31)
+import { SOUNDS, MUSIC, AUDIO_BASE, AUDIO_MANIFEST, EVENT_SOUNDS, AMBIENCE_BY_BAND, HAPTICS } from '../data/audio.js';
 import { SERVICES, PRODUCTS, FAKE_PRICES } from '../data/monetisation.js';
 import { FakeStoreProvider } from '../../../core/FakeStoreProvider.js';
 import { createMenuScreen } from './screens/MenuScreen.js';
@@ -325,7 +327,24 @@ const govMode = () => settings.get('fpsMode') ?? 'auto';
 const governor = new FrameGovernor({ mode: govMode(), bus, capFps: true });
 loop.governor = governor;
 const haptics = new Haptics({ enabled: () => settings.get('haptics') !== false });
+// (Milestone 31) code-made sound (no files, no licensed music): effects, the day's tune and the ambience by the part of the day
+const audio = new AudioManager({ bus, sounds: SOUNDS, music: MUSIC, basePath: AUDIO_BASE, fileList: () => fetch(AUDIO_MANIFEST, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : [])).catch(() => []) });
+audio.installUnlock();
+for (const [ev, id] of Object.entries(EVENT_SOUNDS)) bus.on(ev, () => open && audio.play(id));
+for (const [ev, kind] of Object.entries(HAPTICS)) bus.on(ev, (x) => (ev !== 'awards:result' || x?.result?.won) && haptics[kind]?.());
+let ambience = null;
+function setAmbience(band) {
+  const id = open && band ? AMBIENCE_BY_BAND[band] ?? null : null;
+  if (id === ambience) return;
+  if (ambience) audio.stopLoop('ambience');
+  ambience = id;
+  if (id) audio.startLoop(id, 'ambience');
+}
+bus.on('band:change', ({ band }) => setAmbience(band));
 function applySettings() {
+  // (Milestone 31) sound: all off, or effects / ambience and the tune at their own volumes and mutes
+  audio.setMuted(settings.get('muted') === true);
+  audio.setVolumes({ sfx: settings.get('sfxMuted') ? 0 : (settings.get('sfx') ?? 100) / 100, music: settings.get('musicMuted') ? 0 : ((settings.get('music') ?? 75) / 100) * 0.6 });
   setTextScale(TEXT_SCALE[settings.get('textSize')] ?? 1);
   if (governor.mode !== govMode()) governor.setMode(govMode());
 }
@@ -469,6 +488,8 @@ function openRun(n, data) {
   run.startNgPlus = (choices) => startNgPlus(run, choices);
   open = run;
   run.money = money; // (Milestone 29)
+  audio.playMusic('music_day'); // (Milestone 31) the resort's tune and the ambience of this part of the day
+  setAmbience(c.band.id);
   for (const m of run.team) ensureArt(staffDef(m.id)?.art); // (Milestone 28b) a god on the team: their portrait
   run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;
@@ -722,7 +743,7 @@ async function leaveResort() {
   await campaigns.refresh();
   open = null;
 }
-const resortScreen = createResortScreen({ renderer, layout, assets, bus, sheet, feedback, run: () => open, onMenu: () => leaveResort(), debug, reducedFlashes: () => settings.get('reducedFlashes') === true, onSkip: (days) => skipDays(days), onRep: () => addRep() });
+const resortScreen = createResortScreen({ renderer, layout, assets, bus, sheet, feedback, run: () => open, onMenu: () => leaveResort(), debug, reducedFlashes: () => settings.get('reducedFlashes') === true, showMenu: () => settings.get('showMenu') !== false, showHints: () => settings.get('showHints') !== false, highContrast: () => settings.get('highContrast') === true, reducedMotion: () => settings.get('reducedMotion') === true || settings.get('reducedFlashes') === true, onSkip: (days) => skipDays(days), onRep: () => addRep() });
 
 // Settings: the series list in bible §36 order and names, then Help / Privacy / Credits, then the display test.
 // Reachable from the Main Menu (always).
@@ -797,7 +818,7 @@ const testSheet = () => ({
 
 // ?debug=1: a test hook for automated checks.
 if (debug.enabled) {
-  window.__rw = { bus, renderer, layout, input, loop, router, assets, sheet, dialog, systemBack, textPrompt, settings, governor, haptics, splashScreen, menuScreen, slotsScreen, setupScreen, resortScreen, feedback, addRep, playSlot, startResort, deleteSlot, newGame, openSettings, booting, autosave, clearMoments, saveRun, skipDays, taps: [], get booted() { return booted; }, get account() { return account; }, get campaigns() { return campaigns; }, get open() { return open; } };
+  window.__rw = { audio, bus, renderer, layout, input, loop, router, assets, sheet, dialog, systemBack, textPrompt, settings, governor, haptics, splashScreen, menuScreen, slotsScreen, setupScreen, resortScreen, feedback, addRep, playSlot, startResort, deleteSlot, newGame, openSettings, booting, autosave, clearMoments, saveRun, skipDays, taps: [], get booted() { return booted; }, get account() { return account; }, get campaigns() { return campaigns; }, get open() { return open; } };
 }
 
 router.go('boot');

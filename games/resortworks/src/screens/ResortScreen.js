@@ -88,7 +88,7 @@ import { GRID, BUILD_LOOK, SCAFFOLD, DOUGIE, ROOM_BUILD, FACILITY_BUILD, landByI
 import { FACILITY_INFO } from '../../data/facilities.js';
 import { siteVersion, tileOwned } from '../systems/site.js';
 import { buildListSheet, buildItemSheet } from './buildSheets.js';
-import { LATE_SHEETS, LATE_OPS } from './lateSheets.js';
+import { LATE_SHEETS, LATE_OPS, nextStep } from './lateSheets.js';
 import { drawWalker } from './walkers.js';
 import { eventById, RESULT, ROCCO } from '../../data/events.js';
 import { PRIYA } from '../../data/partners.js';
@@ -113,7 +113,7 @@ const DETAIL_STEPS = [0.35, 0.5, 0.7, 1.0, 1.4];
 const detailFor = (zoom) => DETAIL_STEPS.find((d) => d >= zoom - 1e-3) ?? DETAIL_STEPS[DETAIL_STEPS.length - 1];
 const PEOPLE_FIRST = 1e6; // people are picked over the building behind them
 
-export function createResortScreen({ renderer, layout, assets, bus, sheet, feedback = null, run, onMenu, debug = null, reducedFlashes = () => false, onSkip = () => {}, onRep = () => {} }) {
+export function createResortScreen({ renderer, layout, assets, bus, sheet, feedback = null, run, onMenu, debug = null, reducedFlashes = () => false, showMenu = () => true, showHints = () => true, highContrast = () => false, reducedMotion = () => false, onSkip = () => {}, onRep = () => {} }) {
   let walkClock = 0; // (Milestone 27b) seconds, for the walking sheets
   const W = renderer.width;
   const iso = new IsoProjection({ tileSize: CELL, halfW: HW, halfH: HH, originX: LOT.margin + ROWS_DRAWN * HW, originY: LOT.margin + LOT.topOverhang });
@@ -377,7 +377,14 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   // (Milestone 28) the Year-20 ending
   bus.on('ending:reached', ({ result }) => toast(`Twenty years open: Grade ${result.grade}!`, `${result.total} / 100. Tap to see your grade and New Game+.`, 'ui_30', { panel: ['ending'] }));
   bus.on('secrets:found', ({ name, words }) => toast(`Secret found: ${name}!`, `${words}.`, 'sec_found', { panel: ['secrets'] }));
-  bus.on('secret:clue', ({ rule, stage }) => (rule.id === 'SEC-GOD-5' && (run()?.secrets?.facts.get('godsHiredEver') ?? 0) < 4) || toast(stage >= 2 ? 'A secret is close…' : 'A rumour…', (rule.clueStages[stage - 1]?.text ?? '').includes('{missing}') ? rule.clueStages[0].text : rule.clueStages[stage - 1]?.text ?? rule.clueStages[0].text, 'sec_hidden', { panel: ['secrets'] }));
+  // (Milestone 27, quieter in M31) a rumour (stage 1) is only in the Archive; 'close' (stage 2) is a toast at most once a game week
+  let clueToastDay = -99;
+  bus.on('secret:clue', ({ rule, stage }) => {
+    const day = run()?.calendar?.today ?? 0;
+    if (stage < 2 || day - clueToastDay < 7 || (rule.id === 'SEC-GOD-5' && (run()?.secrets?.facts.get('godsHiredEver') ?? 0) < 4)) return;
+    clueToastDay = day;
+    toast('A secret is close…', (rule.clueStages[stage - 1]?.text ?? '').includes('{missing}') ? rule.clueStages[0].text : rule.clueStages[stage - 1]?.text ?? rule.clueStages[0].text, 'sec_hidden', { panel: ['secrets'] });
+  });
   bus.on('secrets:arrival', ({ id, name, until, back, line }) => toast(back ? `${name} wants to come back` : line ? `${name} drops by!` : `${name} is looking for work!`, `${line ? `${line} ` : ''}Hire them at the Motel Service Block before Day ${until + 1}.`, staffDef(id)?.art ?? 'sec_found', { panel: ['secrets'] }));
   bus.on('secrets:poached', ({ name, rival }) => toast(`${name} left for ${rivalById(rival)?.name ?? 'a rival'}`, 'Beat them in an award and they might come back.', 'ui_28', { panel: ['awards'] }));
   bus.on('site:dougie', ({ line, id }) => toast(DOUGIE.name, line, DOUGIE.art, id && world?.byId(id) ? { open: id } : null));
@@ -977,7 +984,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   function drawWeather(ctx) {
     const id = run()?.weather?.now ?? 'mild';
     const look = WX_LOOK[id];
-    const calm = reducedFlashes();
+    const calm = reducedFlashes() || reducedMotion(); // (M31: reduced motion calms the rain too)
     if (look?.tint) {
       const [r, g, b, a] = look.tint;
       ctx.fillStyle = `rgba(${r},${g},${b},${(a * (calm ? 0.6 : 1)).toFixed(3)})`;
@@ -1069,6 +1076,10 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     openBuildList,
     openBuildItem,
     openSheet,
+    // (Milestone 31) what the accessibility switches read now (tests)
+    get access() {
+      return { showMenu: showMenu(), showHints: showHints(), highContrast: highContrast(), reducedMotion: reducedMotion() };
+    },
     enter() {
       active = true;
       if (!ensureWorld()) return;
@@ -1224,7 +1235,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         openBuildList('button');
         return log('build');
       }
-      if (hitRect(p, officeRect())) {
+      if (showMenu() ? hitRect(p, officeRect()) : hitRect(p, plateRect())) { // (Milestone 31) the Menu button off: the plate opens the Office
         openPanel('office', null, 'button'); // (Milestone 18) the Resort Office
         return log('office');
       }
@@ -1283,7 +1294,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         if (it.kind === 'guest' || it.kind === 'staff') {
           const r = personRect(it);
           pose.flip = it.facing;
-          if (!(it.sheet && drawWalker(ctx, assets, it.sheet, { x: r.x + r.w / 2, y: r.y + r.h, h: r.h * 0.92, anim: it.phase === 'at' ? 'idle' : 'walk', mirror: it.facing < 0, t: walkClock, folder: it.sheetFolder, glow: it.glow }))) drawCharacter(ctx, assets, it.art, r.x + r.w / 2, r.y + r.h, r.w, r.h, pose); // (M27b) a sheet, when filed and loaded
+          if (!(it.sheet && drawWalker(ctx, assets, it.sheet, { x: r.x + r.w / 2, y: r.y + r.h, h: r.h * 0.92, anim: it.phase === 'at' ? 'idle' : 'walk', mirror: it.facing < 0, t: reducedMotion() ? 0 : walkClock, folder: it.sheetFolder, glow: it.glow }))) drawCharacter(ctx, assets, it.art, r.x + r.w / 2, r.y + r.h, r.w, r.h, pose); // (M27b) a sheet, when filed and loaded
         } else if (it.kind === 'plot') drawScaffold(ctx, it);
         else {
           const r = artRect(it);
@@ -1377,7 +1388,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       const skip = Object.fromEntries(SKIPS.map((s, i) => [s.id, debugSkips() ? skipRect(i) : null]));
       if (id?.startsWith?.('badge:')) return badgeRects().find((b) => b.id === id.slice(6))?.rect ?? null;
       if (id?.startsWith?.('wrench:')) return wrenchRects().find((b) => b.id === id.slice(7))?.rect ?? null;
-      return { build: buildMode ? null : buildRect(), place: buildMode ? placeRect() : null, cancelPlace: buildMode && place ? cancelPlaceRect() : null, menu: menuRect(), shortcut: shortcutRect(), layout: layoutRect(), legend: overlay ? legendRect() : null, done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), office: buildMode ? null : officeRect(), note: note ? noteRect() : null, toast: toastRect(), stats: scoresRect(), credits: creditsRect(), skipMoment: feedback?.current?.skipRect?.() ?? null, ...bar, ...skip }[id] ?? null;
+      return { build: buildMode ? null : buildRect(), place: buildMode ? placeRect() : null, cancelPlace: buildMode && place ? cancelPlaceRect() : null, menu: menuRect(), shortcut: shortcutRect(), layout: layoutRect(), legend: overlay ? legendRect() : null, done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), office: buildMode || !showMenu() ? null : officeRect(), note: note ? noteRect() : null, toast: toastRect(), stats: scoresRect(), credits: creditsRect(), skipMoment: feedback?.current?.skipRect?.() ?? null, ...bar, ...skip }[id] ?? null;
     },
     // (Milestone 9) the overlay now ('off' / 'noise' / 'views'), and set it (tests).
     get overlay() {
@@ -1683,8 +1694,8 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       ctx.roundRect(r.x + 2, r.y + 4, r.w, r.h, r.h / 2);
       ctx.fill();
       ctx.fillStyle = b.st.color;
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 3 * k;
+      ctx.strokeStyle = highContrast() ? '#000000' : '#FFFFFF'; // (Milestone 31) high contrast
+      ctx.lineWidth = (highContrast() ? 6 : 3) * k;
       ctx.beginPath();
       ctx.roundRect(r.x, r.y, r.w, r.h, r.h / 2);
       ctx.fill();
@@ -1765,8 +1776,8 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       const cy = r.y + r.h / 2;
       ctx.save();
       ctx.fillStyle = look.color;
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 3 * k;
+      ctx.strokeStyle = highContrast() ? '#000000' : '#FFFFFF'; // (Milestone 31) high contrast
+      ctx.lineWidth = (highContrast() ? 6 : 3) * k;
       ctx.beginPath();
       if (look.shape === 'triangle') {
         ctx.moveTo(cx, r.y - 2 * k);
@@ -1852,7 +1863,10 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     // (Milestone 24) this month's weather after the manager's name
     const wx = WEATHER[o.weather?.now ?? 'mild'];
     text(ctx, `${managerLine(o.data.resort.manager)}${wx ? ` · ${wx.name}` : ''}`, off.x - 16, mid, { size: S.small, color: C.textMuted, align: 'right', baseline: 'middle', maxWidth: Math.max(0, off.x - 16 - (r.x + 40 + half) - 12) });
-    drawButton(ctx, off, 'Office', { accent: C.progress });
+    if (showMenu()) drawButton(ctx, off, 'Office', { accent: C.progress }); // (Milestone 31) Settings → Show Menu button
+    // (Milestone 31) Settings → Show next-step hints: the Office's "Next:" line under the plate
+    const hint = showHints() && !note ? nextStep(o) : null;
+    if (hint) text(ctx, `Next: ${hint}`, r.x + 40, r.y + r.h + 26, { size: S.small, bold: true, color: palette.dark, baseline: 'middle', maxWidth: r.w - 80 });
 
   }
   // Why a locked speed was refused: one plain line under the plate for a few seconds.

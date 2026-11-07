@@ -12,11 +12,16 @@ export const SETTINGS = seriesSettings({
     fpsMode: 'Graphics / performance',
   },
   lines: {
-    muted: 'All music and sound effects on or off (the resort’s sounds arrive in a later update).',
+    muted: 'All music, ambience and sound effects on or off.',
     fpsMode: 'Auto: 60 FPS, a steady 30 if the phone struggles. High: always 60 with every effect. Low: 30 FPS, fewer effects, simpler guest figures.',
   },
+  // (Milestone 31) RESORTWORKS's own accessibility extras, after the series list (bible §36)
+  extras: [
+    { id: 'highContrast', label: 'High contrast', group: 'Accessibility', options: [{ id: false, label: 'Off' }, { id: true, label: 'On' }], line: 'Room badges, queues and condition markers with dark outlines and stronger colours.' },
+    { id: 'reducedMotion', label: 'Reduced motion', group: 'Accessibility', options: [{ id: false, label: 'Off' }, { id: true, label: 'On' }], line: 'Steadier walkers, no rain animation and no pulsing glows.' },
+  ],
 });
-export const SETTINGS_DEFAULTS = { ...SERIES_SETTINGS_DEFAULTS };
+export const SETTINGS_DEFAULTS = { ...SERIES_SETTINGS_DEFAULTS, highContrast: false, reducedMotion: false }; // (M31: the two extras)
 export const SETTINGS_KEY = 'resortworks:settings';
 export { TEXT_SCALE };
 export const SETTINGS_TEXT = {
