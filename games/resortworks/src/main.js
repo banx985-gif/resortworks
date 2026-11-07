@@ -363,7 +363,7 @@ let account = {}; // the account store (core/CampaignSlots): empty until achieve
 function openRun(n, data) {
   const run = { n, data, calendar: null, bookings: null, team: null, housekeeping: null, reviews: null, finance: null, complaints: null, maintenance: null, layout: null };
   // (Milestone 5) the speed unlocks read the live Rank
-  run.calendar = createCalendar({ bus, saved: data.calendar ?? null, run: () => ({ ...run.data, reviews: run.reviews?.live ?? run.data.reviews }) });
+  run.calendar = createCalendar({ bus, saved: data.calendar ?? null, run: () => ({ ...run.data, reviews: run.reviews?.live ?? run.data.reviews, awards: run.awards?.live ?? run.data.awards }) }); // (M23) the first award
   const c = run.calendar;
   run.site = createSite({ saved: data.site ?? null, bus, now: () => run.calendar.minute }); // (Milestone 12) the land first
   setLiveStage(data.progress?.stage ?? 'roadside'); // (Milestone 18) the stage too: who can book (before the bookings catch up)
@@ -452,7 +452,7 @@ async function saveRun() {
 }
 const autosave = new Autosave({
   bus,
-  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage', 'research:change', 'items:change', 'packages:change', 'packages:sold', 'events:change', 'guestbook:change', 'themes:change', 'supplies:change', 'partners:change'],
+  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage', 'research:change', 'items:change', 'packages:change', 'packages:sold', 'events:change', 'guestbook:change', 'themes:change', 'supplies:change', 'partners:change', 'awards:change'],
   save: () => saveRun(),
   stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize(), open.maintenance.serialize(), open.staffing.serialize(), open.site.serialize(), open.progress.serialize(), open.research.serialize(), open.items.serialize()]) : null),
   enabled: () => !!open,

@@ -70,7 +70,7 @@ export const ITEM_SOURCES = {
   gift: { name: 'A guest’s gift', live: true }, // (Milestone 20) a Regular who loved the stay
   partner: { name: 'A Partner', live: true }, // (Milestone 22) a contract goal met
   event: { name: 'A Great Success event', live: true }, // (Milestone 19)
-  award: { name: 'An award', live: false, later: 'M23' },
+  award: { name: 'An award', live: true }, // (Milestone 23) a visible award won
   achievement: { name: 'An achievement', live: false, later: 'M26' },
   debug: { name: 'Test', live: true, debug: true }, // (?debug=1 and tests only)
 };

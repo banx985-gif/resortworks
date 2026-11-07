@@ -11,6 +11,7 @@ import { createGuestbook } from './guestbook.js';
 import { createThemes } from './themes.js';
 import { createSupplies } from './supplies.js';
 import { createPartners } from './partners.js';
+import { createAwards } from './awards.js';
 
 export function attachLate(run, data = {}, { bus = null } = {}) {
   // (Milestone 18) this resort's demand book (every source adds to it, held within ±20%)
@@ -28,6 +29,7 @@ export function attachLate(run, data = {}, { bus = null } = {}) {
     run.events.onEdge(day, band);
     run.themes?.onEdge(day, band, run.bookings); // (Milestone 21)
     run.partners?.onEdge(day, band); // (Milestone 22)
+    run.awards?.onEdge(day, band); // (Milestone 23)
   });
   run.staffing.setExtraLoad((day) => run.events.loadOn(day));
   // (Milestone 20) the Guestbook: every notable stay, memories, returning guests and Regulars
@@ -47,6 +49,13 @@ export function attachLate(run, data = {}, { bus = null } = {}) {
   run.events.setDemand(() => run.partners.total('enquiries'));
   bus?.on('review:new', ({ review }) => run.partners.signal('stay', { type: review.type, sat: review.sat, pkg: review.pkg }));
   bus?.on('events:result', ({ event }) => run.partners.signal('event', { score: event.score }));
+  // (Milestone 23) rivals, the award calendar, Prestige and the Expo
+  run.awards = createAwards({ saved: data.awards ?? null, bus, seed: data.seed ?? run.seed ?? 'resortworks', reviews: run.reviews, finance: run.finance, layout: run.layout, staffing: run.staffing, maintenance: run.maintenance, events: run.events, guestbook: run.guestbook, themes: run.themes, items: run.items, partners: run.partners, progress: run.progress, bookings: run.bookings, demand: run.demand });
+  run.progress.attachAwards(run.awards);
+  run.reviews.attachPrestige(() => run.awards.prestige);
+  run.themes.setPrestige(() => run.awards.prestige);
+  bus?.on('review:new', ({ review }) => run.awards.onReview(review));
+  bus?.on('guestbook:memory', ({ guest, memory }) => run.awards.onMemory(guest, memory));
   bus?.on('events:result', ({ event }) => run.themes.onEvent(event));
   bus?.on('review:new', ({ review }) => run.guestbook.onReview(review));
   bus?.on('events:result', ({ event }) => run.guestbook.onEvent(event));
@@ -61,5 +70,6 @@ export function saveLate(run, data) {
   data.themes = run.themes?.serialize() ?? data.themes; // (Milestone 21)
   data.supplies = run.supplies?.serialize() ?? data.supplies; // (Milestone 22)
   data.partners = run.partners?.serialize() ?? data.partners;
+  data.awards = run.awards?.serialize() ?? data.awards; // (Milestone 23)
   return data;
 }

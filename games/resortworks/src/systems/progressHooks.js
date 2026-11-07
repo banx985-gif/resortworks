@@ -5,6 +5,6 @@
 import { rankReached } from './reviews.js';
 
 export const PROGRESS_HOOKS = {
-  firstAwardWon: (run) => false, // M23: true once the resort has won any award
+  firstAwardWon: (run) => (run?.awards?.wins?.length ?? 0) > 0, // (M23) true once the resort has won any award
   rankAtLeast: (run, rank) => rankReached(run?.reviews ?? null, rank), // (M5) true once the Resort Rank is `rank` or better (E → S)
 };

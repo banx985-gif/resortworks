@@ -91,6 +91,7 @@ import { buildListSheet, buildItemSheet } from './buildSheets.js';
 import { LATE_SHEETS, LATE_OPS } from './lateSheets.js';
 import { eventById, RESULT, ROCCO } from '../../data/events.js';
 import { PRIYA } from '../../data/partners.js';
+import { awardById, EXPO, VICTOR } from '../../data/awards.js';
 const eventArt = (id) => eventById(id)?.art ?? null;
 const plural2 = (n, one) => `${n} ${n === 1 ? one : `${one}s`}`;
 import { researchSheet } from './researchSheet.js';
@@ -354,6 +355,12 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   bus.on('partners:offer', ({ name, renewal }) => toast(`${PRIYA.name}: ${renewal ? 'a renewal' : 'a Partner offer'}`, `${name} would like to work with you. Tap to see the deal.`, PRIYA.art, { panel: ['partners'] }));
   bus.on('partners:met', ({ name, credits: cr, items }) => toast(`${PRIYA.name}: goal met!`, `${name} pays ${credits(cr)} and ${plural2(items.length, 'Staff Item')}.`, PRIYA.art, { panel: ['partners'] }));
   bus.on('partners:ended', ({ name, record }) => toast(`${PRIYA.name}: ${name}'s contract ended`, record.result === 'met' ? 'They want to renew. Tap to see.' : 'The goal was missed: they will wait before offering again.', PRIYA.art, { panel: ['partners'] }));
+  // (Milestone 23) award nights (the result, then Victor Crane's line) and the Expo
+  bus.on('awards:result', ({ result, name, line }) => {
+    if (result.eligible) toast(result.won ? `★ You won the ${name}!` : `${name}: #${result.rank}`, result.won ? `Score ${Math.round(result.score)}. REP +150 and Prestige.` : `You ${Math.round(result.score)} · winner ${Math.round(result.field[0].score)}.`, awardById(result.id)?.art, { panel: ['awards'] });
+    if (line) toast(VICTOR.name, line, VICTOR.art);
+  });
+  bus.on('awards:expo', ({ invite, result }) => (invite ? toast(`The ${EXPO.name} is on!`, 'Enter this month for a ranked result against the rivals (or skip).', 'ui_28', { panel: ['expo'] }) : result?.line && toast(VICTOR.name, result.line, VICTOR.art)));
   bus.on('site:dougie', ({ line, id }) => toast(DOUGIE.name, line, DOUGIE.art, id && world?.byId(id) ? { open: id } : null));
   bus.on('progress:stage', ({ name }) => toast(`Welcome to the ${name} stage!`, 'New rooms and facilities are in the build list.', DOUGIE.art));
   // (Milestone 13) a level reached (a toast; Lv8 / Lv16 ask for a specialisation)

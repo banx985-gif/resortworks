@@ -15,7 +15,7 @@
 //   On the bus: 'events:enquiry' · 'events:booked' · 'events:start' { event, line } · 'events:choice' { event } ·
 //   'events:result' { event } · 'events:change'
 import { Rng } from '../../../../core/Rng.js';
-import { EVENTS, eventById, ENQUIRY, RESULT, SCORE_W, PER_ATTENDEE_DAY, ROCCO_OPEN } from '../../data/events.js';
+import { EVENTS, eventById, ENQUIRY, RESULT, SCORE_W, PER_ATTENDEE_DAY, ROCCO_OPEN, RARE_REP } from '../../data/events.js';
 import { VENUE_CAP } from '../../data/packages.js';
 import { FACILITY_FX } from '../../data/facilities.js';
 import { GUEST_TYPES, ROOM_TYPES } from '../../data/bookings.js';
@@ -189,7 +189,8 @@ export function createEvents({ saved = null, bus = null, seed = 'resortworks', t
     const pay = Math.round(evt.fee * res.feeShare);
     finance?.earn('events', pay, day, evt.venue);
     finance?.spend('eventCosts', PER_ATTENDEE_DAY * evt.group * evt.nights * (finance?.foodMult?.() ?? 1), day, evt.venue);
-    if (res.rep) reviews?.addRepFor?.(res.rep, `${e.name}: ${res.name}`);
+    const repN = res.rep > 0 && e.rare ? RARE_REP : res.rep; // (M23) bible §27A: +25 a successful event, +60 a rare one
+    if (repN) reviews?.addRepFor?.(repN, `${e.name}: ${res.name}`);
     if (res.id === 'great') {
       evt.memory = `Great ${e.name}`;
       s.stats.great++;

@@ -37,9 +37,10 @@ export const ENQUIRY = { everyDays: 7, chance: 0.5, weight: 10, rareWeight: 1, a
 export const RESULT = {
   fail: { id: 'fail', name: 'Failed', below: 50, feeShare: 0.5, rep: -8 },
   issues: { id: 'issues', name: 'Completed with issues', feeShare: 0.8, rep: 0 },
-  success: { id: 'success', name: 'Success', feeShare: 1, rep: 4 },
-  great: { id: 'great', name: 'Great Success', feeShare: 1.35, rep: 10 },
+  success: { id: 'success', name: 'Success', feeShare: 1, rep: 25 }, // (M23: bible §27A — a successful normal event +25 REP, a rare one +60)
+  great: { id: 'great', name: 'Great Success', feeShare: 1.35, rep: 25 },
 };
+export const RARE_REP = 60;
 // Event score weights (bible §27J): 30% Service + 25% Food + 20% Activity / event delivery + 15% room group score + 10%
 // venue condition − penalties. Costs (bible §27N): 18 Credits per attendee a day for food and service (× the food
 // supply tier from M22).

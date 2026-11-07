@@ -17,6 +17,7 @@ import { THEMES, COMBOS, SIGNATURE, themeById } from '../../data/themes.js';
 import { comboOn, whyNoCombo, activeCombos } from '../systems/themes.js';
 import { PARTNERS, partnerById, PRIYA, SUPPLY_GROUPS, SUPPLY_TIERS, TIER_IDS, TIER_NAMES } from '../../data/partners.js';
 import { supplyMult } from '../systems/supplies.js';
+import { RIVALS, rivalById, VISIBLE_AWARDS, AWARDS, awardById, EXPO, VICTOR } from '../../data/awards.js';
 import { SUPPLIES } from '../../data/finance.js';
 import { ROOM_TYPES } from '../../data/bookings.js';
 
@@ -51,6 +52,11 @@ function officeSheet(run, arg, { act, accent }) {
     const on = pb.active.filter(Boolean).length;
     rows.push({ id: 'office:partners', icon: 'ui_27', label: 'Partners', sub: `${on} of ${pb.slotsNow} on the board · ${plural(pb.offers.length, 'offer')} waiting`, accent: pb.offers.length ? C.action : C.progress, onTap: () => act.panel('partners') });
   }
+  const aw = run.awards;
+  if (aw) {
+    if (aw.expo && !aw.expo.done) rows.push({ id: 'office:expo', icon: 'ui_28', label: EXPO.name, sub: 'This month: enter for a ranked result against the rivals (or skip)', accent: C.action, onTap: () => act.panel('expo') });
+    rows.push({ id: 'office:awards', icon: 'ui_29', label: 'Awards & Rivals', sub: `${plural(aw.wins.length, 'award')} won · Prestige ${Math.round(aw.prestige)}`, accent: C.progress, onTap: () => act.panel('awards') });
+  }
   if (run.supplies) rows.push({ id: 'office:supplies', icon: 'ui_13', label: 'Suppliers', sub: SUPPLY_GROUPS.map((g) => `${g.name}: ${TIER_NAMES[run.supplies.tier(g.id)]}`).join(' · '), accent: C.progress, onTap: () => act.panel('supplies') });
   const gb = run.guestbook;
   if (gb) rows.push({ id: 'office:guestbook', icon: 'ui_21', label: 'Guestbook', sub: `${plural(gb.guests.length, 'guest')} · ${plural(gb.regulars.length, 'Regular')} · ${plural(gb.stats.returns, 'return')}`, accent: C.progress, onTap: () => act.panel('guestbook') });
@@ -66,6 +72,7 @@ function officeSheet(run, arg, { act, accent }) {
 }
 // One plain next step (the series hint line).
 export function nextStep(run) {
+  if (run.awards?.expo && !run.awards.expo.done) return `the ${EXPO.name} is on this month (Office).`;
   if (run.partners?.offers.length) return 'Priya has a Partner offer for you (Partners).';
   const ch = run.events?.pendingChoice;
   if (ch) return `Rocco needs your call at the ${eventById(ch.ev).name} (Events).`;
@@ -259,9 +266,54 @@ function suppliesSheet(run, arg, { act, accent }) {
   return { key: 'panel:supplies', title: 'Suppliers', subtitle: 'Food, linen, amenities and parts.', art: 'ui_13', accent, sections };
 }
 
-export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet };
+// (Milestone 23) the award calendar (this year: each award's month, eligibility, result), the rivals, Prestige.
+const MONTHS = ['', 'Month 1', 'Month 2', 'Month 3', 'Month 4', 'Month 5', 'Month 6', 'Month 7', 'Month 8', 'Month 9', 'Month 10', 'Month 11', 'Month 12'];
+function awardsSheet(run, arg, { act, accent, today = 0 }) {
+  const aw = run.awards;
+  const year = Math.floor(today / 336) + 1;
+  const sections = [{ lines: [{ text: 'Each visible award is judged once a year in its month against the rivals in its field. Win: REP +150, Prestige and a Staff Item.', color: C.textMuted }, { text: 'Prestige', right: `${Math.round(aw.prestige)} / 100` }, { text: 'Awards won', right: String(aw.wins.length) }] }];
+  sections.push({
+    title: `Year ${year} calendar`,
+    std: 'aw:calendar',
+    columns: 1,
+    buttons: VISIBLE_AWARDS.map((a) => {
+      const r = aw.results.find((x) => x.id === a.id && x.year === year);
+      const why = aw.whyNotEligible(a.id);
+      const sub = r ? (r.eligible ? `${r.won ? 'WON' : `#${r.rank}`} · you ${Math.round(r.score)} · best rival ${Math.round(r.field[0].score)} (${rivalById(r.field[0].id).name})` : `Not eligible: ${r.why}`) : `${MONTHS[a.month]} · ${why ? `needs: ${a.eligWords}` : `eligible · you'd score about ${Math.round(aw.scoreOf(a.id))}`}`;
+      return { id: `aw:${a.id}`, icon: a.art, label: `${aw.won(a.id) ? '★ ' : ''}${a.name}`, sub, accent: r?.won ? C.good : r ? C.textMuted : why ? C.progress : C.action, onTap: () => {} };
+    }),
+  });
+  sections.push({ title: 'Secret awards', std: 'aw:secret', lines: AWARDS.filter((a) => a.secret).map(() => ({ text: '??? (a secret award)', color: C.textMuted })) });
+  sections.push({ title: 'Rivals', std: 'aw:rivals', lines: RIVALS.map((r) => ({ text: `${r.name} · ${r.specWords}`, right: String(Math.round(r.base + r.growth * (year - 1))) })) });
+  if (aw.prestigeLog.length) sections.push({ title: 'Prestige lately', std: 'aw:prestige', lines: aw.prestigeLog.slice(0, 5).map((x) => ({ text: x.why, right: `${x.n > 0 ? '+' : ''}${x.n}` })) });
+  sections.push(back(act));
+  return { key: 'panel:awards', title: 'Awards & Rivals', subtitle: 'The award calendar, the rivals, your Prestige.', art: 'ui_29', accent, sections };
+}
+// (Milestone 23) Kairosoft rule 1: the Roadside Travel Expo (Month 9): Enter or Skip; then the ranked table.
+function expoSheet(run, arg, { act, accent }) {
+  const x = run.awards.expo;
+  const sections = [];
+  if (!x) sections.push({ lines: [{ text: `The ${EXPO.name} comes every Month 9.`, color: C.textMuted }] });
+  else if (!x.done) sections.push({ lines: [{ text: 'Show the resort at the Expo: your score is the average of three general award scores (Local Traveller Choice, Regional Clean Stay, National Resort Award), against all eight rivals. 1st: REP +60 and +5% bookings for 28 days; 2nd–3rd: REP +30 and +3%; anywhere else: REP +10.', color: C.textMuted }], columns: 2, buttons: [{ id: 'expo:enter', label: 'Enter', accent: C.action, onTap: () => act.do('expoEnter') }, { id: 'expo:skip', label: 'Skip', accent: C.textMuted, onTap: () => act.do('expoSkip') }] });
+  else if (x.entered) {
+    sections.push({ title: `You came #${x.place} of ${x.table.length}`, std: 'expo:table', lines: x.table.map((r, i) => ({ text: `${i + 1}. ${r.id === 'you' ? run.data?.resort?.name ?? 'Your resort' : rivalById(r.id).name}`, right: String(Math.round(r.score)), color: r.id === 'you' ? C.good : C.text })) });
+    sections.push({ lines: [{ text: `${VICTOR.name}: “${x.line}”`, color: C.textMuted }, { text: `REP +${x.rep}${x.demand ? ` · bookings +${Math.round(x.demand * 100)}% for 28 days` : ''}` }] });
+  } else sections.push({ lines: [{ text: 'You skipped this year’s Expo.', color: C.textMuted }] });
+  sections.push(back(act));
+  return { key: 'panel:expo', title: EXPO.name, subtitle: 'The yearly show, every Month 9.', art: 'ui_28', accent, sections };
+}
+
+export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet, awards: awardsSheet, expo: expoSheet };
 
 export const LATE_OPS = {
+  expoEnter(run) {
+    const r = run.awards?.enterExpo();
+    return r?.ok ? { say: `${EXPO.name}: you came #${r.result.place}!`, panel: ['expo'] } : { why: r?.why };
+  },
+  expoSkip(run) {
+    run.awards?.skipExpo();
+    return { say: 'Skipped the Expo this year.', panel: ['expo'] };
+  },
   pSign(run, id) {
     const r = run.partners?.sign(id);
     return r?.ok ? { say: `${partnerById(id).name} signed: ${partnerById(id).benefitWords}.` } : { why: r?.why };

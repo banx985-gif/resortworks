@@ -118,7 +118,7 @@ export const repFor = (stars) => REP.stay + (REP.stars[stars] ?? 0);
 // averages (null with no reviews); Staff Wellbeing and Prestige are fixed for now. (Milestone 8) effOf(id): a
 // facility's working share (the Garden's +6 Appeal follows it). (Milestone 9) appeal: the live Resort Appeal (the layout's)
 // — without it, the M5 base + the Garden.
-export function headlineFrom(reviews, from, to, facilities = FACILITIES, effOf = () => 1, appeal = null, wellbeing = null) {
+export function headlineFrom(reviews, from, to, facilities = FACILITIES, effOf = () => 1, appeal = null, wellbeing = null, prestige = null) {
   const inside = reviews.filter((v) => v.day >= from && v.day <= to);
   const avg = (f) => (inside.length ? r2(inside.reduce((t, v) => t + f(v), 0) / inside.length) : null);
   const ap = HEADLINE_FIXED.appeal;
@@ -128,7 +128,7 @@ export function headlineFrom(reviews, from, to, facilities = FACILITIES, effOf =
     value: avg((v) => v.cats.value),
     appeal: appeal ?? r2(ap.base + (hasFacility(ap.facility.id, facilities) ? ap.facility.add * effOf(ap.facility.id) : 0)),
     wellbeing: wellbeing ?? HEADLINE_FIXED.wellbeing,
-    prestige: HEADLINE_FIXED.prestige,
+    prestige: prestige ?? HEADLINE_FIXED.prestige, // (Milestone 23) live Prestige
     count: inside.length,
   };
 }
@@ -163,6 +163,7 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
   const appealNow = () => ly?.appeal() ?? null;
   let st = null; // (Milestone 10) the team side (fatigue, Staff Wellbeing), once attached
   let extraSat = null; // (Milestone 20) a Regular's +5 (the Guestbook)
+  let prestigeNow = null; // (Milestone 23) live Prestige
 
   function prune(today) {
     s.list = s.list.filter((v, i) => i < LIST_MAX || v.day > today - WINDOW_DAYS - 1);
@@ -210,7 +211,7 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
 
   // The day change into a new month (day = the new day, a multiple of 28): rate the 28 days just ended.
   function monthEnd(day) {
-    const h = headlineFrom(s.list, day - WINDOW_DAYS, day - 1, facilities, effOf, appealNow(), st?.wellbeing() ?? null);
+    const h = headlineFrom(s.list, day - WINDOW_DAYS, day - 1, facilities, effOf, appealNow(), st?.wellbeing() ?? null, prestigeNow?.() ?? null);
     const prev = s.months[s.months.length - 1] ?? null;
     if (h.count === 0) {
       if (!prev) return null; // no stays at all yet: the rating stays "New"
@@ -263,7 +264,10 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
       if (day > 0 && day % WINDOW_DAYS === 0) monthEnd(day);
     },
     // Live headline scores (the last 28 days up to today).
-    headline: (today) => headlineFrom(s.list, today - WINDOW_DAYS + 1, today, facilities, effOf, appealNow(), st?.wellbeing() ?? null),
+    headline: (today) => headlineFrom(s.list, today - WINDOW_DAYS + 1, today, facilities, effOf, appealNow(), st?.wellbeing() ?? null, prestigeNow?.() ?? null),
+    attachPrestige(fn) {
+      prestigeNow = fn;
+    },
     get list() {
       return s.list;
     },
