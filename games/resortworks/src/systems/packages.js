@@ -23,6 +23,7 @@ import { rx } from './research.js';
 import { teamBonus } from './staff.js';
 import { setDemandSource } from './guests.js';
 import { minuteOf } from './calendar.js';
+import { outdoorCut } from './weather.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const BAND = Object.fromEntries(BANDS.map((b, i) => [b.id, i]));
@@ -39,7 +40,7 @@ export function placesFor(fac, team = LIVE.team) {
   const food = (fx.cats ?? []).some((c) => c.cat === 'food');
   const fam = (fx.cats ?? []).some((c) => c.who === 'family');
   const k = 1 + (food ? rx('foodThroughput') + teamBonus(team, 'diningCapacity') : 0) + (EVENING_IDS.includes(fac) ? rx('eveningThroughput') + teamBonus(team, 'evening') : 0) + (fam ? teamBonus(team, 'familyActivity') : 0);
-  return Math.floor(fx.users * mult(fac) * k);
+  return Math.floor(fx.users * mult(fac) * k * (1 - outdoorCut(fac))); // (M24) Wet weather: outdoor places −35%
 }
 export const reservedOn = (day, fac, st = LIVE.s) => st?.res?.[day]?.[fac] ?? 0;
 // The facility ids a booking's package was given (its reviews count those places in full).

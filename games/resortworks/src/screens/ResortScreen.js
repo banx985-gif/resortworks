@@ -92,6 +92,8 @@ import { LATE_SHEETS, LATE_OPS } from './lateSheets.js';
 import { eventById, RESULT, ROCCO } from '../../data/events.js';
 import { PRIYA } from '../../data/partners.js';
 import { awardById, EXPO, VICTOR } from '../../data/awards.js';
+import { LOOK as WX_LOOK, ARRIVAL, WEATHER } from '../../data/weather.js';
+import { stageReached } from '../systems/guests.js';
 const eventArt = (id) => eventById(id)?.art ?? null;
 const plural2 = (n, one) => `${n} ${n === 1 ? one : `${one}s`}`;
 import { researchSheet } from './researchSheet.js';
@@ -361,6 +363,8 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     if (line) toast(VICTOR.name, line, VICTOR.art);
   });
   bus.on('awards:expo', ({ invite, result }) => (invite ? toast(`The ${EXPO.name} is on!`, 'Enter this month for a ranked result against the rivals (or skip).', 'ui_28', { panel: ['expo'] }) : result?.line && toast(VICTOR.name, result.line, VICTOR.art)));
+  // (Milestone 24) a new month's weather
+  bus.on('weather:change', ({ weather }) => weather !== 'mild' && toast(`${WEATHER[weather].name} weather this month`, WEATHER[weather].line, 'ui_23', { panel: ['weather'] }));
   bus.on('site:dougie', ({ line, id }) => toast(DOUGIE.name, line, DOUGIE.art, id && world?.byId(id) ? { open: id } : null));
   bus.on('progress:stage', ({ name }) => toast(`Welcome to the ${name} stage!`, 'New rooms and facilities are in the build list.', DOUGIE.art));
   // (Milestone 13) a level reached (a toast; Lv8 / Lv16 ask for a specialisation)
@@ -904,7 +908,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       if (slotN !== o.n) viewSet = false;
       const cal = o.calendar;
       const bk = o.bookings ?? null;
-      world = createResortWorld({ founder, band: cal?.band.id ?? 'morning', bandFrac: cal?.bandFrac ?? 0, day: cal?.today ?? 0, stays: bk ? () => [...bk.staying, ...bk.leaving, ...bk.waiting] : null, team: o.team ?? null, hk: o.housekeeping ?? null, mt: o.maintenance ?? null });
+      world = createResortWorld({ founder, band: cal?.band.id ?? 'morning', bandFrac: cal?.bandFrac ?? 0, day: cal?.today ?? 0, stays: bk ? () => [...bk.staying, ...bk.leaving, ...bk.waiting] : null, team: o.team ?? null, hk: o.housekeeping ?? null, mt: o.maintenance ?? null, arriveFrom: shuttleFrom });
       worldOf = bk;
       worldHk = o.housekeeping ?? null;
       worldMt = o.maintenance ?? null;
@@ -949,6 +953,69 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     const speed = calendar()?.clock.lastSpeed ?? 1;
     return [...tint.cur.slice(0, 3), tint.cur[3] * (reducedFlashes() ? TINT_FADE.reducedAlpha : 1) * (TINT_FADE.speedAlpha[speed] ?? 1)];
   }
+  // (Milestone 24) the shuttle: from the Destination stage, with a Shuttle Stop built, guests (not road trippers) come by it
+  const shuttleFrom = (st) => (stageReached(ARRIVAL.shuttleFrom) && world?.byId?.('F23') && !GUEST_TYPES[st.type]?.tags?.includes('roadtrip') ? 'F23' : null);
+  // (Milestone 24) the month's weather over the map: a soft tint, and rain streaks in Wet weather (fewer, slower and
+  // lighter with Reduced flashes; still while paused)
+  let wxT = 0;
+  const arrivals = []; // { id, at, t, coach } — a car / coach at the car park (or the shuttle at its stop) for a moment
+  function drawWeather(ctx) {
+    const id = run()?.weather?.now ?? 'mild';
+    const look = WX_LOOK[id];
+    const calm = reducedFlashes();
+    if (look?.tint) {
+      const [r, g, b, a] = look.tint;
+      ctx.fillStyle = `rgba(${r},${g},${b},${(a * (calm ? 0.6 : 1)).toFixed(3)})`;
+      ctx.fillRect(0, camera.viewY, W, camera.viewH);
+    }
+    if (look?.rain) {
+      const n = Math.round(look.rain.drops * (calm ? 0.4 : 1));
+      ctx.save();
+      ctx.strokeStyle = `rgba(210,225,245,${(look.rain.alpha * (calm ? 0.6 : 1)).toFixed(3)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const x = (i * 97.31) % W;
+        const y = camera.viewY + ((i * 211.7 + wxT * look.rain.speed * (calm ? 0.4 : 1)) % camera.viewH);
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - 6, y + look.rain.len);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+  // A code-drawn car (or coach, or the shuttle) at a doorway for a moment after each arrival.
+  function drawArrivals(ctx) {
+    for (const a of arrivals) {
+      const q = screen.pointOf(a.at);
+      if (!q) continue;
+      const k = camera.zoom * 1.2;
+      const w = (a.coach || a.at === 'F23' ? 120 : 70) * k;
+      const h = (a.coach || a.at === 'F23' ? 44 : 32) * k;
+      const x = q.x - w / 2;
+      const y = q.y + 30 * k;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, a.t / 0.3);
+      ctx.fillStyle = a.at === 'F23' ? '#2E8B57' : a.coach ? '#F2B233' : '#E2574C';
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, 8 * k);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillRect(x + w * 0.12, y + h * 0.15, w * 0.76, h * 0.35);
+      ctx.fillStyle = '#2B2B2B';
+      for (const wx of [0.22, 0.78]) {
+        ctx.beginPath();
+        ctx.arc(x + w * wx, y + h, 7 * k, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+  bus.on('booking:checkin', ({ bookings: list, late }) => {
+    if (!active || late) return;
+    for (const b of list.slice(0, 3)) arrivals.push({ id: b.id, at: shuttleFrom(b) ?? 'F07', t: ARRIVAL.showSec, coach: (b.party ?? 1) >= ARRIVAL.coachParty });
+    while (arrivals.length > 4) arrivals.shift();
+  });
   function drawTint(ctx) {
     const [r, g, b, alpha] = shownTint();
     if (alpha <= 0.002) return;
@@ -1009,6 +1076,8 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         if (place) recheck();
       }
       if (buildMsg && (buildMsg.t -= dt) <= 0) buildMsg = null;
+      if ((calendar()?.clock.speed ?? 0) > 0) wxT += dt; // (M24) the rain moves with the clock
+      for (let i = arrivals.length - 1; i >= 0; i--) if ((arrivals[i].t -= dt) <= 0) arrivals.splice(i, 1);
       const cal = calendar();
       if (world && cal) {
         world.setPace?.(cal.speed); // (M11) walks stay readable at 2× / 4×
@@ -1212,6 +1281,8 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       assets.detail = 1;
       camera.restore(ctx);
       drawTint(ctx);
+      drawWeather(ctx); // (M24)
+      if (!buildMode) drawArrivals(ctx); // (M24) cars, coaches, the shuttle
       if (!buildMode) drawWrenches(ctx);
       if (!buildMode) drawBadges(ctx);
       drawLevels(ctx); // (M12) Lv2 / Lv3
@@ -1299,6 +1370,13 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     setOverlay: (mode) => setOverlay(Math.max(0, OVERLAY.modes.indexOf(mode))),
     // The tint drawn on a tile now: [r, g, b, alpha] or null (tests).
     overlayTint: (col, row) => overlayTint(col, row),
+    // (Milestone 24) the cars / coaches / shuttle showing now (tests)
+    get arrivals() {
+      return arrivals.map((a) => ({ at: a.at, coach: a.coach }));
+    },
+    get weatherDrawn() {
+      return run()?.weather?.now ?? 'mild';
+    },
     // (Milestone 8) a wrench badge: 'worn' / 'broken' / null (tests); its rect via rectOf('wrench:<id>').
     wrenchOf: (id) => wrenchRects().find((b) => b.id === id)?.kind ?? null,
     // (Milestone 4) the word on a room's badge now — Ready / Dirty / Cleaning / Late … (tests).
@@ -1755,8 +1833,11 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     const half = (r.w - 60) * 0.56;
     text(ctx, o.data.resort.name, r.x + 40, mid, { size: S.heading, bold: true, color: palette.dark, baseline: 'middle', maxWidth: half });
     const off = officeRect(); // (Milestone 18) the Resort Office button at the right end
-    text(ctx, managerLine(o.data.resort.manager), off.x - 16, mid, { size: S.small, color: C.textMuted, align: 'right', baseline: 'middle', maxWidth: Math.max(0, off.x - 16 - (r.x + 40 + half) - 12) });
+    // (Milestone 24) this month's weather after the manager's name
+    const wx = WEATHER[o.weather?.now ?? 'mild'];
+    text(ctx, `${managerLine(o.data.resort.manager)}${wx ? ` · ${wx.name}` : ''}`, off.x - 16, mid, { size: S.small, color: C.textMuted, align: 'right', baseline: 'middle', maxWidth: Math.max(0, off.x - 16 - (r.x + 40 + half) - 12) });
     drawButton(ctx, off, 'Office', { accent: C.progress });
+
   }
   // Why a locked speed was refused: one plain line under the plate for a few seconds.
   function drawNote(ctx) {

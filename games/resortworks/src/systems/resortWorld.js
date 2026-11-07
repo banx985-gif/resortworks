@@ -67,7 +67,8 @@ const BAND_I = Object.fromEntries(BANDS.map((b, i) => [b.id, i]));
 // The M2 lone guest (a world made without bookings).
 const LONE = [{ id: 'guest', type: GUEST.typeId, room: GUEST_ROOM, status: 'staying', inDay: -Infinity, inBand: null, outDay: null }];
 
-export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day = 0, stays = null, team = null, hk = null, mt = null }) {
+// (Milestone 24) arriveFrom(stay) → the place a party arrives at (the Shuttle Stop) or null (the car park).
+export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day = 0, stays = null, team = null, hk = null, mt = null, arriveFrom = null }) {
   const grid = lotGrid();
   const items = [
     ...FACILITIES.map((def) => ({ kind: 'facility', id: def.id, def, fp: def.fp, door: def.door })),
@@ -229,8 +230,9 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
       const justCame = (st.inDay === dayNow && st.inBand === BAND_I[bandNow]) || (st.status === 'waiting' && st.waitDay === dayNow && bandNow === 'midday');
       if (live && justCame) {
         // They have just arrived: out of their car at the car park, then on their way.
-        p.stop = { at: ARRIVE_FROM, doing: '', going: '' };
-        placeAtDoor(p, ARRIVE_FROM);
+        const from = (arriveFrom?.(st) && itemById(arriveFrom(st))) ? arriveFrom(st) : ARRIVE_FROM; // (M24) the shuttle
+        p.stop = { at: from, doing: '', going: '' };
+        placeAtDoor(p, from);
         walkTo(p, stop, bandSec ? ((stop.until ?? 1) - fracNow) * bandSec : null);
       } else placeAt(p, stop);
     }

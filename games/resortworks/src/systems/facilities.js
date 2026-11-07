@@ -10,6 +10,7 @@ import { FACILITY_FX, LEVEL_MULT, FACILITY_INFO } from '../../data/facilities.js
 import { GROWTH, teamBonus as teamBonusOf } from './staff.js';
 import { rx } from './research.js';
 import { EVENING_IDS } from '../../data/research.js';
+import { outdoorCut } from './weather.js';
 
 const def = (id) => FACILITIES.find((f) => f.id === id) ?? null;
 export const has = (id) => !!def(id);
@@ -38,7 +39,7 @@ export function categoryAdd(cat, { shareOf = () => 1, guests = 0, family = false
     for (const e of fx?.cats ?? []) {
       if (e.cat !== cat || (e.who === 'family' && !family) || (e.who === 'luxury' && !luxury)) continue;
       // (Milestone 17) Kitchen Basics: food places serve 10% more; Night Entertainment: evening places 15% more
-      const users = fx.users ? fx.users * (1 + (e.cat === 'food' ? rx('foodThroughput') : 0) + (EVENING_IDS.includes(f.id) ? rx('eveningThroughput') : 0)) : 0;
+      const users = fx.users ? fx.users * (1 + (e.cat === 'food' ? rx('foodThroughput') : 0) + (EVENING_IDS.includes(f.id) ? rx('eveningThroughput') : 0)) * (1 - outdoorCut(f.id)) : 0; // (M24) Wet weather: outdoor places −35%
       t += e.add * mult(f.id) * shareOf(f.id) * (reserved?.includes(f.id) ? 1 : usersShare(users, guests));
     }
   }
@@ -76,7 +77,7 @@ export function diningCovers(effOf = () => 1, team = null) {
   for (const f of FACILITIES) {
     const fx = FACILITY_FX[f.id];
     if (!fx?.users || !(fx.cats ?? []).some((c) => c.cat === 'food')) continue;
-    t += fx.users * mult(f.id) * effOf(f.id);
+    t += fx.users * mult(f.id) * effOf(f.id) * (1 - outdoorCut(f.id)); // (M24) the BBQ Terrace rained off
   }
   return t * (1 + rx('foodThroughput') + teamBonusOf(team, 'diningCapacity')) * (1 + rx('diningWait'));
 }

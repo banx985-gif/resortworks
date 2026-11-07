@@ -12,11 +12,14 @@ import { createThemes } from './themes.js';
 import { createSupplies } from './supplies.js';
 import { createPartners } from './partners.js';
 import { createAwards } from './awards.js';
+import { createWeather } from './weather.js';
 
 export function attachLate(run, data = {}, { bus = null } = {}) {
   // (Milestone 18) this resort's demand book (every source adds to it, held within ±20%)
   run.demand = createDemand();
   run.bookings.attachDemand(run.demand);
+  // (Milestone 24) the month's weather (rolled at each month change; its demand goes through the same ±20% book)
+  run.weather = createWeather({ saved: data.weather ?? null, bus, seed: data.seed ?? run.seed ?? 'resortworks', demand: run.demand });
   // (Milestone 18) packages: offers pick them, accepting reserves their places, each day gives the inclusions
   run.packages = createPackages({ demand: run.demand, saved: data.packages ?? null, bus, team: run.team, maintenance: run.maintenance, complaints: run.complaints });
   run.bookings.attachPackages(run.packages);
@@ -24,7 +27,9 @@ export function attachLate(run, data = {}, { bus = null } = {}) {
   run.finance.attachPackages(run.packages);
   // (Milestone 19) events: enquiries, bookings with their venue places and room blocks, the live choice, the results
   run.events = createEvents({ saved: data.events ?? null, bus, seed: data.seed ?? run.seed ?? 'resortworks', team: run.team, finance: run.finance, reviews: run.reviews, maintenance: run.maintenance, packages: run.packages, bookings: run.bookings, items: run.items });
+  run.events.attachWeather(run.weather);
   run.bookings.attachLate((day, band) => {
+    run.weather.onEdge(day, band); // (Milestone 24) first: the month's weather
     run.packages.onEdge(day, band, run.bookings);
     run.events.onEdge(day, band);
     run.themes?.onEdge(day, band, run.bookings); // (Milestone 21)
@@ -71,5 +76,6 @@ export function saveLate(run, data) {
   data.supplies = run.supplies?.serialize() ?? data.supplies; // (Milestone 22)
   data.partners = run.partners?.serialize() ?? data.partners;
   data.awards = run.awards?.serialize() ?? data.awards; // (Milestone 23)
+  data.weather = run.weather?.serialize() ?? data.weather; // (Milestone 24)
   return data;
 }

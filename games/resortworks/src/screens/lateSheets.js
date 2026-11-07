@@ -18,6 +18,8 @@ import { comboOn, whyNoCombo, activeCombos } from '../systems/themes.js';
 import { PARTNERS, partnerById, PRIYA, SUPPLY_GROUPS, SUPPLY_TIERS, TIER_IDS, TIER_NAMES } from '../../data/partners.js';
 import { supplyMult } from '../systems/supplies.js';
 import { RIVALS, rivalById, VISIBLE_AWARDS, AWARDS, awardById, EXPO, VICTOR } from '../../data/awards.js';
+import { WEATHER, SEASON_OF_MONTH } from '../../data/weather.js';
+import { demandParts, rawDemandFor, demandFor, DEMAND_CAP } from '../systems/guests.js';
 import { SUPPLIES } from '../../data/finance.js';
 import { ROOM_TYPES } from '../../data/bookings.js';
 
@@ -57,6 +59,7 @@ function officeSheet(run, arg, { act, accent }) {
     if (aw.expo && !aw.expo.done) rows.push({ id: 'office:expo', icon: 'ui_28', label: EXPO.name, sub: 'This month: enter for a ranked result against the rivals (or skip)', accent: C.action, onTap: () => act.panel('expo') });
     rows.push({ id: 'office:awards', icon: 'ui_29', label: 'Awards & Rivals', sub: `${plural(aw.wins.length, 'award')} won · Prestige ${Math.round(aw.prestige)}`, accent: C.progress, onTap: () => act.panel('awards') });
   }
+  if (run.weather) rows.push({ id: 'office:weather', icon: 'ui_23', label: 'Weather', sub: `${WEATHER[run.weather.now].name} this month · ${WEATHER[run.weather.now].line.split(': ')[1] ?? 'nothing changes.'}`, accent: C.progress, onTap: () => act.panel('weather') });
   if (run.supplies) rows.push({ id: 'office:supplies', icon: 'ui_13', label: 'Suppliers', sub: SUPPLY_GROUPS.map((g) => `${g.name}: ${TIER_NAMES[run.supplies.tier(g.id)]}`).join(' · '), accent: C.progress, onTap: () => act.panel('supplies') });
   const gb = run.guestbook;
   if (gb) rows.push({ id: 'office:guestbook', icon: 'ui_21', label: 'Guestbook', sub: `${plural(gb.guests.length, 'guest')} · ${plural(gb.regulars.length, 'Regular')} · ${plural(gb.stats.returns, 'return')}`, accent: C.progress, onTap: () => act.panel('guestbook') });
@@ -303,7 +306,21 @@ function expoSheet(run, arg, { act, accent }) {
   return { key: 'panel:expo', title: EXPO.name, subtitle: 'The yearly show, every Month 9.', art: 'ui_28', accent, sections };
 }
 
-export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet, awards: awardsSheet, expo: expoSheet };
+// (Milestone 24) the weather: this month, the next months (seeded, so it is a true forecast), and every demand source
+// for the guests now, with the ±20% cap shown.
+const SEASON_NAME = { mild: 'Mild season', warm: 'Warm season', wet: 'Wet season', cool: 'Cool season' };
+function weatherSheet(run, arg, { act, accent, today = 0 }) {
+  const wx = run.weather;
+  const w = WEATHER[wx.now];
+  const sections = [{ lines: [{ text: `${w.name} weather this month`, right: SEASON_NAME[SEASON_OF_MONTH[Math.floor(today / 28) % 12]] }, { text: w.line, color: C.textMuted }] }];
+  sections.push({ title: 'The next months', std: 'wx:forecast', lines: wx.forecast(today, 3).map((f) => ({ text: `Month ${((f.month - 1) % 12) + 1}`, right: WEATHER[f.id].name })) });
+  const types = Object.keys(GUEST_TYPES).filter((id) => rawDemandFor(id) !== 0).slice(0, 8);
+  sections.push({ title: `Demand now (every source together stays within ±${Math.round(DEMAND_CAP * 100)}%)`, std: 'wx:demand', lines: types.length ? types.map((id) => ({ text: `${GUEST_TYPES[id].name}: ${demandParts(id).filter((p) => p.type).map((p) => `${p.words} ${pct(p.type)}`).join(', ')}`, right: pct(demandFor(id)) })) : [{ text: 'Nothing is moving demand right now.', color: C.textMuted }] });
+  sections.push(back(act));
+  return { key: 'panel:weather', title: 'Weather', subtitle: 'Seasons change who comes.', art: 'ui_23', accent, sections };
+}
+
+export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet, awards: awardsSheet, expo: expoSheet, weather: weatherSheet };
 
 export const LATE_OPS = {
   expoEnter(run) {

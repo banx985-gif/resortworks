@@ -23,6 +23,7 @@ import { freshThemes } from './themes.js';
 import { freshSupplies } from './supplies.js';
 import { freshPartners } from './partners.js';
 import { freshAwards } from './awards.js';
+import { freshWeather } from './weather.js';
 
 // A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
 // before the calendar existed (Milestone 2).
@@ -71,6 +72,7 @@ export function newCampaign(setup, now = Date.now()) {
     supplies: freshSupplies(), // (Milestone 22) Basic everything
     partners: freshPartners(), // (Milestone 22) an empty Partner Board
     awards: freshAwards(), // (Milestone 23) no awards, Prestige 0
+    weather: freshWeather(), // (Milestone 24) rolled at the first band edge
     opal: { welcomed: false }, // (M6b) Dame Opal's welcome card is due (a save from before M6b has none: no welcome)
     playSec: 0,
     ngPlus: 0,
@@ -196,4 +198,7 @@ export const SAVE_MIGRATIONS = {
   19: (record) => ({ ...record, data: { ...record.data, supplies: record.data.supplies ?? freshSupplies(), partners: record.data.partners ?? freshPartners() } }),
   // 20 → 21 (Milestone 23): no awards yet, Prestige 0; the year's rival variance is rolled at the next month change.
   20: (record) => ({ ...record, data: { ...record.data, awards: record.data.awards ?? freshAwards() } }),
+  // 21 → 22 (Milestone 24): the weather is rolled for the save's month at its next band edge (seeded: the same month
+  // always gets the same weather).
+  21: (record) => ({ ...record, data: { ...record.data, weather: record.data.weather ?? freshWeather() } }),
 };
