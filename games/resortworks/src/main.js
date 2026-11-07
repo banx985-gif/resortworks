@@ -100,6 +100,9 @@ import { validateSetup } from '../data/setup.js';
 import { createCampaigns } from './app/campaigns.js';
 import { slotSummary } from './systems/resort.js';
 import { newGamePlus } from './systems/ending.js'; // (Milestone 28)
+import { createMonetisation } from './systems/monetisation.js'; // (Milestone 29)
+import { SERVICES, PRODUCTS, FAKE_PRICES } from '../data/monetisation.js';
+import { FakeStoreProvider } from '../../../core/FakeStoreProvider.js';
 import { createMenuScreen } from './screens/MenuScreen.js';
 import { createSlotsScreen } from './screens/SlotsScreen.js';
 import { createSetupScreen } from './screens/SetupScreen.js';
@@ -402,7 +405,8 @@ bus.on('input:up', () => systemBack.rearm()); // re-arm after any tap, in case a
 // The four campaign slots.
 let campaigns = null;
 let open = null; // { n, data, calendar, bookings, team, housekeeping, reviews, finance, complaints, maintenance, layout } — the resort on screen
-let account = {}; // the account store (core/CampaignSlots): empty until achievements / tokens / NG+ exist
+let account = {};
+let money = null; // (Milestone 29) the store and ads, made when the account loads // the account store (core/CampaignSlots): empty until achievements / tokens / NG+ exist
 
 // A campaign on screen: its save plus its calendar (Milestone 2) and its bookings (Milestone 3), put back exactly where
 // the save left them.
@@ -464,6 +468,7 @@ function openRun(n, data) {
   run.ngSlots = () => campaigns?.cards ?? [];
   run.startNgPlus = (choices) => startNgPlus(run, choices);
   open = run;
+  run.money = money; // (Milestone 29)
   for (const m of run.team) ensureArt(staffDef(m.id)?.art); // (Milestone 28b) a god on the team: their portrait
   run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;
@@ -480,7 +485,9 @@ function welcomeIfDue(run) {
 bus.on('achievement:unlocked', () => campaigns?.slots.saveAccount(account));
 // (Milestone 27) a secret found: the account store too (what was found is kept across every run)
 bus.on('secrets:change', () => campaigns?.slots.saveAccount(account));
-bus.on('ending:reached', () => campaigns?.slots.saveAccount(account)); // (Milestone 28) the highest NG+, the ending
+bus.on('ending:reached', () => campaigns?.slots.saveAccount(account));
+bus.on('money:change', () => campaigns?.slots.saveAccount(account)); // (Milestone 29) tokens and purchases are the account's
+bus.on('finance:month', () => money?.breakPoint('monthClose', { decisionPending: !!open?.events?.pendingChoice })); // (Milestone 29) the only break point // (Milestone 28) the highest NG+, the ending
 // Every band edge moves the open resort's bookings on (check-ins, check-outs, nights, offers), in order.
 bus.on('band:change', () => open && open.bookings.sync(open.calendar.today, open.calendar.bandIndex));
 // The campaign save: the calendar as it stands, the date the slot card shows, then the slot (save + summary record).
@@ -572,6 +579,15 @@ async function prepareSaves() {
   if (debug.enabled && PARAMS.get('reset') === '1') for (const n of campaigns.slots.numbers()) await campaigns.slots.remove(n);
   await campaigns.refresh();
   account = await campaigns.slots.loadAccount();
+  // (Milestone 29) the store and ads on the account (no real store yet: ?debug=1 uses the pretend one; ?services=0 off)
+  {
+    const fake = debug.enabled ? new FakeStoreProvider({ products: Object.fromEntries(Object.entries(PRODUCTS).map(([k, p]) => [k, { price: FAKE_PRICES[k], title: p.name, kind: p.kind }])) }) : null;
+    money = createMonetisation({ bus, account, run: () => open, provider: fake, adProvider: fake, enabled: SERVICES.enabled && PARAMS.get('services') !== '0' });
+    money.say = (text) => text && bus.emit('money:say', { text });
+    window.__rw && (window.__rw.money = money);
+    if (fake) window.__rw && (window.__rw.fakeStore = fake);
+    money.loadProducts();
+  }
   settings.attachStore(adapter, 'settings'); // the settings slot in the account database too
   if (debug.enabled) {
     const v = validateCast(validateSetup(new DataValidator(), { art: true }), { art: true }); // (M6b) + the cast

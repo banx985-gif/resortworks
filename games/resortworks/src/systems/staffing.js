@@ -112,9 +112,9 @@ export function createStaffing({ saved = null, team = [], seed = 'resortworks', 
   const weekOf = (d) => Math.floor(Math.max(0, d) / POOL.weekDays);
   // Everyone the stage lets apply (Standard / Rare / Elite), not on the team.
   const eligible = () => STAFF.filter((x) => HIREABLE_TIERS.includes(x.tier) && WHEN_STAGE[x.when] && stageIndex(stageId()) >= stageIndex(WHEN_STAGE[x.when]) && !team.some((m) => m.id === x.id));
-  function refreshPool(d) {
+  function refreshPool(d, salt = null) {
     const list = eligible();
-    const rng = new Rng(`${seed}:pool:${weekOf(d)}`);
+    const rng = new Rng(`${seed}:pool:${weekOf(d)}${salt != null ? `:r${salt}` : ''}`); // (M29: a refresh's own roll)
     const ids = [];
     const left = [...list];
     while (ids.length < POOL.size && left.length) ids.push(left.splice(rng.int(0, left.length - 1), 1)[0].id);
@@ -288,6 +288,11 @@ export function createStaffing({ saved = null, team = [], seed = 'resortworks', 
       return s.pool?.week ?? 0;
     },
     nextPoolDay: () => ((s.pool?.week ?? 0) + 1) * POOL.weekDays,
+    // (Milestone 29) a refresh (Resort Tokens or a rewarded ad): a new set of this week's applicants (the same tiers)
+    newApplicants(day, salt) {
+      refreshPool(day, salt);
+      changed();
+    },
     // Tests and ?debug=1: these people are this week's applicants.
     debugPool(ids) {
       s.pool = { week: weekOf(s.at.day), ids: ids.filter((id) => staffDef(id)) };

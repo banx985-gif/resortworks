@@ -372,6 +372,8 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   // (Milestone 26) an achievement: a one-tap toast (it opens the list)
   bus.on('achievement:unlocked', ({ def }) => toast(`Achievement: ${def.name}`, `${def.text}${def.big ? ' A Staff Item too!' : ''}`, 'ach_medal', { panel: ['achievements'] }));
   // (Milestone 27) secrets: found (a big beat), a new clue stage (a quiet line), a secret applicant, a rival's poach
+  // (Milestone 29) a store or ad result
+  bus.on('money:say', ({ text }) => toast('Store', text, 'ui_31', { panel: ['store'] }));
   // (Milestone 28) the Year-20 ending
   bus.on('ending:reached', ({ result }) => toast(`Twenty years open: Grade ${result.grade}!`, `${result.total} / 100. Tap to see your grade and New Game+.`, 'ui_30', { panel: ['ending'] }));
   bus.on('secrets:found', ({ name, words }) => toast(`Secret found: ${name}!`, `${words}.`, 'sec_found', { panel: ['secrets'] }));

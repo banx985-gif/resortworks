@@ -463,6 +463,15 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
       if (n) changed();
       return n;
     },
+    // (Milestone 29) a refresh (Resort Tokens): a few more of this morning's offers, rolled with their own seed
+    moreOffers(salt) {
+      const day = s.at.day;
+      const extra = makeOffers(`${seed}:more:${salt}`, day, null, pricing(day), pk, pg?.stage, book).map((o, k) => ({ ...o, id: `O${day}-r${salt}-${k}` }));
+      s.offers.push(...extra);
+      if (extra.length) bus?.emit('booking:offers', { day, offers: extra.map(clone) });
+      changed?.();
+      return extra.length;
+    },
     accept(offerId, { room = null } = {}) {
       const o = s.offers.find((x) => x.id === offerId);
       if (!o) return { ok: false, why: 'That offer has gone.' };

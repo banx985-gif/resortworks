@@ -28,6 +28,8 @@ import { FACILITY_INFO } from '../../data/facilities.js';
 import { STAFF, LEGENDS } from '../../data/roster.js';
 import { ACHIEVEMENTS } from '../../data/achievements.js';
 import { NG_LEVELS } from '../../data/ngplus.js';
+import { PRODUCTS, TOKEN_SINKS, REWARDED } from '../../data/monetisation.js';
+import { PALETTES } from '../../data/setup.js';
 import { ngOptions, ngWhy } from '../systems/ending.js';
 const STAFF_NAMES = Object.fromEntries([...STAFF, ...LEGENDS].map((x) => [x.id, x.name]));
 const C = THEME.color;
@@ -66,6 +68,7 @@ function officeSheet(run, arg, { act, accent }) {
     if (aw.expo && !aw.expo.done) rows.push({ id: 'office:expo', icon: 'ui_28', label: EXPO.name, sub: 'This month: enter for a ranked result against the rivals (or skip)', accent: C.action, onTap: () => act.panel('expo') });
     rows.push({ id: 'office:awards', icon: 'ui_29', label: 'Awards & Rivals', sub: `${plural(aw.wins.length, 'award')} won · Prestige ${Math.round(aw.prestige)}`, accent: C.progress, onTap: () => act.panel('awards') });
   }
+  if (run.money?.enabled) rows.push({ id: 'office:store', icon: 'ui_31', label: 'Store', sub: `${run.money.tokens} Resort Tokens${run.money.removeAds ? ' · no ads' : ''}`, accent: C.progress, onTap: () => act.panel('store') });
   if (run.ending?.reached) rows.push({ id: 'office:ending', icon: 'ui_30', label: `Year 20: Grade ${run.ending.result.grade}`, sub: run.ngPlus >= 3 ? 'Your twenty years, graded.' : `${run.ending.result.total} / 100 · New Game+${Math.min(3, run.ngPlus + 1)} is ready`, accent: C.gold, onTap: () => act.panel('ending') });
   if (run.secrets) rows.push({ id: 'office:secrets', icon: 'sec_found', label: 'Secret Archive', sub: `${run.secrets.count} of 50 found${run.secrets.invites.length ? ` · ${plural(run.secrets.invites.length, 'secret applicant')} waiting` : ''}`, accent: run.secrets.invites.length ? C.action : C.progress, onTap: () => act.panel('secrets') });
   if (run.achievements) rows.push({ id: 'office:achievements', icon: 'ach_medal', label: 'Achievements', sub: `${run.achievements.count} of ${ACHIEVEMENTS.length} unlocked`, accent: C.progress, onTap: () => act.panel('achievements') });
@@ -465,9 +468,49 @@ function ngSetupSheet(run, arg, { act, accent }) {
   };
 }
 
-export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet, awards: awardsSheet, expo: expoSheet, weather: weatherSheet, achievements: achievementsSheet, secrets: secretsSheet, secret: secretSheet, ending: endingSheet, ngSetup: ngSetupSheet };
+// (Milestone 29) the Store: Resort Tokens (refreshes and cosmetics only — never speed, staff, secrets or items), Remove Ads,
+// the optional rewarded ads (only after the account's first award). Prices come from the store.
+function storeSheet(run, arg, { act, accent }) {
+  const m = run.money;
+  const price = (k) => m.price(k) ?? '—';
+  const adRows = REWARDED.map((r) => ({ r, p: m.placement(r.id) })).filter((x) => x.p.show);
+  return {
+    key: 'panel:store',
+    title: 'Store',
+    subtitle: `${m.tokens} Resort Tokens. Tokens buy refreshes and looks — never speed, staff, secrets, Staff Items or scores.`,
+    art: 'ui_31',
+    accent,
+    sections: [
+      { title: 'Spend Resort Tokens', std: 'store:spend', columns: 1, buttons: Object.entries(TOKEN_SINKS).filter(([k]) => k !== 'repaint').map(([k, x]) => ({ id: `tok:${k}`, icon: 'ui_31', label: x.name, sub: x.line, cost: `${x.cost} tokens`, accent: m.tokens >= x.cost ? C.action : C.textMuted, disabled: m.tokens < x.cost, onTap: () => act.do('tokSpend', k) })) },
+      { title: `Repaint (${TOKEN_SINKS.repaint.cost} tokens)`, std: 'store:repaint', columns: 2, buttons: PALETTES.filter((p) => p.id !== run.data?.resort?.palette).map((p) => ({ id: `tok:repaint:${p.id}`, label: p.name, accent: p.hex, disabled: m.tokens < TOKEN_SINKS.repaint.cost, onTap: () => act.do('tokSpend', 'repaint', p.id) })) },
+      ...(adRows.length ? [{ title: 'Optional ads', std: 'store:ads', columns: 1, buttons: adRows.map(({ r, p }) => ({ id: `ad:${r.id}`, label: r.label, sub: p.why ?? 'Watch to the end for the reward.', accent: p.why ? C.textMuted : C.progress, disabled: !!p.why, onTap: () => act.do('watchAd', r.id) })) }] : []),
+      { title: 'Buy', std: 'store:buy', columns: 1, buttons: Object.entries(PRODUCTS).filter(([k]) => !(k === 'removeAds' && m.removeAds)).map(([k, x]) => ({ id: `buy:${k}`, label: x.name, sub: x.line, cost: price(k), accent: C.action, onTap: () => act.do('buy', k) })) },
+      { columns: 1, buttons: [{ id: 'store:restore', label: 'Restore purchases', accent: C.textMuted, onTap: () => act.do('restore') }] },
+      back(act),
+    ],
+  };
+}
+
+export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet, awards: awardsSheet, expo: expoSheet, weather: weatherSheet, achievements: achievementsSheet, secrets: secretsSheet, secret: secretSheet, ending: endingSheet, ngSetup: ngSetupSheet, store: storeSheet };
 
 export const LATE_OPS = {
+  // (Milestone 29) the Store
+  tokSpend(run, sink, arg) {
+    const r = run.money?.spend(sink, arg);
+    return r?.ok ? { say: r.say, panel: ['store'] } : { why: r?.why ?? 'Not available.' };
+  },
+  watchAd(run, id) {
+    run.money?.watch(id).then((r) => run.money.say?.(r.message));
+    return { say: 'Loading an ad…' };
+  },
+  buy(run, key) {
+    run.money?.buy(key).then((r) => run.money.say?.(r.message));
+    return { say: 'Opening the store…' };
+  },
+  restore(run) {
+    run.money?.restore().then((r) => run.money.say?.(r.message ?? 'Restored.'));
+    return { say: 'Checking your purchases…' };
+  },
   // (Milestone 28) the NG+ setup's picks, and Start (the app writes the new slot: 'ng:start' on the bus)
   ngPick(run, kind, id) {
     const p = run.ending?.setup;
