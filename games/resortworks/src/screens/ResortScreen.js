@@ -1325,7 +1325,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         if (it.kind === 'guest' || it.kind === 'staff') {
           const r = personRect(it);
           pose.flip = it.facing;
-          if (!(it.sheet && drawWalker(ctx, assets, it.sheet, { x: r.x + r.w / 2, y: r.y + r.h, h: r.h * 0.92, anim: it.phase === 'at' ? 'idle' : 'walk', mirror: it.facing < 0, t: reducedMotion() ? 0 : walkClock, folder: it.sheetFolder, glow: it.glow }))) drawCharacter(ctx, assets, it.art, r.x + r.w / 2, r.y + r.h, r.w, r.h, pose); // (M27b) a sheet, when filed and loaded
+          if (!(it.sheet && drawWalker(ctx, assets, it.sheet, { x: r.x + r.w / 2, y: r.y + r.h, h: r.h * 0.92, anim: it.phase === 'at' ? 'idle' : 'walk', mirror: it.facing < 0, t: reducedMotion() ? 0 : walkClock, folder: it.sheetFolder, glow: it.glow }))) drawCharacter(ctx, assets, it.stationPose ?? it.art, r.x + r.w / 2, r.y + r.h, r.w, r.h, pose); // (M27b) a sheet, when filed and loaded; (M30) a station pose
         } else if (it.kind === 'plot') drawScaffold(ctx, it);
         else {
           const r = artRect(it);

@@ -115,10 +115,10 @@ export const GUEST = {
 
 // The one staff member is the run's Founder: their role's station and walking picture (bible §8 roles).
 export const STAFF_ROLES = {
-  FO: { station: 'F01', art: 'world_staff_frontoffice_base' },
+  FO: { station: 'F01', art: 'world_staff_frontoffice_base', pose: 'world_checkin_action' }, // (M30: the pose while at work at the station)
   HK: { station: 'F04', art: 'world_staff_housekeeping_base' },
-  HS: { station: 'F06', art: 'world_staff_hospitality_base' },
-  AE: { station: 'F03', art: 'world_staff_activities_base' },
+  HS: { station: 'F06', art: 'world_staff_hospitality_base', pose: 'world_serving_action' },
+  AE: { station: 'F03', art: 'world_staff_activities_base', pose: 'world_pool_action' },
   MG: { station: 'F05', art: 'world_staff_maintenance_base' },
 };
 // Their day: at their role's station Morning to Evening, resting at the Motel Service Block at Night. 'station' is filled

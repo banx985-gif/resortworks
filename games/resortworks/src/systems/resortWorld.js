@@ -320,6 +320,8 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
       if (!tile || grid.isBlocked(tile.col, tile.row)) offLane++;
     }
     for (const p of crew) if (p.task && p.phase === 'at') p.art = p.task.look.pose; // the cleaning / repair pose while there
+    // (Milestone 30) at work at their own station (Reception, the café, the pool): the role's action pose, drawn only (art stays)
+    for (const p of crew) p.stationPose = !p.task && p.phase === 'at' && p.stop?.at && p.stop.at === STAFF_ROLES[p.role]?.station ? STAFF_ROLES[p.role]?.pose ?? null : null;
   }
 
   // Plain words for a sheet's "Now" line.

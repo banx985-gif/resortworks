@@ -25,6 +25,7 @@ export const ASSETS = {
   [GUEST.art]: `assets/images/world/${GUEST.art}.png`,
   [GUEST.sheetArt]: `assets/images/guests/${GUEST.sheetArt}.png`,
   ...Object.fromEntries(Object.values(STAFF_ROLES).map((s) => [s.art, `assets/images/world/${s.art}.png`])),
+  ...Object.fromEntries(Object.values(STAFF_ROLES).filter((s) => s.pose).map((s) => [s.pose, `assets/images/world/${s.pose}.png`])), // (Milestone 30) the three station poses
   // Milestone 3: the Roadside guest types' offer / sheet pictures and their walking pictures.
   ...Object.fromEntries(Object.values(GUEST_TYPES).map((g) => [g.art, `assets/images/guests/${g.art}.png`])),
   ...Object.fromEntries(Object.values(GUEST_TYPES).map((g) => [g.sprite, `assets/images/world/${g.sprite}.png`])),
