@@ -63,6 +63,8 @@ function officeSheet(run, arg, { act, accent }) {
   if (run.supplies) rows.push({ id: 'office:supplies', icon: 'ui_13', label: 'Suppliers', sub: SUPPLY_GROUPS.map((g) => `${g.name}: ${TIER_NAMES[run.supplies.tier(g.id)]}`).join(' · '), accent: C.progress, onTap: () => act.panel('supplies') });
   const gb = run.guestbook;
   if (gb) rows.push({ id: 'office:guestbook', icon: 'ui_21', label: 'Guestbook', sub: `${plural(gb.guests.length, 'guest')} · ${plural(gb.regulars.length, 'Regular')} · ${plural(gb.stats.returns, 'return')}`, accent: C.progress, onTap: () => act.panel('guestbook') });
+  // (Milestone 25) the money: the Finance sheet (profit history across years, the Rescue Investor) and the Rates sheet (yield)
+  if (run.finance) rows.push({ id: 'office:finance', icon: 'ui_25', label: 'Money', sub: `${credits(run.finance.cash)}${run.finance.debt ? ` · owes ${credits(run.finance.debt)}` : ''}${run.finance.rescue?.active ? ' · Rescue Investor' : ''}`, accent: run.finance.debt ? C.bad : C.progress, onTap: () => act.finance() }, { id: 'office:rates', icon: 'ui_25', label: 'Rates', sub: 'Prices per room type, with a suggested band', accent: C.progress, onTap: () => act.rates() });
   const next = nextStep(run);
   return {
     key: 'panel:office',

@@ -272,6 +272,7 @@ export function createAwards({ saved = null, bus = null, seed = 'resortworks', r
     onReview,
     onMemory,
     judge,
+    addPrestige,
     inputs,
     scoreOf: (id) => scoreOf(id),
     rivalScore,

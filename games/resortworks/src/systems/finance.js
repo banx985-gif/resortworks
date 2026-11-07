@@ -34,7 +34,7 @@ import { mult } from './facilities.js';
 import { ROOM_TYPES, GUEST_TYPES } from '../../data/bookings.js';
 import { BANDS } from '../../data/calendar.js';
 import { WINDOW_DAYS } from '../../data/reviews.js';
-import { START_CASH, PRICE_BANDS, DEFAULT_BAND, bandById, DEMAND, CAFE, WAGES, FACILITY_UPKEEP, ROOM_UPKEEP, SUPPLIES, CREDIT, LINES, INCOME_LINES, COST_LINES, HISTORY } from '../../data/finance.js';
+import { START_CASH, PRICE_BANDS, DEFAULT_BAND, bandById, DEMAND, CAFE, WAGES, FACILITY_UPKEEP, ROOM_UPKEEP, SUPPLIES, CREDIT, LINES, INCOME_LINES, COST_LINES, HISTORY, STAGE_SCALE, RESCUE, YIELD } from '../../data/finance.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const BAND = Object.fromEntries(BANDS.map((b, i) => [b.id, i]));
@@ -81,6 +81,11 @@ export function freshFinance({ day = 0 } = {}) {
     month: { n: monthOf(day), lines: zeroLines() },
     months: [], // closed months, oldest first: { n, lines, income, costs, profit, cash, debt }
     credit: { taken: 0, repaid: 0, interest: 0, peak: 0, warnings: 0, warnedMonth: 0 },
+    years: [], // (M25) closed years: { n, income, costs, profit, cash, debt }
+    year: { n: Math.floor(day / 336) + 1, lines: zeroLines() },
+    nights: [], // (M25) the last 28 nights: [day, { roomType: sold }, { roomType: rooms }]
+    strikes: 0,
+    rescue: null,
   };
 }
 
@@ -93,6 +98,9 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
   let mt = null; // (Milestone 8) the maintenance system, once attached
   let pk = null; // (Milestone 18) packages
   let spendMult = null; // (Milestone 21) a combo's spend bonus by line
+  let stageNow = null; // (Milestone 25) the stage (wages and upkeep scale with it)
+  let onRescue = null; // (Milestone 25) the Rescue Investor's Prestige −5
+  let shareOwed = 0; // (Milestone 25) the investor's 8%, paid at each day change
 
   const cash = () => econ.balance('credits');
   const ceiling = () => creditCeiling(s.lifetimeRevenue);
@@ -100,6 +108,7 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
     const bucket = (s.days[d] ??= zeroLines());
     bucket[line] = (bucket[line] ?? 0) + amount;
     if (monthOf(d) === s.month.n) s.month.lines[line] += amount;
+    if (s.year) s.year.lines[line] = (s.year.lines[line] ?? 0) + amount; // (M25) the year's lines
   }
   // The one way money moves: a ledger line, the day and month by line, then the Emergency Credit if cash went below 0.
   function move(line, amount, d, source = null) {
@@ -111,6 +120,7 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
     record(line, Math.abs(value), d);
     if (kind === 'income') {
       if (!LINES[line].noRevenue) s.lifetimeRevenue += value; // (M12: a sale or cancel refund is money back, not revenue)
+      if (!LINES[line].noRevenue && s.rescue && d < s.rescue.shareUntil) shareOwed += value * RESCUE.share; // (M25) the investor's 8%
       bus?.emit('finance:income', { line, amount: value, source });
     }
     if (kind === 'cost') cover(d);
@@ -159,19 +169,58 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
   function dayChange(day, bk) {
     const d = day - 1;
     const occupied = (bk?.staying ?? []).length; // they slept here last night (check-out is at Morning)
-    move('facilityUpkeep', FACILITIES.reduce((t, f) => t + (FACILITY_UPKEEP[f.id] ?? 0), 0), d);
-    move('roomUpkeep', ROOMS.reduce((t, r) => t + (ROOM_UPKEEP[r.typeId] ?? 0), 0), d);
+    const scale = STAGE_SCALE[stageNow?.() ?? 'roadside'] ?? 1; // (M25) a bigger resort runs a bigger operation
+    move('facilityUpkeep', FACILITIES.reduce((t, f) => t + (FACILITY_UPKEEP[f.id] ?? 0), 0) * scale, d);
+    move('roomUpkeep', ROOMS.reduce((t, r) => t + (ROOM_UPKEEP[r.typeId] ?? 0), 0) * scale, d);
+    // (M25) the nights each room type was sold (the Rates sheet's suggested band)
+    const byType = {};
+    for (const b of bk?.staying ?? []) {
+      const rt = ROOMS.find((r) => r.id === b.room)?.typeId;
+      if (rt) byType[rt] = (byType[rt] ?? 0) + 1;
+    }
+    s.nights.push([d, byType, Object.fromEntries([...new Set(ROOMS.map((r) => r.typeId))].map((rt) => [rt, ROOMS.filter((r) => r.typeId === rt).length]))]);
+    while (s.nights.length > YIELD.window) s.nights.shift();
     for (const k of Object.keys(SUPPLIES)) move(k, SUPPLIES[k] * occupied * (k === 'utilities' ? 1 - rx('utilities') : supplyMult(k)), d); // (M17) Energy Efficiency; (M22) the supply tiers
     if (day > 0 && day % WINDOW_DAYS === 0) {
-      move('wages', team.reduce((t, m) => t + (WAGES[m.tier] ?? WAGES.standard), 0), d);
+      move('wages', team.reduce((t, m) => t + (WAGES[m.tier] ?? WAGES.standard), 0) * scale, d); // (M25) × the stage
       if (s.debt > 0) move('interest', Math.round((s.debt * CREDIT.interestPct) / 100), d);
       closeMonth(d);
+      if (day % 336 === 0) closeYear(d); // (M25) the profit history
+    }
+    // (M25) the Rescue Investor's 8% of the day's revenue
+    if (shareOwed >= 1) {
+      const owe = Math.round(shareOwed);
+      shareOwed -= owe;
+      move('revenueShare', owe, d);
     }
     repay(d);
     for (const k of Object.keys(s.days)) if (Number(k) < day - 1) delete s.days[k];
     bookDay = day;
   }
+  // (M25) the Rescue Investor (bible §27M): debt over 80% of the ceiling at 3 month ends in a row.
+  function rescueCheck(d) {
+    if (s.debt > RESCUE.over * ceiling()) s.strikes = (s.strikes ?? 0) + 1;
+    else s.strikes = 0;
+    if (s.strikes < RESCUE.months) return;
+    const target = Math.round(RESCUE.downTo * ceiling());
+    const cut = Math.max(0, s.debt - target);
+    s.debt -= cut;
+    s.strikes = 0;
+    s.rescue = { day: d, cut, shareUntil: d + RESCUE.shareDays, count: (s.rescue?.count ?? 0) + 1 };
+    record('rescue', cut, d);
+    bus?.emit('finance:rescue', { cut, debt: s.debt, until: s.rescue.shareUntil });
+    onRescue?.();
+  }
+  function closeYear(d) {
+    const yr = Math.floor(d / 336) + 1;
+    const lines = { ...(s.year?.lines ?? {}) };
+    const y = { n: yr, ...bucketTotals(lines), cash: cash(), debt: s.debt };
+    s.years.push(y);
+    s.year = { n: yr + 1, lines: zeroLines() };
+    bus?.emit('finance:year', { year: clone(y) });
+  }
   function closeMonth(d) {
+    rescueCheck(d);
     const lines = { ...s.month.lines };
     const m = { n: s.month.n, lines, ...bucketTotals(lines), cash: cash(), debt: s.debt };
     s.months.push(m);
@@ -229,6 +278,41 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
     foodMult: () => supplyMult('food'), // (M22) event catering at the food tier
     attachSpendMult(fn) {
       spendMult = fn;
+    },
+    attachStage(fn) {
+      stageNow = fn;
+    },
+    onRescue(fn) {
+      onRescue = fn;
+    },
+    // (M25) yield: a room type's occupancy over its last 28 nights (null before any), and the suggested band
+    occupancyOf(rt) {
+      let sold = 0;
+      let have = 0;
+      for (const [, by, n] of s.nights) {
+        sold += by[rt] ?? 0;
+        have += n[rt] ?? 0;
+      }
+      return have ? sold / have : null;
+    },
+    suggestBand(rt, service = null) {
+      const occ = fin.occupancyOf(rt);
+      if (occ == null) return null;
+      if (occ >= YIELD.premiumAt && (service == null || service >= YIELD.serviceMin)) return 'premium';
+      if (occ < YIELD.valueBelow) return 'value';
+      return 'standard';
+    },
+    get years() {
+      return s.years;
+    },
+    get yearNow() {
+      return s.year ? { ...s.year, ...bucketTotals(s.year.lines) } : null;
+    },
+    get rescue() {
+      return s.rescue ? { ...s.rescue, active: (s.rescue.shareUntil ?? 0) > bookDay } : null;
+    },
+    get strikes() {
+      return s.strikes ?? 0;
     },
     bandOf: (rt) => s.bands[rt] ?? DEFAULT_BAND,
     setBand(rt, id) {
@@ -292,6 +376,11 @@ function load(saved, day) {
     month: s.month?.lines ? { n: s.month.n, lines: { ...zeroLines(), ...s.month.lines } } : f.month,
     months: Array.isArray(s.months) ? s.months : [],
     credit: { ...f.credit, ...(s.credit ?? {}) },
+    years: Array.isArray(s.years) ? s.years : [], // (M25)
+    year: s.year?.lines ? { n: s.year.n, lines: { ...zeroLines(), ...s.year.lines } } : f.year,
+    nights: Array.isArray(s.nights) ? s.nights : [],
+    strikes: Number.isFinite(s.strikes) ? s.strikes : 0,
+    rescue: s.rescue ?? null,
   };
 }
 export { PRICE_BANDS };

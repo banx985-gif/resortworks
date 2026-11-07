@@ -57,6 +57,9 @@ export function attachLate(run, data = {}, { bus = null } = {}) {
   // (Milestone 23) rivals, the award calendar, Prestige and the Expo
   run.awards = createAwards({ saved: data.awards ?? null, bus, seed: data.seed ?? run.seed ?? 'resortworks', reviews: run.reviews, finance: run.finance, layout: run.layout, staffing: run.staffing, maintenance: run.maintenance, events: run.events, guestbook: run.guestbook, themes: run.themes, items: run.items, partners: run.partners, progress: run.progress, bookings: run.bookings, demand: run.demand });
   run.progress.attachAwards(run.awards);
+  // (Milestone 25) wages and upkeep scale with the stage; the Rescue Investor costs Prestige 5
+  run.finance.attachStage(() => run.progress.stage);
+  run.finance.onRescue(() => run.awards.addPrestige?.(-5, 'Rescue Investor'));
   run.reviews.attachPrestige(() => run.awards.prestige);
   run.themes.setPrestige(() => run.awards.prestige);
   bus?.on('review:new', ({ review }) => run.awards.onReview(review));

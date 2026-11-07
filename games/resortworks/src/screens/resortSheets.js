@@ -548,10 +548,14 @@ export function ratesSheet(fin, { accent = C.progress, act = NO_ACT, service = n
     body.push({
       title: `${t.name} · ${plural(n, 'room')} · ${rateWords(fin.rateOf(rt))}`,
       std: `rates:${rt}`,
-      lines: askers(rt).map((g) => {
-        const k = offerChance({ type: g.id, rate: fin.rateOf(rt) }, { band: cur, service });
-        return { text: `${g.name} (spends about ${g.budget} a night)`, right: k >= 1 ? 'all book' : `${pct(k)} book`, color: k >= 1 ? C.good : k < 0.75 ? C.bad : C.text };
-      }),
+      lines: [
+        ...askers(rt).map((g) => {
+          const k = offerChance({ type: g.id, rate: fin.rateOf(rt) }, { band: cur, service });
+          return { text: `${g.name} (spends about ${g.budget} a night)`, right: k >= 1 ? 'all book' : `${pct(k)} book`, color: k >= 1 ? C.good : k < 0.75 ? C.bad : C.text };
+        }),
+        // (Milestone 25) yield: the band its last 28 nights suggest
+        ...(n && fin.suggestBand?.(rt, service) ? [{ text: `Suggested: ${bandById(fin.suggestBand(rt, service)).name} (${pct(fin.occupancyOf(rt))} sold over 28 nights)`, color: fin.suggestBand(rt, service) === cur ? C.good : C.action }] : []),
+      ],
       columns: 3,
       buttons: PRICE_BANDS.map((b) => ({ id: `band:${rt}:${b.id}`, label: b.id === cur ? `✓ ${b.name}` : b.name, sub: rateWords(bandRate(rt, b.id)), accent: b.id === cur ? C.action : C.textMuted, onTap: () => act.setBand(rt, b.id) })),
     });
@@ -582,6 +586,9 @@ export function financeSheet(fin, { today = 0, accent = C.progress } = {}) {
   const cr = fin.credit;
   const now = [`Cash: ${credits(fin.cash)}`, fin.debt > 0 ? { text: `Emergency Credit: ${credits(fin.debt)} owed (limit ${credits(cr.ceiling)}) · ${CREDIT.interestPct}% a month`, color: C.bad } : { text: 'No debt', color: C.good }];
   const body = [linesSection('Today so far', fin.dayLines(today), 'today'), linesSection(`This month (Month ${m.n})`, m.lines, 'month')];
+  // (Milestone 25) the Rescue Investor's year, and the profit history across years
+  if (fin.rescue?.active) body.push({ title: 'Rescue Investor', std: 'rescue', lines: [{ text: `Your debt was cut to 35% of the limit. They take 8% of revenue until Day ${fin.rescue.shareUntil + 1}.`, color: C.bad }] });
+  if (fin.years?.length || fin.yearNow) body.push({ title: 'Years', std: 'years', lines: [...(fin.years ?? []).map((y) => ({ text: `Year ${y.n}: income ${credits(y.income)} · costs ${credits(y.costs)}`, right: signed(y.profit), color: y.profit < 0 ? C.bad : C.good })), ...(fin.yearNow ? [{ text: `Year ${fin.yearNow.n} so far: income ${credits(fin.yearNow.income)} · costs ${credits(fin.yearNow.costs)}`, right: signed(fin.yearNow.profit), color: C.textMuted }] : [])] });
   const shown = fin.months.slice(-HISTORY.chartMonths);
   const top = Math.max(1, ...shown.map((x) => Math.abs(x.profit)));
   body.push({

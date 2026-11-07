@@ -45,9 +45,9 @@ export function createGuestbook({ saved = null, bus = null, seed = 'resortworks'
     const rng = new Rng(`${seed}:memory:${v.id}`);
     const roll = () => rng.next();
     if (t?.tags?.includes('honeymoon') && v.sat >= 90) out.push('honeymoon');
-    if (t?.family && POOL_IDS.some(has) && v.cats.activities >= 80 && roll() < memoryById('pool').chance) out.push('pool');
+    if (t?.family && POOL_IDS.some(has) && (v.cats?.activities ?? 0) >= 80 && roll() < memoryById('pool').chance) out.push('pool');
     else roll();
-    if (v.cats.food >= 88 && roll() < memoryById('meal').chance + rx('diningMemory')) out.push('meal');
+    if ((v.cats?.food ?? 0) >= 88 && roll() < memoryById('meal').chance + rx('diningMemory')) out.push('meal');
     if (v.recovered && v.memory) out.push('saved');
     if (v.stars <= 2) out.push('disaster');
     if (t?.tags?.includes('celebrity')) out.push('celebrity');
@@ -81,7 +81,7 @@ export function createGuestbook({ saved = null, bus = null, seed = 'resortworks'
       s.stats.kept++;
       bus?.emit('guestbook:new', { guest: clone(g) });
     }
-    const stay = { day: v.day, booking: v.booking, room: v.room, roomType: v.got, nights: v.nights, sat: Math.round(v.sat * 10) / 10, stars: v.stars, review: v.id };
+    const stay = { day: v.day, roomType: v.got, nights: v.nights, sat: Math.round(v.sat * 10) / 10, stars: v.stars }; // (compact: a three-year save stays small)
     if (v.stars >= 5 && v.text) stay.text = String(v.text).slice(0, 120); // (the Hall of Fame's best reviews)
     if (v.pkg) stay.pkg = v.pkg;
     if (v.event) stay.event = v.event;

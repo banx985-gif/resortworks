@@ -52,7 +52,9 @@ export const LINES = {
   events: { kind: 'income', name: 'Event fees' }, // (Milestone 19)
   eventCosts: { kind: 'cost', name: 'Event food & service' },
   signature: { kind: 'cost', name: 'Signature change' },
-  partners: { kind: 'income', name: 'Partner rewards' }, // (Milestone 22) a contract goal met // (Milestone 21) 10,000 to change the Signature // (Milestone 19) 18 Cr an attendee a day, the live choice's cost
+  partners: { kind: 'income', name: 'Partner rewards' }, // (Milestone 22) a contract goal met
+  revenueShare: { kind: 'cost', name: 'Rescue Investor share' }, // (Milestone 25) 8% of revenue for a year
+  rescue: { kind: 'credit', name: 'Rescue Investor' }, // (Milestone 25) debt written down (not income) // (Milestone 21) 10,000 to change the Signature // (Milestone 19) 18 Cr an attendee a day, the live choice's cost
   wages: { kind: 'cost', name: 'Wages' },
   facilityUpkeep: { kind: 'cost', name: 'Facility upkeep' },
   roomUpkeep: { kind: 'cost', name: 'Room upkeep' },
@@ -80,3 +82,15 @@ export const COST_LINES = Object.keys(LINES).filter((k) => LINES[k].kind === 'co
 // How much history the save keeps: closed months (the sheet's chart shows the last chartMonths) and ledger lines (core
 // EconomySystem folds older ones into one line).
 export const HISTORY = { months: 12, chartMonths: 6, ledgerLines: 400 };
+
+// (Milestone 25) Full finance / yield (bible §26 / §27M; Claude Code's picks where the bible gives no number):
+//   STAGE_SCALE — wages and every upkeep grow with the stage (a bigger resort runs a bigger operation): ×1.00 Roadside,
+//     1.05 Holiday Lodge, 1.10 Destination, 1.15 Luxury Retreat, 1.20 World-Class, 1.25 Prestige Grounds
+//   RESCUE — bible §27M exact: debt over 80% of the ceiling at 3 month ends in a row → the Rescue Investor: debt down to
+//     35% of the ceiling, Prestige −5 (never below 0), 8% of revenue for one year (336 days); no save deletion, no restart
+//   YIELD — the Rates sheet's suggested band per room type, from its last 28 nights: occupancy 85%+ (and Service 70+)
+//     → Premium; under 55% → Value; otherwise Standard
+//   YEARS — closed years kept for the profit history (every year of the run, small)
+export const STAGE_SCALE = { roadside: 1, holiday: 1.05, destination: 1.1, luxury: 1.15, worldclass: 1.2, prestige: 1.25 };
+export const RESCUE = { over: 0.8, months: 3, downTo: 0.35, prestige: 5, share: 0.08, shareDays: 336 };
+export const YIELD = { window: 28, premiumAt: 0.85, valueBelow: 0.55, serviceMin: 70 };

@@ -201,4 +201,12 @@ export const SAVE_MIGRATIONS = {
   // 21 → 22 (Milestone 24): the weather is rolled for the save's month at its next band edge (seeded: the same month
   // always gets the same weather).
   21: (record) => ({ ...record, data: { ...record.data, weather: record.data.weather ?? freshWeather() } }),
+  // 22 → 23 (Milestone 25): no closed years yet (the profit history starts with the year running), no nights counted for
+  // the suggested rates, no Rescue Investor strikes.
+  22: (record) => {
+    const d = record.data;
+    if (!d.finance) return record;
+    const day = d.calendar?.totalDays ?? 0;
+    return { ...record, data: { ...d, finance: { years: [], year: { n: Math.floor(day / 336) + 1, lines: {} }, nights: [], strikes: 0, rescue: null, ...d.finance } } };
+  },
 };
