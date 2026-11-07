@@ -21,7 +21,11 @@ import { PARTNERS } from '../../data/partners.js';
 const blank = () => ({ tokens: 0, ent: null, ads: null, firstAward: false, repaints: 0, spent: {} });
 
 export function createMonetisation({ bus = null, now = () => Date.now(), account = {}, run = () => null, provider = null, adProvider = null, enabled = SERVICES.enabled } = {}) {
-  const acc = () => (account.money ??= blank());
+  const acc = () => {
+    const m = (account.money ??= blank());
+    for (const [k, v] of Object.entries(blank())) m[k] ??= v; // (an older or partial record: filled in)
+    return m;
+  };
   const ent = new EntitlementService({ now, bus });
   ent.load?.(acc().ent ?? null);
   ent.loadProcessed?.(acc().processed ?? []);

@@ -68,6 +68,7 @@ function officeSheet(run, arg, { act, accent }) {
     if (aw.expo && !aw.expo.done) rows.push({ id: 'office:expo', icon: 'ui_28', label: EXPO.name, sub: 'This month: enter for a ranked result against the rivals (or skip)', accent: C.action, onTap: () => act.panel('expo') });
     rows.push({ id: 'office:awards', icon: 'ui_29', label: 'Awards & Rivals', sub: `${plural(aw.wins.length, 'award')} won · Prestige ${Math.round(aw.prestige)}`, accent: C.progress, onTap: () => act.panel('awards') });
   }
+  if (run.saves) rows.push({ id: 'office:saves', icon: 'ui_33', label: 'Saves', sub: run.saves.lastWords?.() ?? 'Saved automatically every 7 days and at every big moment', accent: C.progress, onTap: () => act.panel('saves') });
   if (run.money?.enabled) rows.push({ id: 'office:store', icon: 'ui_31', label: 'Store', sub: `${run.money.tokens} Resort Tokens${run.money.removeAds ? ' · no ads' : ''}`, accent: C.progress, onTap: () => act.panel('store') });
   if (run.ending?.reached) rows.push({ id: 'office:ending', icon: 'ui_30', label: `Year 20: Grade ${run.ending.result.grade}`, sub: run.ngPlus >= 3 ? 'Your twenty years, graded.' : `${run.ending.result.total} / 100 · New Game+${Math.min(3, run.ngPlus + 1)} is ready`, accent: C.gold, onTap: () => act.panel('ending') });
   if (run.secrets) rows.push({ id: 'office:secrets', icon: 'sec_found', label: 'Secret Archive', sub: `${run.secrets.count} of 50 found${run.secrets.invites.length ? ` · ${plural(run.secrets.invites.length, 'secret applicant')} waiting` : ''}`, accent: run.secrets.invites.length ? C.action : C.progress, onTap: () => act.panel('secrets') });
@@ -491,9 +492,46 @@ function storeSheet(run, arg, { act, accent }) {
   };
 }
 
-export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet, awards: awardsSheet, expo: expoSheet, weather: weatherSheet, achievements: achievementsSheet, secrets: secretsSheet, secret: secretSheet, ending: endingSheet, ngSetup: ngSetupSheet, store: storeSheet };
+// (Milestone 32) Saves: when it last saved and why; save now; go back to the copy before (asks twice; nothing is deleted).
+function savesSheet(run, arg, { act, accent }) {
+  const sv = run.saves;
+  const copies = sv.copies?.() ?? [];
+  return {
+    key: 'panel:saves',
+    title: 'Saves',
+    subtitle: 'Your resort saves by itself every 7 game days and at every big moment: building, hiring, events, awards, purchases.',
+    art: 'ui_33',
+    accent,
+    sections: [
+      { title: 'Kept copies (newest first)', std: 'saves:copies', columns: 1, lines: copies.length ? copies.map((c, i) => ({ text: `${i === 0 ? 'Now' : i === 1 ? 'Before' : 'Older'} · ${c.when}`, right: c.why ?? '', color: c.ok ? C.text : C.bad })) : [{ text: 'Saving…', color: C.textMuted }] },
+      { columns: 1, buttons: [
+        { id: 'saves:now', label: 'Save now', accent: C.progress, onTap: () => act.do('saveNow') },
+        { id: 'saves:back', label: sv.confirming ? 'Tap again: go back to the save before' : 'Go back to the save before', sub: 'For a mistake you want to undo. The newer save is kept as a copy.', accent: C.bad, disabled: copies.length < 2, onTap: () => act.do('saveBack') },
+      ] },
+      back(act),
+    ],
+  };
+}
+
+export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet, awards: awardsSheet, expo: expoSheet, weather: weatherSheet, achievements: achievementsSheet, secrets: secretsSheet, secret: secretSheet, ending: endingSheet, ngSetup: ngSetupSheet, store: storeSheet, saves: savesSheet };
 
 export const LATE_OPS = {
+  // (Milestone 32) Saves
+  saveNow(run) {
+    run.saves?.now();
+    return { say: 'Saved.', panel: ['saves'] };
+  },
+  saveBack(run) {
+    const sv = run.saves;
+    if (!sv) return null;
+    if (!sv.confirming) {
+      sv.confirming = true;
+      return { panel: ['saves'] };
+    }
+    sv.confirming = false;
+    sv.back();
+    return { say: 'Going back to the save before…' };
+  },
   // (Milestone 29) the Store
   tokSpend(run, sink, arg) {
     const r = run.money?.spend(sink, arg);

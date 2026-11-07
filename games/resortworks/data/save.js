@@ -31,3 +31,23 @@ export const SAVE = {
   // Milestone 28 (the Year-20 ending and its grade; an NG+ run's Legacy Staff / Signature legacy and its parent's name);
   // 27 = Milestone 28b (the Works Gods' secrets' run half and their counters, inside the secrets' save)
 };
+
+// (Milestone 32, bible §33) Autosave: every 7 game days (each 7th day's Morning) and at the critical boundaries —
+// construction, a staff change, a major event, an award, NG+ (the parent is saved before the new run is made) and a
+// purchase — plus the moments the earlier milestones added. Several in the same moment become one write (core Autosave);
+// the rolling 30-second save still runs while the clock does. Each slot keeps its last ROLLING copies (checksummed): a
+// write cut off half way is never used, and "go back" makes the copy before current again.
+export const AUTOSAVE = {
+  everyDays: 7,
+  rolling: 3,
+  triggers: [
+    'clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority',
+    'site:change', 'site:built', 'site:upgraded', // construction
+    'staff:hired', 'staff:fired', // a staff change
+    'events:result', 'events:booked', // a major event
+    'awards:change', 'awards:result', // an award
+    'ending:change', // the ending (NG+ saves the parent itself, first)
+    'money:change', // a purchase or a token spend
+    'progress:stage', 'research:change', 'items:change', 'packages:change', 'packages:sold', 'events:change', 'guestbook:change', 'themes:change', 'supplies:change', 'partners:change', 'weather:change', 'achievements:change', 'secrets:change', 'secrets:arrival', 'secrets:poached',
+  ],
+};

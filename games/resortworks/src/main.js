@@ -95,7 +95,7 @@ import { createStudioSplash } from '../../../core/ui/StudioSplash.js';
 import { SETTINGS, SETTINGS_DEFAULTS, SETTINGS_KEY, TEXT_SCALE, SETTINGS_TEXT } from '../data/settings.js';
 import { ASSETS, STUDIO_LOGO, LAZY_ART } from '../data/assets.js';
 import { staffDef } from '../data/roster.js';
-import { SAVE } from '../data/save.js';
+import { SAVE, AUTOSAVE } from '../data/save.js';
 import { validateSetup } from '../data/setup.js';
 import { createCampaigns } from './app/campaigns.js';
 import { slotSummary } from './systems/resort.js';
@@ -486,6 +486,24 @@ function openRun(n, data) {
   run.parentSave = () => (open === run ? snapshotRun(run) : run.data);
   run.ngSlots = () => campaigns?.cards ?? [];
   run.startNgPlus = (choices) => startNgPlus(run, choices);
+  // (Milestone 32) the Saves sheet: the kept copies (refreshed when it opens), save now, go back to the copy before
+  let copies = [];
+  const refreshCopies = () => campaigns.copies(n).then((list) => (copies = list.map((c) => ({ ok: c.status === 'ok', when: c.savedAt ? new Date(c.savedAt).toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }) : '—', why: c.trigger ?? null })))).catch(() => {});
+  refreshCopies();
+  bus.on('autosave:done', refreshCopies);
+  run.saves = {
+    confirming: false,
+    copies: () => copies,
+    lastWords: () => (copies[0] ? `Last saved ${copies[0].when}` : null),
+    now: () => autosave.request('manual'),
+    back: async () => {
+      const data = await campaigns.rollback(n);
+      if (!data) return;
+      openRun(n, data);
+      router.go('resort');
+      debug.log(`slot ${n}: went back to the save before`);
+    },
+  };
   open = run;
   run.money = money; // (Milestone 29)
   audio.playMusic('music_day'); // (Milestone 31) the resort's tune and the ambience of this part of the day
@@ -541,7 +559,7 @@ async function startNgPlus(run, { legacy, theme, slot }) {
   router.go('resort');
   debug.log(`New Game+${child.ngPlus} in slot ${slot} (parent slot ${run.n} kept)`);
 }
-async function saveRun() {
+async function saveRun(reason = null) {
   if (!open) return;
   const { n, data, calendar, bookings, team, housekeeping, reviews, finance, complaints, maintenance } = open;
   data.calendar = calendar.serialize();
@@ -565,13 +583,14 @@ async function saveRun() {
 }
 const autosave = new Autosave({
   bus,
-  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage', 'research:change', 'items:change', 'packages:change', 'packages:sold', 'events:change', 'guestbook:change', 'themes:change', 'supplies:change', 'partners:change', 'awards:change', 'weather:change', 'achievements:change', 'secrets:change', 'secrets:arrival', 'secrets:poached', 'ending:change'],
+  triggers: AUTOSAVE.triggers, // (Milestone 32) data/save.js: every critical boundary
   save: () => saveRun(),
   stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize(), open.maintenance.serialize(), open.staffing.serialize(), open.site.serialize(), open.progress.serialize(), open.research.serialize(), open.items.serialize()]) : null),
   enabled: () => !!open,
 });
 autosave.installBackground(); // the app going to the background (or the page closing) saves at once
 bus.on('clock:speed', ({ speed }) => speed === 0 && autosave.request('pause'));
+bus.on('band:change', ({ band, totalDays }) => band === 'morning' && totalDays > 0 && totalDays % AUTOSAVE.everyDays === 0 && autosave.request('week')); // (Milestone 32) every 7 game days
 bus.on('autosave:done', ({ reason }) => debug.log(`saved (${reason}): ${open?.calendar.dateText() ?? ''}`));
 bus.on('autosave:failed', ({ error }) => debug.log(`save failed: ${error?.message ?? error}`));
 bus.on('band:change', ({ band }) => debug.log(`band: ${band}`));

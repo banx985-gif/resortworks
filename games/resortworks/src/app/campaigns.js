@@ -2,10 +2,11 @@
 // slot), starting a resort into a slot (START RESORT) and deleting one. Screens ask "are you sure" first; this module
 // only does the writing.
 import { CampaignSlots } from '../../../../core/CampaignSlots.js';
-import { newCampaign, slotSummary, SAVE_MIGRATIONS } from '../systems/resort.js';
+import { newCampaign, slotSummary, SAVE_MIGRATIONS, validateCampaign } from '../systems/resort.js';
 
 export function createCampaigns({ adapter, save, bus = null }) {
-  const slots = new CampaignSlots({ adapter, count: save.count, prefix: save.prefix, accountKey: save.accountKey, version: save.version, migrations: SAVE_MIGRATIONS, describe: slotSummary, bus });
+  // (Milestone 32) every copy checked (validateCampaign), a newer game's save never written over, a damaged account kept aside
+  const slots = new CampaignSlots({ adapter, count: save.count, prefix: save.prefix, accountKey: save.accountKey, version: save.version, migrations: SAVE_MIGRATIONS, describe: slotSummary, bus, validate: validateCampaign, refuseNewer: true, quarantineAccount: true });
   let cards = slots.numbers().map((n) => ({ n, empty: true, summary: null, error: null }));
   let last = null;
 
@@ -46,6 +47,21 @@ export function createCampaigns({ adapter, save, bus = null }) {
       await slots.writeSummary(n, slotSummary(data));
       const c = cards[n - 1];
       if (c) cards[n - 1] = { ...c, empty: false, summary: slotSummary(data) };
+    },
+    // (Milestone 32) the copies a slot keeps (newest first) and "go back": the copy before the newest good one becomes
+    // current (it is written again as the newest, so nothing is deleted). → the data now current, or null
+    async copies(n) {
+      return (await slots.slot(n).list()).sort((a, b) => (b.seq ?? 0) - (a.seq ?? 0));
+    },
+    async rollback(n) {
+      const slot = slots.slot(n);
+      const good = (await slot.list()).filter((c) => c.status === 'ok').sort((a, b) => (b.seq ?? 0) - (a.seq ?? 0));
+      if (good.length < 2) return null;
+      await slot.importRecord(await slot.adapter.get(good[1].key));
+      const data = await slots.load(n);
+      if (data) await slots.writeSummary(n, slotSummary(data));
+      await this.refresh();
+      return data;
     },
     async remove(n) {
       await slots.remove(n);

@@ -99,6 +99,12 @@ export function createItems({ saved = null, bus = null, team = [], seed = 'resor
     sys.setLikes(m.id, { loves, dislike });
   }
   for (const m of team) ensureLikes(m);
+  // (Milestone 32) a new hire gets their likes at once (they come from their id alone), so a save right after a hire
+  // reloads exactly as it was (before, they came at the next night)
+  bus?.on('staff:hired', ({ id }) => {
+    const m = team.find((x) => x.id === id);
+    if (m) ensureLikes(m);
+  });
   const changed = (what) => bus?.emit('items:change', { what });
   const log = (line) => {
     s.log.unshift({ day: day(), line });

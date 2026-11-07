@@ -226,3 +226,17 @@ export const SAVE_MIGRATIONS = {
   // 26 → 27 (Milestone 28b): no gods yet — their secrets' run half starts empty inside the secrets' save.
   26: (record) => (record.data.secrets ? { ...record, data: { ...record.data, secrets: { ...record.data.secrets, gods: record.data.secrets.gods ?? null } } } : record),
 };
+
+// (Milestone 32) The campaign's own check (core SaveSlot validate): a copy whose checksum is fine but whose data is not
+// a RESORTWORKS campaign is skipped like a damaged one. → [problems] (empty: fine)
+export function validateCampaign(data) {
+  const out = [];
+  if (!data || typeof data !== 'object') return ['not a campaign'];
+  if (!data.resort?.name || !data.resort?.founder?.id) out.push('no resort identity');
+  if (!data.date || !Number.isFinite(data.date.year)) out.push('no date');
+  if (!data.seed) out.push('no seed');
+  if (data.calendar && !Number.isFinite(data.calendar.totalDays)) out.push('a broken calendar');
+  if (data.staff && !Array.isArray(data.staff)) out.push('a broken team');
+  if (data.ngPlus != null && !(data.ngPlus >= 0 && data.ngPlus <= 3)) out.push('a broken NG+ level');
+  return out;
+}
