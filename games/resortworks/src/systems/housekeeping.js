@@ -160,6 +160,7 @@ export function createHousekeeping({ saved = null, team = [], bookings = null, b
   }
   function tryStart() {
     let any = false;
+    if (s.queue.some((q) => !roomById(q.room))) s.queue = s.queue.filter((q) => roomById(q.room)); // (M21 fix) a room sold with its clean still queued
     for (const m of hks) {
       if (!s.queue.length) break;
       if (!canStart(m, s.at)) continue;

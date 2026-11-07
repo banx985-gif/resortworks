@@ -45,6 +45,7 @@
 import { stationSheet } from '../../../../core/ui/StationSheet.js';
 import { typesNow, wantsOf, canCome } from '../systems/guests.js';
 import { packageWords, packageRate } from './lateSheets.js';
+import { combosFor, comboOn, whyNoCombo } from '../systems/themes.js';
 import { THEME } from '../../../../core/Theme.js';
 import { GUEST, ROOMS, roomById } from '../../data/lot.js';
 import { ROOM_TYPES, GUEST_TYPES, ROOM_STATES, PRICE_BAND, ROOM_LEVEL, LOVED } from '../../data/bookings.js';
@@ -99,6 +100,8 @@ export function resortSheet(world, id, { accent = C.progress, bookings = null, t
   else spec = { title: it.def.name, line: it.def.line, art: it.def.art, now };
   // (Milestone 16) every facility: its level, what it does at it, and its Upgrade
   if (it.kind === 'facility' && site) spec.body = [...(spec.body ?? []), facilityLevel(site, it.id, act)];
+  // (Milestone 21) the facility combos it is part of: on, or what is still missing
+  if (it.kind === 'facility' && combosFor(it.id).length) spec.body = [...(spec.body ?? []), { title: 'Combos', std: 'combos', lines: combosFor(it.id).map((c) => ({ text: `${comboOn(c.id) ? '✓ ' : ''}${c.name}: ${c.what}`, right: comboOn(c.id) ? 'On' : '', color: comboOn(c.id) ? C.good : C.textMuted })).concat(combosFor(it.id).filter((c) => !comboOn(c.id)).map((c) => ({ text: `${c.name}: ${whyNoCombo(c.id)}`, color: C.textMuted }))) }];
   // (Milestone 8) every facility and room: its Condition (Reception's goes after its lists)
   if (mt && it.kind !== 'guest' && it.kind !== 'staff') {
     const sec = conditionSection(mt, it.id, act);

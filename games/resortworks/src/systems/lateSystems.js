@@ -7,6 +7,7 @@
 import { createPackages } from './packages.js';
 import { createEvents } from './events.js';
 import { createGuestbook } from './guestbook.js';
+import { createThemes } from './themes.js';
 
 export function attachLate(run, data = {}, { bus = null } = {}) {
   // (Milestone 18) packages: offers pick them, accepting reserves their places, each day gives the inclusions
@@ -19,12 +20,20 @@ export function attachLate(run, data = {}, { bus = null } = {}) {
   run.bookings.attachLate((day, band) => {
     run.packages.onEdge(day, band, run.bookings);
     run.events.onEdge(day, band);
+    run.themes?.onEdge(day, band, run.bookings); // (Milestone 21)
   });
   run.staffing.setExtraLoad((day) => run.events.loadOn(day));
   // (Milestone 20) the Guestbook: every notable stay, memories, returning guests and Regulars
   run.guestbook = createGuestbook({ saved: data.guestbook ?? null, bus, seed: data.seed ?? run.seed ?? 'resortworks', items: run.items, team: run.team });
   run.bookings.attachRepeat((day, pricing) => run.guestbook.dueOffers(day, pricing));
-  run.reviews.attachExtraSat((b) => run.guestbook.extraSat(b));
+  // (Milestone 21) themes from the last 84 days, the Signature, facility combos
+  run.themes = createThemes({ saved: data.themes ?? null, bus, layout: run.layout, finance: run.finance, progress: run.progress });
+  run.themes.setPrestige(() => run.reviews.headline?.(run.bookings.at.day)?.prestige ?? 0);
+  run.reviews.attachExtraSat((b, raw) => run.guestbook.extraSat(b) + run.themes.extraSat(b, raw));
+  run.events.setScoreMult((evt) => run.themes.eventMult(evt));
+  run.finance.attachSpendMult((line) => run.themes.spendMult(line));
+  bus?.on('review:new', ({ review }) => run.themes.onReview(review));
+  bus?.on('events:result', ({ event }) => run.themes.onEvent(event));
   bus?.on('review:new', ({ review }) => run.guestbook.onReview(review));
   bus?.on('events:result', ({ event }) => run.guestbook.onEvent(event));
   bus?.on('booking:checkin', ({ bookings }) => bookings.forEach((b) => b.repeat && run.guestbook.onReturnStay()));
@@ -35,5 +44,6 @@ export function saveLate(run, data) {
   data.packages = run.packages?.serialize() ?? data.packages; // (Milestone 18)
   data.events = run.events?.serialize() ?? data.events; // (Milestone 19)
   data.guestbook = run.guestbook?.serialize() ?? data.guestbook; // (Milestone 20)
+  data.themes = run.themes?.serialize() ?? data.themes; // (Milestone 21)
   return data;
 }

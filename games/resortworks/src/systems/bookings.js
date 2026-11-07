@@ -670,7 +670,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     // same type as their room or better — same type first, then the lowest number.
     roomChangeOptions(bookingId) {
       const b = s.bookings.find((x) => x.id === bookingId);
-      if (!b || !['waiting', 'staying'].includes(b.status)) return [];
+      if (!b || !['waiting', 'staying'].includes(b.status) || !roomById(b.room)) return []; // (M21 fix: a room sold since)
       const rank = ROOM_TYPES[roomById(b.room).typeId].rank;
       return ROOMS.filter((r) => r.id !== b.room && roomState(r.id) === 'ready' && !heldBy(r.id, b) && ROOM_TYPES[r.typeId].cap >= b.party && ROOM_TYPES[r.typeId].rank >= rank).sort(
         (x, y) => ROOM_TYPES[x.typeId].rank - ROOM_TYPES[y.typeId].rank || x.number - y.number,

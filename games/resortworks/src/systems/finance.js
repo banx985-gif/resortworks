@@ -91,6 +91,7 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
   let version = 0;
   let mt = null; // (Milestone 8) the maintenance system, once attached
   let pk = null; // (Milestone 18) packages
+  let spendMult = null; // (Milestone 21) a combo's spend bonus by line
 
   const cash = () => econ.balance('credits');
   const ceiling = () => creditCeiling(s.lifetimeRevenue);
@@ -198,7 +199,7 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
         for (const id of Object.keys(SPEND)) {
           if (id === CAFE.facility || !guests || !FACILITIES.some((f) => f.id === id) || mt?.isOffline(id)) continue;
           const users = FACILITY_FX[id]?.users ? Math.floor(FACILITY_FX[id].users * mult(id)) : guests;
-          move(SPEND_LINE[id], Math.min(guests, users) * SPEND[id] * (1 + teamBonus(team, 'leisureSpend')), day, id);
+          move(SPEND_LINE[id], Math.min(guests, users) * SPEND[id] * (1 + teamBonus(team, 'leisureSpend')) * (spendMult?.(SPEND_LINE[id]) ?? 1), day, id); // (M21) Night Resort +10% evening spend
         }
       }
       if (band === BAND.night) dayChange(day, bk);
@@ -223,6 +224,9 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
     },
     attachPackages(x) {
       pk = x;
+    },
+    attachSpendMult(fn) {
+      spendMult = fn;
     },
     bandOf: (rt) => s.bands[rt] ?? DEFAULT_BAND,
     setBand(rt, id) {

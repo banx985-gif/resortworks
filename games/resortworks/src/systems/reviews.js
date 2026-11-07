@@ -176,7 +176,8 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
     const fx = cp?.closeStay(b, day) ?? null; // (Milestone 7) the stay's complaints, settled
     const place = placeOf(b.room); // (Milestone 9) the room's view and walks; (M15) its level and Loved bonus
     const cats = stayCategories(b, { team, facilities, roomType: roomTypeOf(b), cancel: fx?.cancel ?? {}, place, guests: guestsNow() });
-    const base = finalSatisfaction(cats, b.type) + (GUEST_TYPES[b.type]?.family ? rx('familySat') : 0) + (extraSat?.(b) ?? 0); // (M17) Family Activities; (M20) a Regular's +5
+    const raw = finalSatisfaction(cats, b.type) + (GUEST_TYPES[b.type]?.family ? rx('familySat') : 0); // (M17) Family Activities
+    const base = r2(raw + (extraSat?.(b, raw) ?? 0)); // (M20) a Regular's +5; (M21) combos +10%, the Signature +2
     const sat = fx ? r2(clamp(base + fx.bonus + fx.penalty)) : base;
     const stars = reviewStars(sat);
     const id = `V${s.nextId++}`;

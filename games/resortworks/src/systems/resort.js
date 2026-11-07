@@ -19,6 +19,7 @@ import { setStage as setLiveStage } from './guests.js';
 import { freshPackages } from './packages.js';
 import { freshEvents } from './events.js';
 import { freshGuestbook } from './guestbook.js';
+import { freshThemes } from './themes.js';
 
 // A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
 // before the calendar existed (Milestone 2).
@@ -63,6 +64,7 @@ export function newCampaign(setup, now = Date.now()) {
     packages: freshPackages(), // (Milestone 18) no package on sale yet
     events: freshEvents(), // (Milestone 19) no events yet
     guestbook: freshGuestbook(), // (Milestone 20) an empty Guestbook
+    themes: freshThemes(), // (Milestone 21) no theme yet
     opal: { welcomed: false }, // (M6b) Dame Opal's welcome card is due (a save from before M6b has none: no welcome)
     playSec: 0,
     ngPlus: 0,
@@ -182,4 +184,6 @@ export const SAVE_MIGRATIONS = {
   16: (record) => ({ ...record, data: { ...record.data, events: record.data.events ?? freshEvents() } }),
   // 17 → 18 (Milestone 20): an empty Guestbook (stays before it left no entry; guests start coming back from new stays).
   17: (record) => ({ ...record, data: { ...record.data, guestbook: record.data.guestbook ?? freshGuestbook() } }),
+  // 18 → 19 (Milestone 21): every theme at 0 until the first month end works it out from the play from then on; no Signature.
+  18: (record) => ({ ...record, data: { ...record.data, themes: record.data.themes ?? freshThemes() } }),
 };

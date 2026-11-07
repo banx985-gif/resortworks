@@ -13,6 +13,8 @@ import { credits } from '../systems/finance.js';
 import { facilityInfo } from '../../data/facilities.js';
 import { EVENTS, eventById, RESULT, ROCCO } from '../../data/events.js';
 import { memoryById, REGULAR } from '../../data/guestbook.js';
+import { THEMES, COMBOS, SIGNATURE, themeById } from '../../data/themes.js';
+import { comboOn, whyNoCombo, activeCombos } from '../systems/themes.js';
 import { ROOM_TYPES } from '../../data/bookings.js';
 
 const C = THEME.color;
@@ -35,6 +37,11 @@ function officeSheet(run, arg, { act, accent }) {
     const wait = evs.enquiries.length;
     const ch = evs.pendingChoice;
     rows.push({ id: 'office:events', icon: 'ui_22', label: 'Events', sub: ch ? `Rocco needs a choice: ${eventById(ch.ev).name}` : `${plural(wait, 'enquiry', 'enquiries')} · ${evs.booked.length} booked · ${evs.stats.held} held`, accent: ch ? C.action : C.progress, onTap: () => act.panel(ch ? 'eventChoice' : 'events', ch?.id ?? null) });
+  }
+  const th = run.themes;
+  if (th) {
+    const top = [...THEMES].sort((a, b) => (th.progress[b.id] ?? 0) - (th.progress[a.id] ?? 0))[0];
+    rows.push({ id: 'office:themes', icon: 'ui_05', label: 'Themes & Combos', sub: `${th.signature ? `Signature: ${themeById(th.signature.id).name}` : `Leading: ${top.name} ${Math.round(th.progress[top.id] ?? 0)}`} · ${activeCombos().length} of 10 combos on`, accent: C.progress, onTap: () => act.panel('themes') });
   }
   const gb = run.guestbook;
   if (gb) rows.push({ id: 'office:guestbook', icon: 'ui_21', label: 'Guestbook', sub: `${plural(gb.guests.length, 'guest')} · ${plural(gb.regulars.length, 'Regular')} · ${plural(gb.stats.returns, 'return')}`, accent: C.progress, onTap: () => act.panel('guestbook') });
@@ -177,9 +184,39 @@ function hallOfFameSheet(run, arg, { act, accent, dateOf = (d) => `Day ${d + 1}`
   };
 }
 
-export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet };
+// (Milestone 21) Themes (worked out each month from the last 84 days), the Signature, and the 10 facility combos.
+function themesSheet(run, arg, { act, accent }) {
+  const th = run.themes;
+  const sections = [{ lines: [{ text: 'Your resort becomes known for what it really does. Each month the last 84 days are scored: 50+ brings +3% of those guests, 75+ +6%. At the World-Class stage a theme at 90+ can be your Signature.', color: C.textMuted }] }];
+  if (th.signature) sections.push({ lines: [{ text: `Signature: ${themeById(th.signature.id).name}`, right: `+${Math.round(SIGNATURE.demand * 100)}% demand, +${SIGNATURE.sat} satisfaction`, color: C.good }] });
+  sections.push({
+    title: 'Themes',
+    std: 'th:list',
+    columns: 1,
+    buttons: [...THEMES].sort((a, b) => (th.progress[b.id] ?? 0) - (th.progress[a.id] ?? 0)).map((t) => {
+      const v = th.progress[t.id] ?? 0;
+      const lv = th.levelOf(t.id);
+      const why = th.whyNoSignature(t.id);
+      const sig = th.signature?.id === t.id;
+      return { id: `th:${t.id}`, icon: t.art, label: `${sig ? '★ ' : ''}${t.name} · ${Math.round(v)}/100`, sub: `${lv ? lv.name : 'Not yet known for it'}${lv?.demand ? ` (+${Math.round(lv.demand * 100)}% demand)` : ''}`, cost: sig ? 'Signature' : why ? '' : th.signature ? 'Change: 10,000' : 'Make Signature', accent: sig ? C.good : why ? C.progress : C.action, onTap: () => (why ? null : act.do('thSignature', t.id)) };
+    }),
+  });
+  sections.push({
+    title: `Facility combos (${activeCombos().length} on)`,
+    std: 'th:combos',
+    lines: COMBOS.filter((c) => c.id !== 'CB10' || comboOn(c.id)).map((c) => ({ text: `${comboOn(c.id) ? '✓ ' : ''}${c.name}: ${c.what}`, right: comboOn(c.id) ? 'On' : whyNoCombo(c.id).replace(/^Needs /, 'needs '), color: comboOn(c.id) ? C.good : C.textMuted })),
+  });
+  sections.push(back(act));
+  return { key: 'panel:themes', title: 'Themes & Combos', subtitle: 'What your resort is known for.', art: 'theme_th01', accent, sections };
+}
+
+export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet };
 
 export const LATE_OPS = {
+  thSignature(run, id) {
+    const r = run.themes?.setSignature(id);
+    return r?.ok ? { say: `${themeById(id).name} is your Signature.` } : { why: r?.why };
+  },
   evAccept(run, id) {
     const r = run.events?.accept(id);
     return r?.ok ? { say: `${eventById(r.event.ev).name} booked: ${r.event.housed} guests in your rooms.` } : { why: r?.why };
