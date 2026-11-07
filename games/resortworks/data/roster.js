@@ -62,7 +62,16 @@ export const STAFF = [
   s('S49', 'Atlas Forge', 'MG', 'legendary', 'Never Breaks', 'prevention', 15, 'legendary'),
   s('S50', 'Sage Evergreen', 'MG', 'secret', 'Paradise Keeper', 'mgGuard', 1, 'secret'),
 ];
-export const staffDef = (id) => STAFF.find((x) => x.id === id) ?? null;
+// (Milestone 27b, card M27b_AARON_LEGEND.md) Aaron, the founder of Banx Games (chibi #71): a 6th Legendary beside the
+// bible's five, Front Office, never one of the 50 (the staff book and every count of 50 stay as they are). His starting
+// stats are the best of all the Legendaries (level 16, the tier's top, and +4 to every stat — kept like an item's
+// permanent bonus). Signature "Studio Founder": while he works, everyone gains XP 20% faster and every department's work
+// is +5% (check-in, cleaning, service, activities, repairs). He walks with his own sheet; his card uses the still.
+export const AARON = { id: 'S51', name: 'Aaron', role: 'FO', tier: 'legendary', trait: 'Studio Founder', effect: { key: 'founderXp', pct: 20 }, when: 'legendary', art: 'staff_legend_aaron', sheet: 'chibi_71_aaron_banx_games_founder', title: 'Founder of Banx Games', level: 16, statAdd: 4,
+  effects: [{ key: 'founderXp', pct: 20 }, { key: 'checkin', pct: 5 }, { key: 'cleanSpeed', pct: 5 }, { key: 'serviceSpeed', pct: 5 }, { key: 'activity', pct: 5 }, { key: 'repairSpeed', pct: 5 }],
+  signatureWords: 'Studio Founder: while he works, everyone gains XP 20% faster, and check-in, cleaning, service, activities and repairs are all +5%.' };
+export const LEGENDS = [AARON];
+export const staffDef = (id) => STAFF.find((x) => x.id === id) ?? LEGENDS.find((x) => x.id === id) ?? null;
 export const HIREABLE_TIERS = ['standard', 'rare', 'elite'];
 // Which stage opens each eligibility (data/build.js STAGES). Legendary / secret: never through the applicant pool.
 export const WHEN_STAGE = { start: 'roadside', early: 'roadside', holiday: 'holiday', destination: 'destination', luxury: 'luxury' };
@@ -71,6 +80,7 @@ export const WHEN_WORDS = { legendary: 'Legendary · unlocks through a secret', 
 // What each trait / specialisation key changes now (live) — or, for systems that come later, kept on the person and
 // marked with the milestone that makes it work. Every pct adds up across the team (people away today don't count).
 export const TRAIT_KEYS = {
+  founderXp: { live: true, words: 'XP for everyone' }, // (Milestone 27b) Aaron's Studio Founder: everyone's XP × (1 + %)
   checkin: { live: true, words: 'check-in speed' }, // Front Office desk minutes ÷ (1 + %)
   queue: { live: true, words: 'desk queue speed' }, // the same desk minutes
   recovery: { live: true, words: 'complaint recovery' }, // recovery chance × (1 + %)
@@ -108,10 +118,10 @@ export const TRAIT_KEYS = {
   wedding: { later: 'M19', words: 'weddings' },
   evening: { later: 'M18', words: 'evening entertainment' },
   groupEvent: { later: 'M19', words: 'group events' },
-  prestigeFood: { later: 'M29', words: 'prestige food' },
-  eventMemory: { later: 'M29', words: 'event memories' },
-  hkGuard: { later: 'M29', words: 'first housekeeping slip each week' },
-  mgGuard: { later: 'M29', words: 'first breakdown each month' },
+  prestigeFood: { live: true, words: 'prestige food: VIP / prestige guests +2 satisfaction' }, // (Milestone 27)
+  eventMemory: { live: true, words: 'event memories: every event +2 score' }, // (Milestone 27)
+  hkGuard: { live: true, words: 'the first late room each week costs nothing' }, // (Milestone 27)
+  mgGuard: { live: true, words: 'the first breakdown each month doesn’t happen' }, // (Milestone 27)
 };
 
 // Levels and XP (bible §27D): cap 20; to the next level 80 + 25 × (level − 1); 3 XP a working band, +2 for exceptional

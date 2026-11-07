@@ -221,6 +221,25 @@ for (const [key, fill, mark] of [['ach_medal', MEDAL.gold, '★'], ['ach_locked'
     ctx.fillText(mark, cx, cy + 1);
     ctx.restore();
   });
+// (Milestone 27) the Secret Archive's badges (no secret art is filed): found (purple, a star) and hidden (grey, a ?)
+for (const [key, fill, mark] of [['sec_found', '#7E57C2', '★'], ['sec_hidden', MEDAL.locked, '?']])
+  assets.setFallback(key, (ctx, x, y, w, h) => {
+    const r = Math.min(w, h) * 0.42;
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    ctx.save();
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) ctx.lineTo(cx + r * Math.cos((Math.PI / 3) * i - Math.PI / 6), cy + r * Math.sin((Math.PI / 3) * i - Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = font(Math.round(r * 1.0), true);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(mark, cx, cy + 1);
+    ctx.restore();
+  });
 watchCanvasLoss(renderer.canvas ?? document.getElementById('game')); // a wiped canvas → the caches are made again
 const router = new ScreenRouter(bus, { roots: ['menu', 'test', 'resort'] });
 const dialog = new Dialog({ layout, assets }); // confirm boxes (delete / replace a slot)
@@ -451,6 +470,8 @@ function welcomeIfDue(run) {
 }
 // (Milestone 26) an achievement: the account store is saved at once (it is kept across every slot)
 bus.on('achievement:unlocked', () => campaigns?.slots.saveAccount(account));
+// (Milestone 27) a secret found: the account store too (what was found is kept across every run)
+bus.on('secrets:change', () => campaigns?.slots.saveAccount(account));
 // Every band edge moves the open resort's bookings on (check-ins, check-outs, nights, offers), in order.
 bus.on('band:change', () => open && open.bookings.sync(open.calendar.today, open.calendar.bandIndex));
 // The campaign save: the calendar as it stands, the date the slot card shows, then the slot (save + summary record).
@@ -478,7 +499,7 @@ async function saveRun() {
 }
 const autosave = new Autosave({
   bus,
-  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage', 'research:change', 'items:change', 'packages:change', 'packages:sold', 'events:change', 'guestbook:change', 'themes:change', 'supplies:change', 'partners:change', 'awards:change', 'weather:change', 'achievements:change'],
+  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage', 'research:change', 'items:change', 'packages:change', 'packages:sold', 'events:change', 'guestbook:change', 'themes:change', 'supplies:change', 'partners:change', 'awards:change', 'weather:change', 'achievements:change', 'secrets:change', 'secrets:arrival', 'secrets:poached'],
   save: () => saveRun(),
   stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize(), open.maintenance.serialize(), open.staffing.serialize(), open.site.serialize(), open.progress.serialize(), open.research.serialize(), open.items.serialize()]) : null),
   enabled: () => !!open,

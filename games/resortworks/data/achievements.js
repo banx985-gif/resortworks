@@ -49,6 +49,7 @@ export const ACHIEVEMENTS = [
   a('ACH38', 'World Partner', 'Meet Crown Escapes’ goal.', has('partnersMet', 'P08')),
   a('ACH39', 'Secret Award', 'Win a secret award.', { any: [has('awardsWon', 'AWR11'), has('awardsWon', 'AWR12')] }),
   a('ACH40', 'Beyond Five Stars', 'Prestige 100 with a 5★ rating.', { all: [gte('prestige', 100), gte('bestStars', 5)] }, { big: true }),
+  a('ACH42', 'Meet the Maker', 'Hire Aaron, the founder of Banx Games.', gte('aaronHired', 1)), // (Milestone 27b)
 ].map((d) => ({ ...d, reward: [{ currency: 'rep', amount: 20 }, ...(d.big ? [{ currency: 'item', amount: 1 }] : [])] }));
 export const achievementById = (id) => ACHIEVEMENTS.find((x) => x.id === id) ?? null;
 // The unlock toast and the screen: a code-drawn medal (no achievement art is filed).

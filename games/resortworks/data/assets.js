@@ -8,7 +8,7 @@ import { JOBS } from './maintenance.js';
 import { NAMED_CAST } from './cast.js';
 import { FACILITY_INFO } from './facilities.js';
 import { ROOM_BUILD, LAND, DOUGIE } from './build.js';
-import { STAFF } from './roster.js';
+import { STAFF, LEGENDS } from './roster.js';
 import { RESEARCH, ART_REDO } from './research.js';
 import { ITEM_TYPES, ITEMS_ICON } from './items.js';
 
@@ -40,6 +40,7 @@ export const ASSETS = {
   [DOUGIE.art]: `assets/images/cast/${DOUGIE.art}.png`,
   // Milestone 13: every staff portrait (the Founders are above; the rest join the applicant pool and the staff book).
   ...Object.fromEntries(STAFF.map((x) => [x.art, `assets/images/staff/${x.art}.png`])),
+  ...Object.fromEntries(LEGENDS.map((x) => [x.art, `assets/images/staff/${x.art}.png`])), // (Milestone 27b) Aaron's still (his walking sheet loads when he is first drawn)
   // Milestone 17: the research pictures (r01–r05 are marked "to redo": code-drawn until the new files come — src/main.js)
   ...Object.fromEntries(RESEARCH.filter((x) => !ART_REDO.includes(x.id)).map((x) => [x.art, `assets/images/research/${x.art}.png`])),
   // Milestone 14: the Staff Item icons and the Staff Items icon (not drawn yet: code-drawn stand-ins, src/main.js, until

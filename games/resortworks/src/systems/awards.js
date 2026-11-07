@@ -139,6 +139,7 @@ export function createAwards({ saved = null, bus = null, seed = 'resortworks', r
     s.variance.EXPO = Object.fromEntries(RIVALS.map((r) => [r.id, r2(rng.next() * 2 * VARIANCE - VARIANCE)]));
     s.year = year;
   }
+  let secretOpen = () => false; // (Milestone 27) AWR11 / AWR12 found (src/systems/secrets.js)
   function rivalScore(rid, id, year = yearOf(today), strong = null) {
     const r = rivalById(rid);
     let v = r.base + r.growth * (year - 1) + (s.variance[id]?.[rid] ?? 0);
@@ -149,7 +150,7 @@ export function createAwards({ saved = null, bus = null, seed = 'resortworks', r
   // Eligible for this award now? (one plain line why not, or null)
   function whyNotEligible(id) {
     const a = awardById(id);
-    if (!a || a.secret) return 'Secret.';
+    if (!a || (a.secret && !secretOpen(id))) return 'Secret.';
     const e = a.elig ?? {};
     if (e.stays && (bookings?.stats?.checkOuts ?? 0) < e.stays) return `Needs ${e.stays} completed stays.`;
     if (e.rank && !rankAtLeast(reviews?.rank?.id ?? 'E', e.rank)) return `Needs Rank ${e.rank}.`;
@@ -182,10 +183,10 @@ export function createAwards({ saved = null, bus = null, seed = 'resortworks', r
       const firstWin = !won(id);
       s.wins.push({ id, year, day });
       s.stats.wins++;
-      reviews?.addRepFor?.(WIN.rep, a.name);
+      reviews?.addRepFor?.(a.secret ? WIN.repSecret : WIN.rep, a.name);
       if (firstWin) {
         s.prestige.firstWins[id] = year;
-        addPrestige(first(WIN.prestigeFirst), `${a.name} (first win)`);
+        addPrestige(first(a.secret ? WIN.prestigeFirstSecret : WIN.prestigeFirst), `${a.name} (first win)`);
       }
       if (a.field.includes('RV08') && s.prestige.rivalVictories < WIN.rivalVictoryCap) {
         s.prestige.rivalVictories += WIN.rivalVictory;
@@ -251,6 +252,7 @@ export function createAwards({ saved = null, bus = null, seed = 'resortworks', r
     }
     rollYear(year);
     for (const a of VISIBLE_AWARDS) if (a.month === m) judge(a.id, day);
+    for (const a of AWARDS) if (a.secret && a.month === m && secretOpen(a.id)) judge(a.id, day); // (Milestone 27)
     if (m === EXPO.month) {
       s.expo = { year, day, done: false };
       bus?.emit('awards:expo', { invite: true, year });
@@ -281,6 +283,9 @@ export function createAwards({ saved = null, bus = null, seed = 'resortworks', r
     enterExpo,
     skipExpo,
     strongest: () => strongest(),
+    setSecretOpen(fn) {
+      secretOpen = fn ?? (() => false);
+    },
     get wins() {
       return s.wins;
     },

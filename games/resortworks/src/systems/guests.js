@@ -19,7 +19,10 @@ const ADVENTURE_R21 = 0.08; // R21 Tours & Excursions: adventure demand +8% (its
 
 export const DEMAND_CAP = 0.2;
 const WANT_FLOOR = 0.02;
-const LIVE = { stage: 'roadside', book: null };
+const LIVE = { stage: 'roadside', book: null, secretGuests: new Set() };
+// (Milestone 27) the secret guest types this resort has found (src/systems/secrets.js sets them)
+export const setSecretGuests = (ids = []) => (LIVE.secretGuests = new Set(ids));
+export const secretGuestOpen = (id) => LIVE.secretGuests.has(id);
 
 export const setStage = (id) => {
   if (STAGES.some((s) => s.id === id)) LIVE.stage = id;
@@ -30,12 +33,14 @@ export const fitsType = (t, rt) => ROOM_TYPES[rt].cap >= t.party && (!t.family |
 const builtTypes = () => [...new Set(ROOMS.map((r) => r.typeId))];
 
 // stage: the resort's own (the booking system passes its progress's, so two resorts in one test process never share it)
-export function canCome(t, stage = LIVE.stage) {
+// book: the resort's demand book (Milestone 27: it holds the secret guests that resort has found)
+export function canCome(t, stage = LIVE.stage, book = null) {
   if (!stageReached(t.stage, stage)) return false;
+  if (t.secret && !(book?.secretGuests ?? LIVE.secretGuests).has(t.id)) return false; // (Milestone 27)
   if (t.needs?.length && !t.needs.some((id) => FACILITIES.some((f) => f.id === id))) return false;
   return builtTypes().some((rt) => fitsType(t, rt));
 }
-export const typesNow = (stage = LIVE.stage) => Object.values(GUEST_TYPES).filter((t) => canCome(t, stage));
+export const typesNow = (stage = LIVE.stage, book = null) => Object.values(GUEST_TYPES).filter((t) => canCome(t, stage, book));
 
 export function wantsOf(t) {
   if (t.wants) return t.wants;

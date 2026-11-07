@@ -108,6 +108,13 @@ export function createResearch({ saved = null, bus = null, finance = null, now =
     progressOf: () => (s.active ? Math.max(0, Math.min(1, (now() - s.active.start) / (s.active.end - s.active.start))) : 0),
     daysLeft: () => (s.active ? Math.max(0, Math.ceil((s.active.end - now()) / MINUTES_PER_DAY - 1e-9)) : 0),
     done: (id) => s.done.includes(id),
+    // (Milestone 27) Kairosoft "fixing faults gives a little research": minutes off the running project (never past now)
+    hurry(minutes) {
+      if (!s.active || !(minutes > 0)) return 0;
+      const took = Math.max(0, Math.min(minutes, s.active.end - now()));
+      s.active.end -= took;
+      return took;
+    },
     state(id) {
       if (s.done.includes(id)) return 'done';
       if (s.active?.id === id) return 'active';

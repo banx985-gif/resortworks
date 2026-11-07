@@ -41,6 +41,7 @@ import { CLEAN } from '../../data/housekeeping.js';
 import { JOBS } from '../../data/maintenance.js';
 import { lotGrid } from './housekeeping.js';
 import { onShiftAt } from './staff.js';
+import { staffDef } from '../../data/roster.js';
 import { FACILITY_FX } from '../../data/facilities.js';
 
 const ARRIVE_SHARE = 0.6; // arrive with at least 40% of the stop's time left to stand there
@@ -138,7 +139,7 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
   const members = team ?? [{ id: founder.id, name: founder.name, role: founder.role, pattern: null, founder: true }];
   const crew = members.map((m, i) => {
     const w = walker({ id: m.founder ? 'staff' : m.id, kind: 'staff', name: m.name, art: STAFF_ROLES[m.role].art, speed: PERSON.staffSpeed, spot: STAFF_SPOTS[i % STAFF_SPOTS.length] });
-    return Object.assign(w, { member: m, memberId: m.id, role: m.role, pattern: m.pattern, founder: !!m.founder, tasks: [], task: null, shown: 0 });
+    return Object.assign(w, { member: m, memberId: m.id, role: m.role, pattern: m.pattern, founder: !!m.founder, tasks: [], task: null, shown: 0, sheet: staffDef(m.id)?.sheet ?? null }); // (M27b: Aaron's walking sheet)
   });
   const staff = crew.find((w) => w.founder) ?? crew[0];
   const seenJobs = new Set();

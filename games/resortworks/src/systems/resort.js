@@ -75,6 +75,7 @@ export function newCampaign(setup, now = Date.now()) {
     awards: freshAwards(), // (Milestone 23) no awards, Prestige 0
     weather: freshWeather(), // (Milestone 24) rolled at the first band edge
     achv: freshAchvRun(), // (Milestone 26) this run's achievement counters
+    secrets: null, // (Milestone 27) made at the first open (its first staff are the run's)
     opal: { welcomed: false }, // (M6b) Dame Opal's welcome card is due (a save from before M6b has none: no welcome)
     playSec: 0,
     ngPlus: 0,
@@ -214,4 +215,7 @@ export const SAVE_MIGRATIONS = {
   // 23 → 24 (Milestone 26): this run's achievement counters start now (the unlocks check what the resort already did at
   // the next tick: its stage, awards, research, Guestbook …).
   23: (record) => ({ ...record, data: { ...record.data, achv: record.data.achv ?? freshAchvRun() } }),
+  // 24 → 25 (Milestone 27): no secrets found in this run yet; its counters start now (what the resort already has — its
+  // awards, Prestige, facilities, Guestbook — is read at the next tick).
+  24: (record) => ({ ...record, data: { ...record.data, secrets: record.data.secrets ?? null } }),
 };

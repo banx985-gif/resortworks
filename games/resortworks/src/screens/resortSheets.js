@@ -691,6 +691,8 @@ function growthSections(m, { st, act, finance, team }) {
     { text: 'Wage', right: `${credits(WAGES[m.tier] ?? WAGES.standard)} a month` },
   ];
   if (d) lines.push({ text: `Trait: ${d.trait}`, right: traitWords(d.effect) });
+  if (d?.signatureWords) lines.push({ text: d.signatureWords, color: C.gold }); // (Milestone 27b) Aaron's signature in plain words
+  if (d?.title) lines.push({ text: d.title, color: C.textMuted });
   for (const x of m.specs ?? []) lines.push({ text: `Specialisation: ${x.name}`, right: x.line });
   if (!st) lines.push({ text: 'Work pattern', right: patternWords(m.pattern) }); // (no team side: the pattern here)
   const out = [{ title: 'Work', std: 'growth', lines, bars: [{ label: 'XP', value: top ? 1 : m.model.xp, max: top ? 1 : xpToNext(m.level), color: C.progress, text: top ? 'Top level' : `${Math.floor(m.model.xp)} / ${xpToNext(m.level)}` }] }];
@@ -718,7 +720,8 @@ function growthSections(m, { st, act, finance, team }) {
   return out;
 }
 // (Milestone 13) the book of all 50 staff: on the team, could apply (and from which stage), or ??? (Legendary / Secret).
-export function staffBookSheet(team, { st = null, accent = C.progress, act = NO_ACT, stage = 'roadside' } = {}) {
+// (Milestone 27) known(id): that Legendary / Secret person's secret has been found (they show by name from then on)
+export function staffBookSheet(team, { st = null, accent = C.progress, act = NO_ACT, stage = 'roadside', known = () => false } = {}) {
   const sections = [];
   for (const role of Object.keys(ROLES)) {
     const people = STAFF.filter((x) => x.role === role);
@@ -728,7 +731,11 @@ export function staffBookSheet(team, { st = null, accent = C.progress, act = NO_
       columns: 1,
       buttons: people.map((x) => {
         const on = team.some((m) => m.id === x.id);
-        if (!HIREABLE_TIERS.includes(x.tier)) return { id: `book:${x.id}`, icon: 'staff_silhouette', label: '???', sub: WHEN_WORDS[x.when], accent: C.textMuted, disabled: true, onTap: () => {} };
+        if (!HIREABLE_TIERS.includes(x.tier)) {
+          if (!on && !st?.pool.includes(x.id) && !known(x.id)) return { id: `book:${x.id}`, icon: 'staff_silhouette', label: '???', sub: WHEN_WORDS[x.when], accent: C.textMuted, disabled: true, onTap: () => {} };
+          const sub = on ? 'On your team' : st?.pool.includes(x.id) ? 'Looking for work now (a secret found)' : 'Found through a secret';
+          return { id: `book:${x.id}`, icon: x.art, label: `${on ? '✓ ' : ''}${x.name} · ${TIERS[x.tier].name}`, sub: `${sub} · ${x.trait}: ${traitWords(x.effect)}`, accent: on ? C.good : C.gold, disabled: true, onTap: () => {} };
+        }
         const need = WHEN_STAGE[x.when];
         const open = stageIndex(stage) >= stageIndex(need);
         const sub = on ? 'On your team' : st?.pool.includes(x.id) ? 'Looking for work this week' : open ? 'May apply in a later week' : `Applies from the ${stageById(need).name} stage`;

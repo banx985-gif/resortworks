@@ -32,15 +32,17 @@ export const AWARDS = [
   { id: 'AWR08', name: 'Wellness Destination Award', month: 9, w: { wellSat: 35, comfort: 25, service: 20, wellUtil: 20 }, field: ['RV03', 'RV05', 'RV06', 'RV07'], elig: { built: ['F17', 'F30'] }, eligWords: 'a Spa or Luxury Spa' },
   { id: 'AWR09', name: 'World Hospitality Award', month: 10, w: { sat: 25, service: 20, appeal: 20, prestige: 15, wellbeing: 10, guestbook: 10 }, field: ['RV05', 'RV06', 'RV07', 'RV08'], elig: { rank: 'A' }, eligWords: 'Rank A' },
   { id: 'AWR10', name: 'Global Destination Crown', month: 12, w: { awr09: 20, prestige: 20, awardHistory: 20, vip: 15, guestbook: 15, finance: 10 }, field: ['RV06', 'RV07', 'RV08'], elig: { rank: 'A', won: 'AWR09' }, eligWords: 'Rank A and a World Hospitality Award won' },
-  { id: 'AWR11', name: 'Hidden Paradise Medal', secret: true },
-  { id: 'AWR12', name: 'Legendary Resort Circle', secret: true },
+  // (Milestone 27) the secret two (bible §25): judged only once SEC37 / SEC38 is found. Month, formula and field are
+  // Claude Code's picks (DECISIONS M27): the bible gives none.
+  { id: 'AWR11', name: 'Hidden Paradise Medal', secret: true, month: 11, w: { prestige: 30, sat: 25, guestbook: 25, appeal: 20 }, field: ['RV06', 'RV07', 'RV08'], elig: {}, eligWords: 'found through a secret' },
+  { id: 'AWR12', name: 'Legendary Resort Circle', secret: true, month: 12, w: { prestige: 35, awardHistory: 25, vip: 20, guestbook: 20 }, field: ['RV07', 'RV08'], elig: {}, eligWords: 'found through a secret' },
 ].map((a) => ({ ...a, art: `award_${a.id.toLowerCase()}` }));
 export const awardById = (id) => AWARDS.find((a) => a.id === id) ?? null;
 export const VISIBLE_AWARDS = AWARDS.filter((a) => !a.secret);
 // A win (bible §27A): REP +150 (+400 secret, M27), Prestige +3 on an award's first win (+8 secret), a Staff Item (the
 // items' award source). "Rival prestige victory" (Claude Code's reading): beating Mirage One in an award: Prestige +2,
 // at most +8 a run.
-export const WIN = { rep: 150, prestigeFirst: 3, rivalVictory: 2, rivalVictoryCap: 8 };
+export const WIN = { rep: 150, prestigeFirst: 3, rivalVictory: 2, rivalVictoryCap: 8, repSecret: 400, prestigeFirstSecret: 8 }; // (M27: a secret award REP +400, Prestige +8)
 
 // Prestige (bible §27A): 0–100, never bought. The sources live now (the rest come with their systems): a visible award's
 // first win +3, the first successful stay of each Prestige guest type +3, a positive memory of a VIP / prestige guest

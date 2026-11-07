@@ -22,7 +22,12 @@ import { WEATHER, SEASON_OF_MONTH } from '../../data/weather.js';
 import { demandParts, rawDemandFor, demandFor, DEMAND_CAP } from '../systems/guests.js';
 import { SUPPLIES } from '../../data/finance.js';
 import { ROOM_TYPES } from '../../data/bookings.js';
+import { SECRETS, SECRET_CATEGORIES, FACT_WORDS, secretById } from '../../data/secrets.js';
+import { FACILITY_INFO } from '../../data/facilities.js';
 
+import { STAFF, LEGENDS } from '../../data/roster.js';
+import { ACHIEVEMENTS } from '../../data/achievements.js';
+const STAFF_NAMES = Object.fromEntries([...STAFF, ...LEGENDS].map((x) => [x.id, x.name]));
 const C = THEME.color;
 const pct = (x) => `${x > 0 ? '+' : ''}${Math.round(x * 100)}%`;
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -59,7 +64,8 @@ function officeSheet(run, arg, { act, accent }) {
     if (aw.expo && !aw.expo.done) rows.push({ id: 'office:expo', icon: 'ui_28', label: EXPO.name, sub: 'This month: enter for a ranked result against the rivals (or skip)', accent: C.action, onTap: () => act.panel('expo') });
     rows.push({ id: 'office:awards', icon: 'ui_29', label: 'Awards & Rivals', sub: `${plural(aw.wins.length, 'award')} won · Prestige ${Math.round(aw.prestige)}`, accent: C.progress, onTap: () => act.panel('awards') });
   }
-  if (run.achievements) rows.push({ id: 'office:achievements', icon: 'ach_medal', label: 'Achievements', sub: `${run.achievements.count} of 40 unlocked`, accent: C.progress, onTap: () => act.panel('achievements') });
+  if (run.secrets) rows.push({ id: 'office:secrets', icon: 'sec_found', label: 'Secret Archive', sub: `${run.secrets.count} of 50 found${run.secrets.invites.length ? ` · ${plural(run.secrets.invites.length, 'secret applicant')} waiting` : ''}`, accent: run.secrets.invites.length ? C.action : C.progress, onTap: () => act.panel('secrets') });
+  if (run.achievements) rows.push({ id: 'office:achievements', icon: 'ach_medal', label: 'Achievements', sub: `${run.achievements.count} of ${ACHIEVEMENTS.length} unlocked`, accent: C.progress, onTap: () => act.panel('achievements') });
   if (run.weather) rows.push({ id: 'office:weather', icon: 'ui_23', label: 'Weather', sub: `${WEATHER[run.weather.now].name} this month · ${WEATHER[run.weather.now].line.split(': ')[1] ?? 'nothing changes.'}`, accent: C.progress, onTap: () => act.panel('weather') });
   if (run.supplies) rows.push({ id: 'office:supplies', icon: 'ui_13', label: 'Suppliers', sub: SUPPLY_GROUPS.map((g) => `${g.name}: ${TIER_NAMES[run.supplies.tier(g.id)]}`).join(' · '), accent: C.progress, onTap: () => act.panel('supplies') });
   const gb = run.guestbook;
@@ -334,7 +340,7 @@ function achievementsSheet(run, arg, { act, accent, dateOf = (d) => `Day ${d + 1
   return {
     key: 'panel:achievements',
     title: 'Achievements',
-    subtitle: `${done.length} of 40 · kept on your account in every resort.`,
+    subtitle: `${done.length} of ${list.length} · kept on your account in every resort.`,
     art: 'ach_medal',
     accent,
     sections: [
@@ -345,7 +351,69 @@ function achievementsSheet(run, arg, { act, accent, dateOf = (d) => `Day ${d + 1
   };
 }
 
-export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet, awards: awardsSheet, expo: expoSheet, weather: weatherSheet, achievements: achievementsSheet };
+// (Milestone 27) the Secret Archive: the 50 by category. Found: the name, the reward and (tap) the exact conditions. A
+// clue: a rumour (stage 1), then what kind of thing is still missing (stage 2). Not heard of yet: "???".
+const condName = (fact, need) => {
+  const [g, id] = fact.split('.');
+  if (g === 'level') return `${FACILITY_INFO[id]?.name ?? id} at Lv${need}`;
+  if (g === 'built') return `${FACILITY_INFO[id]?.name ?? id} built`;
+  return FACT_WORDS[fact] ?? fact;
+};
+export function secretCondLines(check) {
+  return (check?.parts ?? []).map((p) => {
+    const [g] = p.fact.split('.');
+    const yesNo = typeof p.need === 'boolean' || g === 'built' || ['hiredEver', 'hiredRun', 'awardsWon'].includes(p.fact);
+    const val = yesNo ? '' : ` · ${p.value ?? 0} / ${p.need}`;
+    return { text: `${p.ok ? '✓' : '·'} ${condName(p.fact, p.need)}${['hiredEver', 'hiredRun', 'awardsWon'].includes(p.fact) ? `: ${p.need}` : ''}${g === 'level' ? '' : val}`, color: p.ok ? C.good : C.textMuted };
+  });
+}
+function secretsSheet(run, arg, { act, accent }) {
+  const sec = run.secrets;
+  const rows = sec.archive();
+  const ng = run.ngPlus ?? 0;
+  const row = (r) => {
+    if (r.found) return { id: `sec:${r.id}`, icon: 'sec_found', label: r.name, sub: `${r.reward}${r.foundNow ? '' : ' · found in an earlier run'}`, accent: C.good, onTap: () => act.panel('secret', r.id) };
+    if (r.stage >= 1) return { id: `sec:${r.id}`, icon: 'sec_hidden', label: 'A rumour…', sub: r.stage >= 2 ? `${r.rumour} Still missing: ${r.missing.join(', ') || 'one last thing'}.` : r.rumour, accent: C.progress, onTap: () => {} };
+    return { id: `sec:${r.id}`, icon: 'sec_hidden', label: '???', sub: r.ng > ng ? `New Game+${r.ng} or later.` : 'Not heard of yet.', accent: C.textMuted, onTap: () => {} };
+  };
+  const inv = sec.invites;
+  return {
+    key: 'panel:secrets',
+    title: 'Secret Archive',
+    subtitle: `${sec.count} of 50 found · kept on your account. Prestige Tokens: ${sec.prestigeTokens}.`,
+    art: 'sec_found',
+    accent,
+    sections: [
+      ...(inv.length ? [{ title: 'Secret applicants (hire them at the Motel Service Block)', std: 'sec:invites', columns: 1, lines: inv.map((id) => ({ text: `${staffNameOf(id)} · until ${sec.inviteUntil(id) + 1 > 0 ? `Day ${sec.inviteUntil(id) + 1}` : ''}`, color: C.action })) }] : []),
+      ...SECRET_CATEGORIES.map((cat) => ({ title: `${cat} (${rows.filter((r) => r.category === cat && r.found).length} / ${rows.filter((r) => r.category === cat).length})`, std: `sec:${cat}`, columns: 1, buttons: rows.filter((r) => r.category === cat).map(row) })),
+      // (Milestone 27b) beyond the 50: the Founder's secret (shown once it has a clue)
+      ...(rows.some((r) => r.extra && r.stage >= 1) ? [{ title: 'Beyond the 50', std: 'sec:extra', columns: 1, buttons: rows.filter((r) => r.extra && r.stage >= 1).map(row) }] : []),
+      back(act),
+    ],
+  };
+}
+const staffNameOf = (id) => STAFF_NAMES[id] ?? id;
+// One found secret: its exact conditions (met in this run or not) and its reward.
+function secretSheet(run, id, { act, accent }) {
+  const sec = run.secrets;
+  const r = secretById(id);
+  const row = sec.archive().find((x) => x.id === id);
+  if (!r || !row?.found) return secretsSheet(run, null, { act, accent });
+  return {
+    key: `panel:secret:${id}`,
+    title: r.name,
+    subtitle: `${r.category} · ${row.foundNow ? 'found in this run' : 'found in an earlier run (a repeat run needs a little less)'}`,
+    art: 'sec_found',
+    accent,
+    sections: [
+      { title: 'Exact conditions (now)', std: 'sec:exact', columns: 1, lines: [...(r.ngPlusMin ? [{ text: `New Game+${r.ngPlusMin} or later`, color: C.textMuted }] : []), ...secretCondLines(row.check)] },
+      { title: 'Reward', std: 'sec:reward', columns: 1, lines: [{ text: row.reward, color: C.good }] },
+      { columns: 1, buttons: [{ id: 'panel:back', label: '‹ Secret Archive', accent: C.textMuted, onTap: () => act.panel('secrets') }] },
+    ],
+  };
+}
+
+export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet, awards: awardsSheet, expo: expoSheet, weather: weatherSheet, achievements: achievementsSheet, secrets: secretsSheet, secret: secretSheet };
 
 export const LATE_OPS = {
   expoEnter(run) {

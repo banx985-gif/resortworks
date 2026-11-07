@@ -26,7 +26,7 @@ import { BANDS } from '../../data/calendar.js';
 import { PATTERNS, ROLE_PATTERN_SHARES } from '../../data/staff.js';
 import { PRIORITIES, DEFAULT_PRIORITY, FATIGUE, EMERGENCY, WELLBEING, HIRING, priorityById } from '../../data/staffing.js';
 import { EARLY_STAFF } from '../../data/staff.js';
-import { makeHire, memberFrom, gainXp, GROWTH } from './staff.js';
+import { makeHire, memberFrom, gainXp, GROWTH, teamBonus } from './staff.js';
 import { STAFF, staffDef, TIER_FEES, HIREABLE_TIERS, WHEN_STAGE, XP, TRAINING, POOL } from '../../data/roster.js';
 import { stageById, stageIndex } from '../../data/build.js';
 import { STAFF_ROLES } from '../../data/lot.js';
@@ -75,6 +75,8 @@ export function freshStaffing({ day = 0, band = 1 } = {}) {
 
 export function createStaffing({ saved = null, team = [], seed = 'resortworks', bus = null, day = 0, band = 'morning' } = {}) {
   let extraLoad = null; // (Milestone 19) events' extra fatigue a working band, by day
+  let barred = () => false; // (Milestone 27) someone a rival took: not in the pool until invited back
+  let invites = () => []; // (Milestone 27) a found secret's Legendary / Secret applicant (src/systems/secrets.js)
   const s = load(saved);
   let version = 0;
   const changed = () => {
@@ -121,7 +123,7 @@ export function createStaffing({ saved = null, team = [], seed = 'resortworks', 
   if (!s.pool) refreshPool(s.at.day);
   function addXp(m, n) {
     if (!GROWTH.xp) return 0;
-    const up = gainXp(m, n);
+    const up = gainXp(m, n * (1 + teamBonus(team, 'founderXp'))); // (Milestone 27b) Aaron's Studio Founder: +20%
     if (up) {
       s.stats.levelUps += up;
       bus?.emit('staff:levelUp', { id: m.id, level: m.level });
@@ -274,8 +276,14 @@ export function createStaffing({ saved = null, team = [], seed = 'resortworks', 
     },
     // (Milestone 13) the applicant pool, training, leaving, the cap
     get pool() {
-      return (s.pool?.ids ?? []).filter((id) => !team.some((m) => m.id === id));
+      return [...new Set([...(s.pool?.ids ?? []).filter((id) => !barred(id)), ...invites()])].filter((id) => !team.some((m) => m.id === id));
     },
+    // (Milestone 27) the secrets' applicants (ids) and whether one is here now
+    setInvites(fn, bar = null) {
+      invites = fn ?? (() => []);
+      barred = bar ?? (() => false);
+    },
+    invited: (id) => invites().includes(id),
     get poolWeek() {
       return s.pool?.week ?? 0;
     },
@@ -365,7 +373,7 @@ export const hireFee = (id) => TIER_FEES[staffDef(id)?.tier] ?? HIRING.fee;
 // Why this person can't be hired (one plain line), or null.
 export function hireWhy(team, id, cash = Infinity, staffing = null) {
   const d = staffDef(id);
-  if (!d || !HIREABLE_TIERS.includes(d.tier)) return 'Not someone you can hire yet.';
+  if (!d || (!HIREABLE_TIERS.includes(d.tier) && !staffing?.invited?.(id))) return 'Not someone you can hire yet.'; // (M27: or a secret's applicant)
   if (team.some((m) => m.id === id)) return 'Already on your team.';
   if (staffing && !staffing.pool.includes(id)) return 'Not looking for work this week.';
   const cap = staffing?.cap ?? HIRING.cap;

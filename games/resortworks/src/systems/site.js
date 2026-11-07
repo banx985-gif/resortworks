@@ -185,9 +185,10 @@ export function createSite({ saved = null, bus = null, now = () => 0, finance = 
   }
 
   // Why this can't be ordered at all (before where): stage / rank, the room cap, one of each facility, debt, Credits.
+  let secretOpen = () => false; // (Milestone 27)
   function whyNot(kind, def) {
     const b = buildOf(kind, def);
-    if (!b || b.secret) return 'That can’t be built.';
+    if (!b || (b.secret && !secretOpen(def))) return 'That can’t be built.'; // (Milestone 27) F34 / F35 through SEC19 / SEC20
     if (stageIndex(stage()) < stageIndex(b.stage)) return `Opens at the ${stageById(b.stage).name} stage.`;
     if (kind === 'room' && def === 'RM12' && researchOn() && !researched('R06')) return 'Needs the research Signature Suites (R06).'; // (Milestone 17)
     if (kind === 'room') {
@@ -405,7 +406,7 @@ export function createSite({ saved = null, bus = null, now = () => 0, finance = 
       out.push({ kind: 'room', def, name: ROOM_TYPES[def].name, art: `room_${def.toLowerCase()}`, cost: b.cost, days: b.days, size: b.size, why: whyNot('room', def) });
     }
     for (const [def, b] of Object.entries(FACILITY_BUILD)) {
-      if (b.secret || stageIndex(stage()) < stageIndex(b.stage) || s.items.some((it) => it.def === def)) continue;
+      if ((b.secret && !secretOpen(def)) || stageIndex(stage()) < stageIndex(b.stage) || s.items.some((it) => it.def === def)) continue;
       out.push({ kind: 'facility', def, name: FACILITY_INFO[def].name, art: FACILITY_INFO[def].art, cost: b.cost, days: b.days, size: b.size, line: FACILITY_INFO[def].line, why: whyNot('facility', def) });
     }
     return out;
@@ -450,6 +451,10 @@ export function createSite({ saved = null, bus = null, now = () => 0, finance = 
     owns: (id) => s.land.includes(id),
     onChange(fn) {
       listeners.push(fn);
+    },
+    // (Milestone 27) which secret facilities can be built (the secrets' rewards)
+    setSecretOpen(fn) {
+      secretOpen = fn ?? (() => false);
     },
     attach({ finance: f, reviews: r, bookings: b, maintenance: m, progress: p } = {}) {
       if (f) finance = f;

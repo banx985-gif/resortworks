@@ -116,7 +116,7 @@ export function makeOffers(seed, day, stats = null, pricing = null, pk = null, s
     if (base < 0 && roll < -base * avgN) n = Math.max(1, n - 1);
   }
   const out = [];
-  const types = typesNow(stage);
+  const types = typesNow(stage, book);
   if (!types.length) types.push(GUEST_TYPES.GT01, GUEST_TYPES.GT03, GUEST_TYPES.GT04); // (a lot with no rooms: nobody fits — keep the old draw)
   for (let k = 1; k <= n; k++) {
     const t = GUEST_TYPES[weighted(rng, types.map((g) => [g.id, g.weight * (1 + (book ?? { demandFor }).demandFor(g.id))]))];

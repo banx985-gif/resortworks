@@ -52,10 +52,11 @@ export function createPartners({ demand = null, saved = null, bus = null, financ
   const slotsNow = () => R.slots[rank()] ?? 1;
   const activeIds = () => slots.map((sp) => sp.active?.id).filter(Boolean);
   // Why this partner isn't offering now (one plain line), or null.
+  let secretOpen = () => false; // (Milestone 27)
   function whyNotOffer(id) {
     const p = partnerById(id);
     if (!p) return 'No such partner.';
-    if (p.secret) return 'Secret.';
+    if (p.secret && !secretOpen(id)) return 'Secret.'; // (Milestone 27) P09 / P10 through SEC39 / SEC40
     const u = p.unlock;
     if (u.stays && (bookings?.stats?.checkOuts ?? 0) < u.stays) return `After ${u.stays} completed stays.`;
     if (u.built && !u.built.every(has)) return `Needs ${u.built.join(' + ')} built.`;
@@ -185,6 +186,9 @@ export function createPartners({ demand = null, saved = null, bus = null, financ
     signal,
     total,
     food28,
+    setSecretOpen(fn) {
+      secretOpen = fn ?? (() => false);
+    },
     get slotsNow() {
       return slotsNow();
     },

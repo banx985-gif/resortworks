@@ -75,6 +75,8 @@ Object.assign(GUEST_TYPES, {
   GT23: gt('GT23', 'Legendary Travel Writer', 700, 80, 30, [3, 5], 1, 2, 'luxury', ['critic', 'prestige'], { sprite: 'world_guest_adult_b' }),
   GT24: gt('GT24', 'Paradise Guest', 2000, 85, 10, [7, 7], 2, 2, 'prestige', ['luxury', 'prestige', 'vip', 'quiet'], { needs: ['F34'], sprite: 'world_guest_vip' }),
 });
+// (Milestone 27) the five secret guests can book only once their secret is found (bible §29 SEC11–SEC15)
+for (const [id, sec] of [['GT20', 'SEC11'], ['GT21', 'SEC12'], ['GT22', 'SEC13'], ['GT23', 'SEC14'], ['GT24', 'SEC15']]) GUEST_TYPES[id].secret = sec;
 for (const t of Object.values(GUEST_TYPES)) {
   t.stage ??= 'roadside';
   t.tags ??= [];

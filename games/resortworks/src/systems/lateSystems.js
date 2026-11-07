@@ -14,6 +14,7 @@ import { createPartners } from './partners.js';
 import { createAwards } from './awards.js';
 import { createWeather } from './weather.js';
 import { createAchievements } from './achievements.js';
+import { createSecrets } from './secrets.js';
 
 // account: the account store (achievements live there, across every slot); {} in tests.
 export function attachLate(run, data = {}, { bus = null, account = {} } = {}) {
@@ -37,6 +38,7 @@ export function attachLate(run, data = {}, { bus = null, account = {} } = {}) {
     run.themes?.onEdge(day, band, run.bookings); // (Milestone 21)
     run.partners?.onEdge(day, band); // (Milestone 22)
     run.awards?.onEdge(day, band); // (Milestone 23)
+    run.secrets?.onEdge(day, band); // (Milestone 27)
     run.achievements?.onEdge(day, band); // (Milestone 26) last: everything else has moved
   });
   run.staffing.setExtraLoad((day) => run.events.loadOn(day));
@@ -46,7 +48,7 @@ export function attachLate(run, data = {}, { bus = null, account = {} } = {}) {
   // (Milestone 21) themes from the last 84 days, the Signature, facility combos
   run.themes = createThemes({ demand: run.demand, saved: data.themes ?? null, bus, layout: run.layout, finance: run.finance, progress: run.progress });
   run.themes.setPrestige(() => run.reviews.headline?.(run.bookings.at.day)?.prestige ?? 0);
-  run.reviews.attachExtraSat((b, raw) => run.guestbook.extraSat(b) + run.themes.extraSat(b, raw));
+  run.reviews.attachExtraSat((b, raw) => run.guestbook.extraSat(b) + run.themes.extraSat(b, raw) + (run.secrets?.extraSat(b) ?? 0)); // (M27: secrets)
   run.events.setScoreMult((evt) => run.themes.eventMult(evt));
   run.finance.attachSpendMult((line) => run.themes.spendMult(line));
   bus?.on('review:new', ({ review }) => run.themes.onReview(review));
@@ -65,6 +67,16 @@ export function attachLate(run, data = {}, { bus = null, account = {} } = {}) {
   run.finance.onRescue(() => run.awards.addPrestige?.(-5, 'Rescue Investor'));
   // (Milestone 26) the 40 visible achievements (account-wide unlocks; this run's counters in the save)
   run.achievements = createAchievements({ account, saved: data.achv ?? null, bus, run: { ...run, get seed() { return data.seed ?? run.seed; } } });
+  // (Milestone 27) the 50 secrets: found ones open staff, guests, F34 / F35, AWR11 / AWR12, P09 / P10, the Prestige Grounds
+  run.secrets = createSecrets({ account, saved: data.secrets ?? null, bus, run: { ...run, get seed() { return data.seed ?? run.seed; } }, ngPlus: () => data.ngPlus ?? 0 });
+  run.staffing.setInvites(() => run.secrets.invites, (id) => run.secrets.barred(id));
+  run.site?.setSecretOpen?.((def) => run.secrets.buildOpen(def));
+  run.progress.setSecretOpen((id) => run.secrets.stageOpen(id));
+  run.awards.setSecretOpen((id) => run.secrets.awardOpen(id));
+  run.partners.setSecretOpen((id) => run.secrets.partnerOpen(id));
+  run.maintenance.setGuard?.((id, minute, why) => run.secrets.breakdownGuard(id, minute, why));
+  run.events.setScoreAdd((evt) => run.secrets.eventBonus(evt));
+  run.demand.set('Secrets', (typeId) => (typeId ? null : run.secrets.demand()));
   run.reviews.attachPrestige(() => run.awards.prestige);
   run.themes.setPrestige(() => run.awards.prestige);
   bus?.on('review:new', ({ review }) => run.awards.onReview(review));
@@ -86,5 +98,6 @@ export function saveLate(run, data) {
   data.awards = run.awards?.serialize() ?? data.awards; // (Milestone 23)
   data.weather = run.weather?.serialize() ?? data.weather; // (Milestone 24)
   data.achv = run.achievements?.serialize() ?? data.achv; // (Milestone 26) this run's achievement counters
+  data.secrets = run.secrets?.serialize() ?? data.secrets; // (Milestone 27) the secrets' run half
   return data;
 }

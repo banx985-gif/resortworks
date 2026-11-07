@@ -42,6 +42,7 @@ export function createEvents({ saved = null, bus = null, seed = 'resortworks', t
   let wx = null; // (Milestone 24) the weather: an outdoor event's disruption
   let demand = () => 0; // (Milestone 22) P06 EventWorks: event enquiries +12%
   let scoreMult = null; // (Milestone 21) combos
+  let scoreAdd = null; // (Milestone 27) secrets
   const changed = () => bus?.emit('events:change', {});
   const tb = (k) => teamBonus(team, k);
 
@@ -173,7 +174,7 @@ export function createEvents({ saved = null, bus = null, seed = 'resortworks', t
     const pen = (evt.offline ? 25 : 0) + (evt.rained ? 15 : 0) + (evt.bias ?? 0);
     const parts = { service: r2(service), food: r2(food), delivery: r2(delivery), rooms: r2(rooms), venue: r2(venue) };
     const base = Object.entries(SCORE_W).reduce((t, [k, w]) => t + w * parts[k], 0);
-    const total = r2(clamp((base + (evt.choice?.score ?? 0) + rx('eventScore')) * (scoreMult?.(evt) ?? 1) - pen)); // (M21) Event Resort / Wedding Destination ×1.1
+    const total = r2(clamp((base + (evt.choice?.score ?? 0) + rx('eventScore') + (scoreAdd?.(evt) ?? 0)) * (scoreMult?.(evt) ?? 1) - pen)); // (M21) Event Resort / Wedding Destination ×1.1
     return { parts, base: r2(base), choice: evt.choice?.score ?? 0, research: rx('eventScore'), penalty: pen, total };
   }
   function finish(evt, day) {
@@ -265,6 +266,9 @@ export function createEvents({ saved = null, bus = null, seed = 'resortworks', t
     },
     setScoreMult(fn) {
       scoreMult = fn;
+    },
+    setScoreAdd(fn) {
+      scoreAdd = fn;
     },
     get enquiries() {
       return s.enquiries;

@@ -195,8 +195,10 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
   }
 
   // It breaks down (a roll, Condition 0, or a test): offline, a repair job queued (a Service now for it is dropped).
+  let guard = null; // (Milestone 27)
   function breakDown(id, minute, why) {
     if (s.offline[id]) return false;
+    if (guard?.(id, minute, why)) return false; // (Milestone 27) a Secret staff member's guard
     s.offline[id] = true;
     s.queue = s.queue.filter((j) => j.target !== id);
     s.queue.push({ id: `M${s.nextId++}`, target: id, kind: 'repair', created: minute, priority: false });
@@ -358,6 +360,9 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
     refresh() {
       if (!rules.never) workers = team.filter((m) => m.role === R.role);
       changed();
+    },
+    setGuard(fn) {
+      guard = fn;
     },
     get workers() {
       return workers;

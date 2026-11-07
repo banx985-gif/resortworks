@@ -89,9 +89,10 @@ import { FACILITY_INFO } from '../../data/facilities.js';
 import { siteVersion, tileOwned } from '../systems/site.js';
 import { buildListSheet, buildItemSheet } from './buildSheets.js';
 import { LATE_SHEETS, LATE_OPS } from './lateSheets.js';
+import { drawWalker } from './walkers.js';
 import { eventById, RESULT, ROCCO } from '../../data/events.js';
 import { PRIYA } from '../../data/partners.js';
-import { awardById, EXPO, VICTOR } from '../../data/awards.js';
+import { awardById, rivalById, EXPO, VICTOR } from '../../data/awards.js';
 import { LOOK as WX_LOOK, ARRIVAL, WEATHER } from '../../data/weather.js';
 import { stageReached } from '../systems/guests.js';
 const eventArt = (id) => eventById(id)?.art ?? null;
@@ -113,6 +114,7 @@ const detailFor = (zoom) => DETAIL_STEPS.find((d) => d >= zoom - 1e-3) ?? DETAIL
 const PEOPLE_FIRST = 1e6; // people are picked over the building behind them
 
 export function createResortScreen({ renderer, layout, assets, bus, sheet, feedback = null, run, onMenu, debug = null, reducedFlashes = () => false, onSkip = () => {}, onRep = () => {} }) {
+  let walkClock = 0; // (Milestone 27b) seconds, for the walking sheets
   const W = renderer.width;
   const iso = new IsoProjection({ tileSize: CELL, halfW: HW, halfH: HH, originX: LOT.margin + ROWS_DRAWN * HW, originY: LOT.margin + LOT.topOverhang });
   const worldW = (GRID.cols + ROWS_DRAWN) * HW + LOT.margin * 2; // (M12: the land beyond the lot too)
@@ -369,6 +371,11 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   bus.on('finance:rescue', ({ cut }) => toast('The Rescue Investor stepped in', `They wrote off ${credits(cut)} of your debt and take 8% of revenue for a year. Prestige −5.`, 'ui_25', { panel: ['office'] }));
   // (Milestone 26) an achievement: a one-tap toast (it opens the list)
   bus.on('achievement:unlocked', ({ def }) => toast(`Achievement: ${def.name}`, `${def.text}${def.big ? ' A Staff Item too!' : ''}`, 'ach_medal', { panel: ['achievements'] }));
+  // (Milestone 27) secrets: found (a big beat), a new clue stage (a quiet line), a secret applicant, a rival's poach
+  bus.on('secrets:found', ({ name, words }) => toast(`Secret found: ${name}!`, `${words}.`, 'sec_found', { panel: ['secrets'] }));
+  bus.on('secret:clue', ({ rule, stage }) => toast(stage >= 2 ? 'A secret is close…' : 'A rumour…', (rule.clueStages[stage - 1]?.text ?? '').includes('{missing}') ? rule.clueStages[0].text : rule.clueStages[stage - 1]?.text ?? rule.clueStages[0].text, 'sec_hidden', { panel: ['secrets'] }));
+  bus.on('secrets:arrival', ({ id, name, until, back, line }) => toast(back ? `${name} wants to come back` : line ? `${name} drops by!` : `${name} is looking for work!`, `${line ? `${line} ` : ''}Hire them at the Motel Service Block before Day ${until + 1}.`, staffDef(id)?.art ?? 'sec_found', { panel: ['secrets'] }));
+  bus.on('secrets:poached', ({ name, rival }) => toast(`${name} left for ${rivalById(rival)?.name ?? 'a rival'}`, 'Beat them in an award and they might come back.', 'ui_28', { panel: ['awards'] }));
   bus.on('site:dougie', ({ line, id }) => toast(DOUGIE.name, line, DOUGIE.art, id && world?.byId(id) ? { open: id } : null));
   bus.on('progress:stage', ({ name }) => toast(`Welcome to the ${name} stage!`, 'New rooms and facilities are in the build list.', DOUGIE.art));
   // (Milestone 13) a level reached (a toast; Lv8 / Lv16 ask for a specialisation)
@@ -712,7 +719,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     staffBook() {
       const o = run();
       if (!o) return;
-      sheet.open(() => staffBookSheet(o.team, { st: o.staffing, accent: palette.hex, act, stage: o.progress?.stage ?? 'roadside' }));
+      sheet.open(() => staffBookSheet(o.team, { st: o.staffing, accent: palette.hex, act, stage: o.progress?.stage ?? 'roadside', known: (id) => !!o.secrets?.staffKnown(id) }));
       opened = { id: 'staffBook', via: 'sheet' };
       debug?.log('sheet: all 50 staff');
     },
@@ -1075,6 +1082,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     },
     // dt: real seconds. The calendar has already stepped (main); people follow its band at its pace.
     update(dt) {
+      walkClock += dt; // (M27b) the walking sheets' frames
       if (world && worldSite !== siteVersion()) {
         ensureWorld(); // (M12) the land changed: a new world (everyone where the band puts them)
         if (place) recheck();
@@ -1271,7 +1279,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         if (it.kind === 'guest' || it.kind === 'staff') {
           const r = personRect(it);
           pose.flip = it.facing;
-          drawCharacter(ctx, assets, it.art, r.x + r.w / 2, r.y + r.h, r.w, r.h, pose);
+          if (!(it.sheet && drawWalker(ctx, assets, it.sheet, { x: r.x + r.w / 2, y: r.y + r.h, h: r.h * 0.92, anim: it.phase === 'at' ? 'idle' : 'walk', mirror: it.facing < 0, t: walkClock }))) drawCharacter(ctx, assets, it.art, r.x + r.w / 2, r.y + r.h, r.w, r.h, pose); // (M27b) a sheet, when filed and loaded
         } else if (it.kind === 'plot') drawScaffold(ctx, it);
         else {
           const r = artRect(it);

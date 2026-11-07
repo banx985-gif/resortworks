@@ -48,8 +48,14 @@ export function makeHire(seed, id) {
   const f = staffDef(id); // (Milestone 13: any of the 50, at their own tier)
   if (!f) return null;
   const tier = TIERS[f.tier] ?? TIERS.standard;
-  const level = new Rng(`${seed}:staff:${id}`).int(tier.levels[0], tier.levels[1]);
+  const level = f.level ?? new Rng(`${seed}:staff:${id}`).int(tier.levels[0], tier.levels[1]); // (M27b: Aaron starts at 16)
   const model = new StaffModel({ id, name: f.name, role: f.role, tier: tier.id, level, stats: statsFor(f.role, tier.id, level), art: f.art, activity: 'resting' });
+  // (Milestone 27b) a def's statAdd: a permanent bonus on every stat (kept like an item's, so levels keep it)
+  if (f.statAdd) {
+    model.counters ??= {};
+    for (const k of STAT_KEYS) model.counters[`bonus_${k}`] = (model.counters[`bonus_${k}`] ?? 0) + f.statAdd;
+    model.stats = Object.fromEntries(STAT_KEYS.map((k) => [k, r2(Math.min(LEVEL_ADD.cap, model.stats[k] + f.statAdd))]));
+  }
   return { ...model.toJSON(), pattern: rolePattern(f.role), founder: false };
 }
 
@@ -85,7 +91,7 @@ export function memberFrom(m, founderId) {
     },
     get effects() {
       const d = staffDef(model.id);
-      return [...(d ? [d.effect] : []), ...this.specs.map((x) => x.effect)];
+      return [...(d ? d.effects ?? [d.effect] : []), ...this.specs.map((x) => x.effect)]; // (M27b: Aaron has several)
     },
   };
 }

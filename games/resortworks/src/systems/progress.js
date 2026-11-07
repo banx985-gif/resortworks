@@ -18,6 +18,7 @@ export function createProgress({ saved = null, bus = null, reviews = null, booki
   setLiveStage(s.stage); // (Milestone 18) who can book follows the stage
   const stays = () => bookings?.stats?.checkOuts ?? 0;
   let aw = null; // (Milestone 23) the awards (and Prestige), once attached
+  let secretOpen = () => false; // (Milestone 27) a gate's secret found (src/systems/secrets.js)
   const facts = () => ({ rank: reviews?.rank?.id ?? 'E', stars: reviews?.stars ?? 0, stays: stays() });
   // Each gate condition: [met, words].
   function gateParts(id) {
@@ -32,7 +33,7 @@ export function createProgress({ saved = null, bus = null, reviews = null, booki
     if (g.award) out.push([!!aw?.won(g.award), `the ${awardName(g.award)} award`]);
     if (g.awards) out.push([new Set((aw?.wins ?? []).map((w) => w.id)).size >= g.awards, `${g.awards} different visible awards (${new Set((aw?.wins ?? []).map((w) => w.id)).size} so far)`]);
     if (g.prestige) out.push([(aw?.prestige ?? 0) >= g.prestige, `Prestige ${g.prestige}`]);
-    if (g.secret) out.push([false, 'a secret']);
+    if (g.secret) out.push([!!secretOpen(g.secret), 'a secret']);
     return out;
   }
   const next = () => STAGES[stageIndex(s.stage) + 1] ?? null;
@@ -49,7 +50,7 @@ export function createProgress({ saved = null, bus = null, reviews = null, booki
     gateLines: (id = next()?.id) => gateParts(id).map(([ok, words]) => ({ ok, words })),
     check() {
       const n = next();
-      if (!n || n.secret) return false;
+      if (!n || (n.secret && !secretOpen(STAGE_GATES[n.id]?.secret))) return false;
       const parts = gateParts(n.id);
       if (!parts.length || !parts.every(([ok]) => ok)) return false;
       pg.setStage(n.id);
@@ -65,6 +66,9 @@ export function createProgress({ saved = null, bus = null, reviews = null, booki
     },
     attachAwards(x) {
       aw = x;
+    },
+    setSecretOpen(fn) {
+      secretOpen = fn ?? (() => false);
     },
     serialize: () => JSON.parse(JSON.stringify(s)),
   };

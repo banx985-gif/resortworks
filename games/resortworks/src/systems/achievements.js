@@ -60,7 +60,8 @@ export function createAchievements({ account = {}, saved = null, bus = null, run
     .define('prestige', () => R.awards?.prestige ?? 0)
     .define('cash', () => R.finance?.cash ?? 0)
     .define('bestMonthService', () => c.bestMonthService)
-    .define('partnersMet', () => c.partnersMet);
+    .define('partnersMet', () => c.partnersMet)
+    .define('aaronHired', () => ((R.team ?? []).some((m) => m.id === 'S51') ? 1 : 0)); // (Milestone 27b)
   // Rewards: REP +20 in this run (and a Staff Item for the big ten), paid once ever (core marks it paid first).
   const pay = (r, def) => {
     if (r.currency === 'rep') R.reviews?.addRepFor?.(r.amount, `Achievement: ${def.name}`);
