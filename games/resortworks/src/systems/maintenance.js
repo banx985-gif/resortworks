@@ -227,7 +227,7 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
     for (const id of targets()) {
       s.cond[id] ??= CONDITION.start; // (M12: anything new on the land)
       const users = WEAR.users.includes(id) && !s.offline[id] ? guests : 0;
-      s.cond[id] = Math.max(0, r2(s.cond[id] - dailyWear(id, { occupied: occupied.has(id), users })));
+      s.cond[id] = Math.max(0, r2(s.cond[id] - dailyWear(id, { occupied: occupied.has(id), users }) * Math.max(0, 1 - teamBonus(team, 'wear')))); // (M28b: Bolt, 30% slower)
     }
     s.stats.wearDays++;
     const minute = minuteOf(day, BAND.night);

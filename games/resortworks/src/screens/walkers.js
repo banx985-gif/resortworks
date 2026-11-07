@@ -15,13 +15,13 @@ const state = new Map(); // key → 'loading' | 'ready' | 'failed'
 
 export const sheetKey = (name) => `walk_${name}`;
 export const sheetPath = (name, folder = 'cast') => `assets/images/${folder}/${name}_sheet.png`;
-function ready(assets, name) {
+function ready(assets, name, folder = 'cast') {
   const key = sheetKey(name);
   const s = state.get(key);
   if (s === 'ready') return assets.get(key);
   if (!s && assets.loadImage) {
     state.set(key, 'loading');
-    Promise.resolve(assets.loadImage(key, sheetPath(name)))
+    Promise.resolve(assets.loadImage(key, sheetPath(name, folder)))
       .then((img) => state.set(key, img ? 'ready' : 'failed'))
       .catch(() => state.set(key, 'failed'));
   }
@@ -29,9 +29,9 @@ function ready(assets, name) {
 }
 export const walkerStats = () => ({ ready: [...state.values()].filter((s) => s === 'ready').length, loading: [...state.values()].filter((s) => s === 'loading').length, failed: [...state.values()].filter((s) => s === 'failed').length });
 
-export function drawWalker(ctx, assets, name, { x, y, h, anim = 'idle', back = false, mirror = false, t = 0 }) {
+export function drawWalker(ctx, assets, name, { x, y, h, anim = 'idle', back = false, mirror = false, t = 0, folder = 'cast', glow = false }) {
   if (!name) return false;
-  const img = ready(assets, name);
+  const img = ready(assets, name, folder);
   const iw = img?.naturalWidth || img?.width;
   if (!iw) return false;
   const fs = iw / COLUMNS;
@@ -39,6 +39,16 @@ export function drawWalker(ctx, assets, name, { x, y, h, anim = 'idle', back = f
   const row = row0 + (back ? BACK : 0);
   const f = Math.floor(Math.max(0, t) * fps) % frames;
   const k = h / (BODY * fs);
+  if (glow) {
+    // (Milestone 28b) a god's gold glow at their feet
+    ctx.save();
+    ctx.globalAlpha *= 0.45 + 0.15 * Math.sin(t * 3);
+    ctx.fillStyle = '#FFD54A';
+    ctx.beginPath();
+    ctx.ellipse(x, y - h * 0.02, h * 0.42, h * 0.13, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
   ctx.save();
   ctx.translate(x, y);
   if (mirror) ctx.scale(-1, 1);

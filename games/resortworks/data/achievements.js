@@ -49,6 +49,7 @@ export const ACHIEVEMENTS = [
   a('ACH38', 'World Partner', 'Meet Crown Escapes’ goal.', has('partnersMet', 'P08')),
   a('ACH39', 'Secret Award', 'Win a secret award.', { any: [has('awardsWon', 'AWR11'), has('awardsWon', 'AWR12')] }),
   a('ACH40', 'Beyond Five Stars', 'Prestige 100 with a 5★ rating.', { all: [gte('prestige', 100), gte('bestStars', 5)] }, { big: true }),
+  a('ACH41', 'Pantheon', 'Five legends of hospitality. Find them all.', gte('godsHired', 5), { progress: { fact: 'godsHired', target: 5 } }), // (Milestone 28b) all five gods hired (any run)
   a('ACH42', 'Meet the Maker', 'Hire Aaron, the founder of Banx Games.', gte('aaronHired', 1)), // (Milestone 27b)
 ].map((d) => ({ ...d, reward: [{ currency: 'rep', amount: 20 }, ...(d.big ? [{ currency: 'item', amount: 1 }] : [])] }));
 export const achievementById = (id) => ACHIEVEMENTS.find((x) => x.id === id) ?? null;

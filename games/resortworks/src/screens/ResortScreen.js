@@ -375,7 +375,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   // (Milestone 28) the Year-20 ending
   bus.on('ending:reached', ({ result }) => toast(`Twenty years open: Grade ${result.grade}!`, `${result.total} / 100. Tap to see your grade and New Game+.`, 'ui_30', { panel: ['ending'] }));
   bus.on('secrets:found', ({ name, words }) => toast(`Secret found: ${name}!`, `${words}.`, 'sec_found', { panel: ['secrets'] }));
-  bus.on('secret:clue', ({ rule, stage }) => toast(stage >= 2 ? 'A secret is close…' : 'A rumour…', (rule.clueStages[stage - 1]?.text ?? '').includes('{missing}') ? rule.clueStages[0].text : rule.clueStages[stage - 1]?.text ?? rule.clueStages[0].text, 'sec_hidden', { panel: ['secrets'] }));
+  bus.on('secret:clue', ({ rule, stage }) => (rule.id === 'SEC-GOD-5' && (run()?.secrets?.facts.get('godsHiredEver') ?? 0) < 4) || toast(stage >= 2 ? 'A secret is close…' : 'A rumour…', (rule.clueStages[stage - 1]?.text ?? '').includes('{missing}') ? rule.clueStages[0].text : rule.clueStages[stage - 1]?.text ?? rule.clueStages[0].text, 'sec_hidden', { panel: ['secrets'] }));
   bus.on('secrets:arrival', ({ id, name, until, back, line }) => toast(back ? `${name} wants to come back` : line ? `${name} drops by!` : `${name} is looking for work!`, `${line ? `${line} ` : ''}Hire them at the Motel Service Block before Day ${until + 1}.`, staffDef(id)?.art ?? 'sec_found', { panel: ['secrets'] }));
   bus.on('secrets:poached', ({ name, rival }) => toast(`${name} left for ${rivalById(rival)?.name ?? 'a rival'}`, 'Beat them in an award and they might come back.', 'ui_28', { panel: ['awards'] }));
   bus.on('site:dougie', ({ line, id }) => toast(DOUGIE.name, line, DOUGIE.art, id && world?.byId(id) ? { open: id } : null));
@@ -1281,7 +1281,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         if (it.kind === 'guest' || it.kind === 'staff') {
           const r = personRect(it);
           pose.flip = it.facing;
-          if (!(it.sheet && drawWalker(ctx, assets, it.sheet, { x: r.x + r.w / 2, y: r.y + r.h, h: r.h * 0.92, anim: it.phase === 'at' ? 'idle' : 'walk', mirror: it.facing < 0, t: walkClock }))) drawCharacter(ctx, assets, it.art, r.x + r.w / 2, r.y + r.h, r.w, r.h, pose); // (M27b) a sheet, when filed and loaded
+          if (!(it.sheet && drawWalker(ctx, assets, it.sheet, { x: r.x + r.w / 2, y: r.y + r.h, h: r.h * 0.92, anim: it.phase === 'at' ? 'idle' : 'walk', mirror: it.facing < 0, t: walkClock, folder: it.sheetFolder, glow: it.glow }))) drawCharacter(ctx, assets, it.art, r.x + r.w / 2, r.y + r.h, r.w, r.h, pose); // (M27b) a sheet, when filed and loaded
         } else if (it.kind === 'plot') drawScaffold(ctx, it);
         else {
           const r = artRect(it);

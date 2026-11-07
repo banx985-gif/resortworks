@@ -93,7 +93,8 @@ import { Haptics } from '../../../core/Haptics.js';
 import { settingsSheet } from '../../../core/ui/SettingsSheet.js';
 import { createStudioSplash } from '../../../core/ui/StudioSplash.js';
 import { SETTINGS, SETTINGS_DEFAULTS, SETTINGS_KEY, TEXT_SCALE, SETTINGS_TEXT } from '../data/settings.js';
-import { ASSETS, STUDIO_LOGO } from '../data/assets.js';
+import { ASSETS, STUDIO_LOGO, LAZY_ART } from '../data/assets.js';
+import { staffDef } from '../data/roster.js';
 import { SAVE } from '../data/save.js';
 import { validateSetup } from '../data/setup.js';
 import { createCampaigns } from './app/campaigns.js';
@@ -463,6 +464,7 @@ function openRun(n, data) {
   run.ngSlots = () => campaigns?.cards ?? [];
   run.startNgPlus = (choices) => startNgPlus(run, choices);
   open = run;
+  for (const m of run.team) ensureArt(staffDef(m.id)?.art); // (Milestone 28b) a god on the team: their portrait
   run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;
 }
@@ -482,6 +484,12 @@ bus.on('ending:reached', () => campaigns?.slots.saveAccount(account)); // (Miles
 // Every band edge moves the open resort's bookings on (check-ins, check-outs, nights, offers), in order.
 bus.on('band:change', () => open && open.bookings.sync(open.calendar.today, open.calendar.bandIndex));
 // The campaign save: the calendar as it stands, the date the slot card shows, then the slot (save + summary record).
+// (Milestone 28b) art loaded when first needed (the gods' large portraits): when one arrives, is hired or is on the team
+function ensureArt(key) {
+  if (key && LAZY_ART[key] && !assets.get(key)) assets.loadImage(key, LAZY_ART[key]);
+}
+bus.on('secrets:arrival', ({ id }) => ensureArt(staffDef(id)?.art));
+bus.on('staff:hired', ({ id }) => ensureArt(staffDef(id)?.art));
 // (Milestone 28) the open run's save, written into a copy (for NG+: read, never changed)
 function snapshotRun(run) {
   const d = JSON.parse(JSON.stringify(run.data));

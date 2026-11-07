@@ -223,4 +223,6 @@ export const SAVE_MIGRATIONS = {
   24: (record) => ({ ...record, data: { ...record.data, secrets: record.data.secrets ?? null } }),
   // 25 → 26 (Milestone 28): no ending yet (an older resort past Year 20 gets it at the next night), no NG+ legacy.
   25: (record) => ({ ...record, data: { ...record.data, ending: record.data.ending ?? null, legacy: record.data.legacy ?? null, parent: record.data.parent ?? null } }),
+  // 26 → 27 (Milestone 28b): no gods yet — their secrets' run half starts empty inside the secrets' save.
+  26: (record) => (record.data.secrets ? { ...record, data: { ...record.data, secrets: { ...record.data.secrets, gods: record.data.secrets.gods ?? null } } } : record),
 };

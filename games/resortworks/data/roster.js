@@ -4,7 +4,7 @@
 // docs/DECISIONS.md. (The five work stats, role templates, tiers and patterns stay in data/staff.js.)
 
 // Tier money (bible §27D): the one-off hiring fee (the wage per 28-day month is data/finance.js WAGES).
-export const TIER_FEES = { standard: 500, rare: 1500, elite: 5000, legendary: 12000, secret: 0 };
+export const TIER_FEES = { standard: 500, rare: 1500, elite: 5000, legendary: 12000, secret: 0, divine: 0 }; // (M28b: a god's fee is 0)
 
 // when = the bible's Eligibility: start / early (Roadside), holiday / destination / luxury (that stage reached),
 // legendary (a secret condition, M29) / secret (NG+ or a secret, M29). Legendary and Secret staff stay locked.
@@ -70,7 +70,19 @@ export const STAFF = [
 export const AARON = { id: 'S51', name: 'Aaron', role: 'FO', tier: 'legendary', trait: 'Studio Founder', effect: { key: 'founderXp', pct: 20 }, when: 'legendary', art: 'staff_legend_aaron', sheet: 'chibi_71_aaron_banx_games_founder', title: 'Founder of Banx Games', level: 16, statAdd: 4,
   effects: [{ key: 'founderXp', pct: 20 }, { key: 'checkin', pct: 5 }, { key: 'cleanSpeed', pct: 5 }, { key: 'serviceSpeed', pct: 5 }, { key: 'activity', pct: 5 }, { key: 'repairSpeed', pct: 5 }],
   signatureWords: 'Studio Founder: while he works, everyone gains XP 20% faster, and check-in, cleaning, service, activities and repairs are all +5%.' };
-export const LEGENDS = [AARON];
+// (Milestone 28b, card M28b_WORKS_GODS.md) the Works Gods: five Divine staff, one per role, each through their own secret
+// (SEC-GOD-1 … 5). Their portraits are Aaron's RESORTWORKS outfits (assets/images/gods/, loaded when a god first appears:
+// ~2 MB each); they walk with their god sheets and a gold glow. Each blessing is a set of effects (team-wide, like traits).
+const god = (id, name, title, role, trait, effects, words, file) => ({ id, name, title, role, tier: 'divine', trait, effect: effects[0], effects, when: 'divine', art: `staff_god_${file}`, artPath: `assets/images/gods/staff_god_${file}.png`, lazyArt: true, sheet: `god_${file}`, sheetFolder: 'gods', god: file, signatureWords: words });
+export const GODS = [
+  god('GOD1', 'Bolt', 'God of Tinkering', 'MG', 'Blessing of Tinkering', [{ key: 'wear', pct: 30 }, { key: 'repairSpeed', pct: 100 }, { key: 'prevention', pct: 50 }], 'Blessing of Tinkering: Condition falls 30% slower everywhere, repairs take half the time and breakdowns are half as likely.', 'bolt'),
+  god('GOD2', 'Jinx', 'Goddess of Luck', 'FO', 'Blessing of Luck', [{ key: 'luck', pct: 50 }, { key: 'repeat', pct: 50 }, { key: 'enquiries', pct: 25 }, { key: 'nearMiss', pct: 1 }], 'Blessing of Luck: VIPs, celebrities, critics, travel writers and returning guests come more often; event enquiries +25%; the first complaint each month turns into a near miss.', 'jinx'),
+  god('GOD3', 'Zip', 'God of Speed', 'HK', 'Blessing of Speed', [{ key: 'cleanSpeed', pct: 40 }, { key: 'checkin', pct: 15 }], 'Blessing of Speed: rooms are ready 40% faster and the check-in queue moves 15% faster.', 'zip'),
+  god('GOD4', 'Kaching', 'God of Fortune', 'HS', 'Blessing of Fortune', [{ key: 'fortune', pct: 15 }, { key: 'partnerMoney', pct: 20 }], 'Blessing of Fortune: food, drink and package income +15%; Partner money rewards +20%.', 'kaching'),
+  god('GOD5', 'Havoc', 'God of Chaos', 'AE', 'Blessing of Chaos', [{ key: 'chaos', pct: 1 }], 'Blessing of Chaos: every event rolls the dice — 70% a big boost (score +15), 30% a funny setback (score −5). Strong on average, swingy.', 'havoc'),
+];
+export const LEGENDS = [AARON, ...GODS];
+export const godById = (id) => GODS.find((g) => g.id === id) ?? null;
 export const staffDef = (id) => STAFF.find((x) => x.id === id) ?? LEGENDS.find((x) => x.id === id) ?? null;
 export const HIREABLE_TIERS = ['standard', 'rare', 'elite'];
 // Which stage opens each eligibility (data/build.js STAGES). Legendary / secret: never through the applicant pool.
@@ -80,7 +92,10 @@ export const WHEN_WORDS = { legendary: 'Legendary · unlocks through a secret', 
 // What each trait / specialisation key changes now (live) — or, for systems that come later, kept on the person and
 // marked with the milestone that makes it work. Every pct adds up across the team (people away today don't count).
 export const TRAIT_KEYS = {
-  founderXp: { live: true, words: 'XP for everyone' }, // (Milestone 27b) Aaron's Studio Founder: everyone's XP × (1 + %)
+  founderXp: { live: true, words: 'XP for everyone' },
+  // (Milestone 28b) the gods' blessings
+  wear: { live: true, words: 'slower wear' }, luck: { live: true, words: 'lucky arrivals' }, enquiries: { live: true, words: 'event enquiries' }, nearMiss: { live: true, words: 'near misses' },
+  fortune: { live: true, words: 'food, drink and package income' }, partnerMoney: { live: true, words: 'Partner money' }, chaos: { live: true, words: 'chaos at events' }, // (Milestone 27b) Aaron's Studio Founder: everyone's XP × (1 + %)
   checkin: { live: true, words: 'check-in speed' }, // Front Office desk minutes ÷ (1 + %)
   queue: { live: true, words: 'desk queue speed' }, // the same desk minutes
   recovery: { live: true, words: 'complaint recovery' }, // recovery chance × (1 + %)

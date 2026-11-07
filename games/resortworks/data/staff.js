@@ -22,6 +22,7 @@ export const TIERS = {
   elite: { id: 'elite', name: 'Elite', add: 16, levels: [8, 12] },
   legendary: { id: 'legendary', name: 'Legendary', add: 24, levels: [12, 16] },
   secret: { id: 'secret', name: 'Secret', add: 30, levels: [15, 18] },
+  divine: { id: 'divine', name: 'Divine', add: 30, levels: [15, 18] }, // (Milestone 28b) the Works Gods: above Secret
 };
 
 // Each level above 1 adds `top` to the role's two highest template stats and `other` to the other three, capped at

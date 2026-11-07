@@ -31,7 +31,7 @@ export const SETTINGS_TEXT = {
   legalBody: 'RESORTWORKS keeps your resorts on this device. It has no account and collects no personal data of its own. Every resort, guest and staff member is fictional.',
   credits: 'Credits',
   creditsLine: 'The people behind RESORTWORKS',
-  creditsBody: 'RESORTWORKS — a Canvas Management Series game by Aaron (Banx Games). Art by Aaron; code by Claude Code. Thanks for playing!',
+  creditsBody: 'RESORTWORKS — a Canvas Management Series game by Aaron (Banx Games). Art by Aaron; code by Claude Code. The Works Gods: Bolt, Jinx, Zip, Kaching and Havoc. Thanks for playing!',
   display: 'Display test',
   displayLine: 'The screen-shape and tap test (for checking a new phone)',
 };

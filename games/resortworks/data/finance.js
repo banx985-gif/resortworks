@@ -25,7 +25,7 @@ export const DEMAND = { slope: 1.5, floor: 0.4, serviceMin: 70, premiumCut: 0.3 
 export const CAFE = { facility: 'F06', perGuestDay: 12 };
 
 // Wages per 28-day month by tier (bible §27D), paid at the month end to everyone employed (the Founder too).
-export const WAGES = { standard: 850, rare: 1450, elite: 2600, legendary: 4200, secret: 5800 };
+export const WAGES = { standard: 850, rare: 1450, elite: 2600, legendary: 4200, secret: 5800, divine: 5800 }; // (M28b: Divine 5,800)
 
 // Daily upkeep (bible §27G facilities, §27E rooms), paid at each day change for the day just ended.
 // (Milestone 12) every facility's from data/build.js (the shipped eight are unchanged); rooms: all twelve (bible §27E).

@@ -61,6 +61,7 @@ export function createAchievements({ account = {}, saved = null, bus = null, run
     .define('cash', () => R.finance?.cash ?? 0)
     .define('bestMonthService', () => c.bestMonthService)
     .define('partnersMet', () => c.partnersMet)
+    .define('godsHired', () => R.secrets?.godsHired?.() ?? 0) // (Milestone 28b)
     .define('aaronHired', () => ((R.team ?? []).some((m) => m.id === 'S51') ? 1 : 0)); // (Milestone 27b)
   // Rewards: REP +20 in this run (and a Staff Item for the big ten), paid once ever (core marks it paid first).
   const pay = (r, def) => {
@@ -154,5 +155,9 @@ export function createAchievements({ account = {}, saved = null, bus = null, run
     },
     system: sys,
     serialize: () => clone(c),
+    // (Milestone 28b) a system made after this one (the secrets: the gods hired)
+    attach(name, x) {
+      R[name] = x;
+    },
   };
 }

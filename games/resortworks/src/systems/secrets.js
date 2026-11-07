@@ -22,8 +22,9 @@
 import { SecretEngine, FactRegistry } from '../../../../core/SecretEngine.js';
 import { UnlockRunner } from '../../../../core/UnlockActions.js';
 import { Rng } from '../../../../core/Rng.js';
-import { SECRETS, LEGEND_SECRETS, secretById, RARE_FOUR, ARRIVAL, EASING, BOOSTS, REWARD_WORDS, REPAIR_RESEARCH } from '../../data/secrets.js';
+import { SECRETS, LEGEND_SECRETS, GOD_SECRETS, GOD_EASING, PARTY_EVENTS, LUCKY_TAGS, secretById, RARE_FOUR, ARRIVAL, EASING, BOOSTS, REWARD_WORDS, REPAIR_RESEARCH } from '../../data/secrets.js';
 const LEGENDARY_FIVE = ['S09', 'S19', 'S29', 'S39', 'S49'];
+const GOD_IDS = ['GOD1', 'GOD2', 'GOD3', 'GOD4', 'GOD5'];
 import { GUEST_TYPES } from '../../data/bookings.js';
 import { ROOMS, FACILITIES } from '../../data/lot.js';
 import { BANDS } from '../../data/calendar.js';
@@ -63,7 +64,10 @@ export const freshSecretsRun = () => ({
     noAdsYear: false, luxBuilt: false, fiveNoLuxury: false, backToBasics: false, wetFixes: 0, wetSat: [0, 0], stormRecoveries: 0,
     beatCrownBay: [], poached: null, poachYears: [], rivalRehires: 0, joined: {}, start: null, hired: [], repairMonth: -1,
     repairMinutes: 0, mgGuardMonth: -1, hkGuardWeek: -1,
+    // (Milestone 28b) the gods' counters
+    condStreak: 0, condStreakBest: 0, closeWin: false, zip: { days: 0, occ: 0 }, zipBest: 0, turnsRun: 0, records: {}, partyDay: -1, nearMissMonth: -1, partnersMetRun: [],
   },
+  gods: null,
   engine: null,
   runner: null,
   invites: {},
@@ -72,6 +76,7 @@ export const freshSecretsRun = () => ({
 export function createSecrets({ account = {}, saved = null, bus = null, run = {}, ngPlus = () => 0 } = {}) {
   const f = freshSecretsRun();
   const st = { ...f, ...(saved ? clone(saved) : {}), c: { ...f.c, ...(saved?.c ? clone(saved.c) : {}) } };
+  st.c.zip = { ...f.c.zip, ...(st.c.zip ?? {}) };
   st.c.today = { ...f.c.today, ...(st.c.today ?? {}) };
   const c = st.c;
   const R = run;
@@ -176,7 +181,21 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
     // (Milestone 27b) Aaron's secret
     .define('legendsHiredEver', () => LEGENDARY_FIVE.filter((id) => (engine.accountFact('hiredEver') ?? []).includes(id) || c.hired.includes(id)).length)
     .define('hallOfFame', () => guests().filter((g) => g.stays.some((x) => x.stars >= 5)).length)
-    .define('rankS', () => R.reviews?.rank?.id === 'S');
+    .define('rankS', () => R.reviews?.rank?.id === 'S')
+    // (Milestone 28b) the gods' secrets
+    .define('rankA', () => ['A', 'S'].includes(R.reviews?.rank?.id))
+    .define('facilitiesLv3', () => FACILITIES.filter((x) => (x.level ?? 1) >= 3).length)
+    .define('perfectConditionBest', () => c.condStreakBest)
+    .define('rareFour90', () => RARE_FOUR.filter((id) => (c.best[id] ?? 0) >= 90).length)
+    .define('closeWin', () => c.closeWin)
+    .define('zipStreakBest', () => c.zipBest)
+    .define('roomTurns', () => c.turnsRun)
+    .define('cash', () => R.finance?.cash ?? 0)
+    .define('profitRecordsYearBest', () => Math.max(0, ...Object.values(c.records)))
+    .define('partnerGoals', () => c.partnersMetRun.length)
+    .define('godsHiredEver', () => GOD_IDS.slice(0, 4).filter((id) => (engine.accountFact('hiredEver') ?? []).includes(id) || c.hired.includes(id)).length)
+    .define('godsAllEver', () => GOD_IDS.filter((id) => (engine.accountFact('hiredEver') ?? []).includes(id) || c.hired.includes(id)).length)
+    .define('partyNow', () => c.partyDay === today);
   // Tests: a fact can be held at a value (debugFacts[name] = value) to check a rule's trigger and its negative.
   const debugFacts = {};
   const read = (name, ctx) => (name in debugFacts ? debugFacts[name] : facts.get(name, ctx));
@@ -186,7 +205,7 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
   const nameOf = (id) => staffDef(id)?.name ?? GUEST_TYPES[id]?.name ?? id;
   const handlers = {
     staff: (a, src) => {
-      const days = Math.round((engine.isRepeat(String(src).replace('secret:', '')) ? ARRIVAL.repeatDays : ARRIVAL.days) * (1 + (R.partners?.total?.('legendary') ?? 0))); // (P09: +10%)
+      const days = Math.round((engineOf(String(src).replace('secret:', '')).isRepeat(String(src).replace('secret:', '')) ? ARRIVAL.repeatDays : ARRIVAL.days) * (1 + (R.partners?.total?.('legendary') ?? 0))); // (P09: +10%)
       st.invites[a.id] = today + days;
       bus?.emit('secrets:arrival', { id: a.id, name: nameOf(a.id), until: today + days, line: secretById(String(src).replace('secret:', ''))?.arrival ?? null });
     },
@@ -216,6 +235,11 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
   const engine = new SecretEngine({ bus, rules: [...SECRETS, ...LEGEND_SECRETS], facts: factView, runner, ngPlus, currencyTypes: ['prestigeTokens'], easing: EASING, now: () => ({ day: today, year: Math.floor(today / YEAR) + 1, runId: runId() }) });
   engine.loadAccount(account?.secrets ?? null);
   if (st.engine) engine.loadRun(st.engine);
+  // (Milestone 28b) the Works Gods' five secrets: their own engine (a repeat run eases them by 25%), the same rewards runner
+  const gods = new SecretEngine({ bus, rules: GOD_SECRETS, facts: factView, runner, ngPlus, currencyTypes: [], easing: GOD_EASING, now: () => ({ day: today, year: Math.floor(today / YEAR) + 1, runId: runId() }) });
+  gods.loadAccount(account?.godSecrets ?? null);
+  if (st.gods) gods.loadRun(st.gods);
+  const engineOf = (id) => (GOD_SECRETS.some((r) => r.id === id) ? gods : engine);
   const opened = (type, id) => runner.has(type, id);
   function syncGuests() {
     const ids = Object.keys(SECRET_GUEST).filter((id) => opened('guest', id));
@@ -224,12 +248,14 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
   }
   syncGuests();
   const saveAccount = () => {
-    if (account) account.secrets = engine.serializeAccount();
+    if (!account) return;
+    account.secrets = engine.serializeAccount();
+    account.godSecrets = gods.serializeAccount();
   };
 
   function tick() {
     engine.setRunFact('hiredEver', c.hired);
-    const got = engine.notify('tick');
+    const got = [...engine.notify('tick'), ...gods.notify('tick')];
     if (got.length) {
       saveAccount();
       for (const g of got) bus?.emit('secrets:found', { id: g.rule.id, name: g.rule.name, words: rewardWords(g.rule), eased: g.eased });
@@ -245,6 +271,7 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
   const keepBest = (k, kb) => (c[kb] = Math.max(c[kb], c[k]));
   function onReview(v) {
     c.today.turns++;
+    c.turnsRun++;
     if (v.late) c.today.lates++;
     if (v.recovered && v.sat >= 90) {
       c.recovered90++;
@@ -294,6 +321,7 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
       st.invites[p.id] = today + POACH.backDays;
       bus?.emit('secrets:arrival', { id: p.id, name: nameOf(p.id), until: today + POACH.backDays, back: true });
     }
+    if (res.won && res.field.length && res.score - res.field[0].score <= 1) c.closeWin = true; // (M28b: Jinx)
     if (!res.won && !p) poachRoll(res);
   }
   function poachRoll(res) {
@@ -314,6 +342,7 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
     c.joined[id] = today;
     if (st.invites[id] != null) delete st.invites[id];
     if (c.poached?.id === id && c.poached.beat) {
+      c.poached.rehired = true;
       c.rivalRehires++;
       c.poached = null;
     }
@@ -367,6 +396,15 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
     const quiet = ROOMS.filter((r) => LUX_ROOMS.includes(r.typeId) && (R.maintenance?.condition?.(r.id) ?? 0) >= 95 && (rooms[r.id]?.avgNoise ?? 99) < 10).length;
     c.silentWing = quiet >= 10 ? c.silentWing + 1 : 0;
     keepBest('silentWing', 'silentWingBest');
+    // (Milestone 28b) Bolt: every facility at Condition 80+ and no breakdown today; Zip: no late room, 85%+ full on average
+    const conds = R.maintenance?.conditions ?? {};
+    const facOk = FACILITIES.every((x) => (conds[x.id] ?? 100) >= 80) && !off.length && !c.breakToday;
+    c.condStreak = facOk ? c.condStreak + 1 : 0;
+    c.condStreakBest = Math.max(c.condStreakBest, c.condStreak);
+    c.breakToday = false;
+    if (c.today.lates > 0) c.zip = { days: 0, occ: 0 };
+    else c.zip = { days: c.zip.days + 1, occ: c.zip.occ + occ * 100 };
+    if (c.zip.days && c.zip.occ / c.zip.days >= 85) c.zipBest = Math.max(c.zipBest, c.zip.days);
     c.today = { turns: 0, lates: 0, complaints: 0, noise: 0 };
     for (const [id, until] of Object.entries(st.invites)) if (until < day) delete st.invites[id];
     if (day > 0 && day % 28 === 0) monthEnd(day);
@@ -388,6 +426,10 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
     const occ = c.occM[1] ? c.occM[0] / c.occM[1] : 100;
     c.monthsSeen++;
     if (c.monthProfitBest != null && m.profit > c.monthProfitBest && occ < 55 && c.monthsSeen >= 3) c.halfFullRecord = true;
+    if (c.monthProfitBest != null && m.profit > c.monthProfitBest) {
+      const y = Math.floor(Math.max(0, today - 1) / YEAR) + 1; // (M28b: Kaching) records in one year
+      c.records[y] = (c.records[y] ?? 0) + 1;
+    }
     c.monthProfitBest = Math.max(c.monthProfitBest ?? -Infinity, m.profit);
     c.occM = [0, 0];
   }
@@ -405,6 +447,18 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
     ['site:built', (x) => onBuilt(x)],
     ['mt:done', ({ job }) => onRepair(job)],
     ['finance:month', ({ month }) => onMonthBooks(month)],
+    ['mt:breakdown', () => (c.breakToday = true)],
+    ['partners:met', ({ id }) => !c.partnersMetRun.includes(id) && c.partnersMetRun.push(id)],
+    ['events:result', ({ event }) => {
+      if (!PARTY_EVENTS.includes(event?.ev)) return;
+      c.partyDay = today;
+      const got = gods.notify('party');
+      if (got.length) {
+        saveAccount();
+        for (const g of got) bus?.emit('secrets:found', { id: g.rule.id, name: g.rule.name, words: rewardWords(g.rule), eased: g.eased });
+        bus?.emit('secrets:change', { got: got.map((g) => g.rule.id) });
+      }
+    }],
     ['complaint:new', ({ complaint }) => {
       c.today.complaints++;
       if (complaint?.kind === 'noise') c.today.noise++;
@@ -427,21 +481,25 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
   function whyFalse(id) {
     const r = secretById(id);
     if (!r) return null;
-    const res = engine.evaluate(r, {});
-    return { id, ok: res.ok, eased: res.eased, ng: res.ng, parts: res.all.map(condWords), missing: engine.missingCategories(res) };
+    const E = engineOf(id);
+    const res = E.evaluate(r, {});
+    return { id, ok: res.ok, eased: res.eased, ng: res.ng, parts: res.all.map(condWords), missing: E.missingCategories(res) };
   }
+  // Havoc's clues stay hidden until the other four gods have all been hired (any run)
+  const hidden = (r) => r.id === 'SEC-GOD-5' && !gods.everUnlocked(r.id) && read('godsHiredEver') < 4;
   function archive() {
-    return [...SECRETS, ...LEGEND_SECRETS].map((r) => {
-      const stage = engine.clueStage(r.id);
-      const row = { id: r.id, name: r.name, category: r.category, stage, found: stage >= 3, foundNow: engine.unlockedInRun(r.id), ng: r.ngPlusMin, extra: !SECRETS.includes(r) };
+    return [...SECRETS, ...LEGEND_SECRETS, ...GOD_SECRETS].map((r) => {
+      const E = engineOf(r.id);
+      const stage = hidden(r) ? 0 : E.clueStage(r.id);
+      const row = { id: r.id, name: r.name, category: r.category, stage, found: stage >= 3, foundNow: E.unlockedInRun(r.id), ng: r.ngPlusMin, extra: !SECRETS.includes(r), god: GOD_SECRETS.includes(r) };
       if (stage >= 3) Object.assign(row, { exact: r.exact ?? null, reward: rewardWords(r), check: whyFalse(r.id) });
-      else if (stage >= 1) Object.assign(row, { rumour: r.clueStages[Math.min(stage, r.clueStages.length) - 1].text.includes('{missing}') ? r.clueStages[0].text : r.clueStages[Math.min(stage, r.clueStages.length) - 1].text, missing: stage >= 2 ? engine.missingCategories(engine.evaluate(r, {})) : [] });
+      else if (stage >= 1) Object.assign(row, { rumour: r.clueStages[Math.min(stage, r.clueStages.length) - 1].text.includes('{missing}') ? r.clueStages[0].text : r.clueStages[Math.min(stage, r.clueStages.length) - 1].text, missing: stage >= 2 && !row.god ? E.missingCategories(E.evaluate(r, {})) : [] });
       return row;
     });
   }
 
   // --- the Secret staff hooks (their specialisations, live from M27) ----------------------------------------------------
-  const spec = (key) => team().filter((m) => !m.absent && staffDef(m.id)?.effect?.key === key).reduce((t, m) => t + (staffDef(m.id)?.effect?.pct ?? 0), 0);
+  const spec = (key) => team().filter((m) => !m.absent).reduce((t, m) => t + (staffDef(m.id)?.effects ?? [staffDef(m.id)?.effect]).filter((e) => e?.key === key).reduce((a, e) => a + e.pct, 0), 0); // (M28b: every effect of a god's blessing)
   function extraSat(b) {
     let add = 0;
     for (const id of runner.list('boost')) {
@@ -464,7 +522,18 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
     return add;
   }
   // Events: the wedding garden, Nova Joy (+2 score)
-  const eventBonus = (evt) => (runner.has('boost', 'weddingGarden') && WEDDINGS.includes(evt?.ev) ? BOOSTS.weddingGarden.eventScore : 0) + spec('eventMemory') / 10;
+  const eventBonus = (evt) => (runner.has('boost', 'weddingGarden') && WEDDINGS.includes(evt?.ev) ? BOOSTS.weddingGarden.eventScore : 0) + spec('eventMemory') / 10 + chaos(evt);
+  // (Milestone 28b) Jinx: the first complaint each month is a near miss; her lucky arrivals (+20%, the demand cap)
+  function complaintGuard(b, kind, minute) {
+    if (spec('nearMiss') <= 0) return false;
+    const mi = Math.floor(minute / 1440 / 28);
+    if (c.nearMissMonth === mi) return false;
+    c.nearMissMonth = mi;
+    return true;
+  }
+  const luckDemand = (typeId) => (spec('luck') > 0 && LUCKY_TAGS.some((t) => tagged(typeId, t)) ? { type: 0.2, words: 'Jinx: lucky arrivals' } : null);
+  // Havoc: each event rolls (seeded by the event): 70% +15, 30% −5
+  const chaos = (evt) => (spec('chaos') > 0 && evt?.id ? (new Rng(`${runId()}:chaos:${evt.id}`).next() < 0.7 ? 15 : -5) : 0);
   // Sage Evergreen: the first breakdown roll each month doesn't happen
   function breakdownGuard(id, minute, why) {
     if (why === 'test' || spec('mgGuard') <= 0) return false;
@@ -479,9 +548,9 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
     onEdge,
     archive,
     whyFalse,
-    stage: (id) => engine.clueStage(id),
-    found: (id) => engine.everUnlocked(id),
-    foundNow: (id) => engine.unlockedInRun(id),
+    stage: (id) => (secretById(id) && hidden(secretById(id)) ? 0 : engineOf(id).clueStage(id)),
+    found: (id) => engineOf(id).everUnlocked(id),
+    foundNow: (id) => engineOf(id).unlockedInRun(id),
     get count() {
       return SECRETS.filter((r) => engine.everUnlocked(r.id)).length;
     },
@@ -490,7 +559,7 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
     },
     invited: (id) => (st.invites[id] ?? -1) >= today,
     // a Legendary / Secret person whose secret was found (any run)
-    staffKnown: (id) => [...SECRETS, ...LEGEND_SECRETS].some((r) => r.rewardActions.some((a) => a.type === 'staff' && a.id === id) && engine.everUnlocked(r.id)),
+    staffKnown: (id) => [...SECRETS, ...LEGEND_SECRETS, ...GOD_SECRETS].some((r) => r.rewardActions.some((a) => a.type === 'staff' && a.id === id) && engineOf(r.id).everUnlocked(r.id)),
     barred: (id) => c.poached?.id === id && !c.poached.beat,
     inviteUntil: (id) => st.invites[id] ?? null,
     guestOpen: (id) => opened('guest', id),
@@ -505,6 +574,10 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
     extraSat,
     eventBonus,
     breakdownGuard,
+    complaintGuard,
+    luckDemand,
+    gods,
+    godsHired: () => facts.get('godsAllEver'),
     get prestigeTokens() {
       return account?.prestigeTokens ?? 0;
     },
@@ -518,7 +591,7 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
     debugForce(id) {
       const r = secretById(id);
       if (!r) return null;
-      const got = engine.unlock(r);
+      const got = engineOf(id).unlock(r);
       saveAccount();
       if (got) bus?.emit('secrets:found', { id, name: r.name, words: rewardWords(r), eased: got.eased });
       return got;
@@ -531,7 +604,7 @@ export function createSecrets({ account = {}, saved = null, bus = null, run = {}
     engine,
     runner,
     rewardWords: (id) => rewardWords(secretById(id)),
-    serialize: () => ({ c: clone(c), engine: engine.serializeRun(), runner: runner.serialize(), invites: { ...st.invites } }),
+    serialize: () => ({ c: clone(c), engine: engine.serializeRun(), gods: gods.serializeRun(), runner: runner.serialize(), invites: { ...st.invites } }),
   };
   return sec;
 }

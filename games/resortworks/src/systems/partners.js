@@ -53,6 +53,7 @@ export function createPartners({ demand = null, saved = null, bus = null, financ
   const activeIds = () => slots.map((sp) => sp.active?.id).filter(Boolean);
   // Why this partner isn't offering now (one plain line), or null.
   let secretOpen = () => false; // (Milestone 27)
+  let rewardMult = null; // (Milestone 28b)
   function whyNotOffer(id) {
     const p = partnerById(id);
     if (!p) return 'No such partner.';
@@ -102,7 +103,7 @@ export function createPartners({ demand = null, saved = null, bus = null, financ
   function reward(id) {
     const p = partnerById(id);
     const rng = new Rng(`${seed}:partner:${id}:${s.stats.met}`);
-    finance?.earn('partners', p.reward.credits, today, id);
+    finance?.earn('partners', Math.round(p.reward.credits * (rewardMult?.() ?? 1)), today, id); // (M28b: Kaching +20%)
     s.stats.credits += p.reward.credits;
     const got = [];
     for (const it of p.reward.items) {
@@ -188,6 +189,9 @@ export function createPartners({ demand = null, saved = null, bus = null, financ
     food28,
     setSecretOpen(fn) {
       secretOpen = fn ?? (() => false);
+    },
+    setRewardMult(fn) {
+      rewardMult = fn;
     },
     get slotsNow() {
       return slotsNow();

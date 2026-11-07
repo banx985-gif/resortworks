@@ -12,6 +12,9 @@ import { STAFF, LEGENDS } from './roster.js';
 import { RESEARCH, ART_REDO } from './research.js';
 import { ITEM_TYPES, ITEMS_ICON } from './items.js';
 
+// (Milestone 28b) art loaded only when it is first needed (the gods' ~2 MB portraits): key → path
+export const LAZY_ART = Object.fromEntries(LEGENDS.filter((x) => x.lazyArt).map((x) => [x.art, x.artPath]));
+
 export const ASSETS = {
   // Milestone 0: the five Founders' portraits (setup cards, slot cards, the Founder's sheet).
   ...Object.fromEntries(FOUNDERS.map((f) => [f.art, f.portrait])),
@@ -40,7 +43,7 @@ export const ASSETS = {
   [DOUGIE.art]: `assets/images/cast/${DOUGIE.art}.png`,
   // Milestone 13: every staff portrait (the Founders are above; the rest join the applicant pool and the staff book).
   ...Object.fromEntries(STAFF.map((x) => [x.art, `assets/images/staff/${x.art}.png`])),
-  ...Object.fromEntries(LEGENDS.map((x) => [x.art, `assets/images/staff/${x.art}.png`])), // (Milestone 27b) Aaron's still (his walking sheet loads when he is first drawn)
+  ...Object.fromEntries(LEGENDS.filter((x) => !x.lazyArt).map((x) => [x.art, x.artPath ?? `assets/images/staff/${x.art}.png`])), // (Milestone 27b) Aaron's still (his walking sheet loads when he is first drawn)
   // Milestone 17: the research pictures (r01–r05 are marked "to redo": code-drawn until the new files come — src/main.js)
   ...Object.fromEntries(RESEARCH.filter((x) => !ART_REDO.includes(x.id)).map((x) => [x.art, `assets/images/research/${x.art}.png`])),
   // Milestone 14: the Staff Item icons and the Staff Items icon (not drawn yet: code-drawn stand-ins, src/main.js, until

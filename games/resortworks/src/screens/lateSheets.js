@@ -390,7 +390,9 @@ function secretsSheet(run, arg, { act, accent }) {
       ...(inv.length ? [{ title: 'Secret applicants (hire them at the Motel Service Block)', std: 'sec:invites', columns: 1, lines: inv.map((id) => ({ text: `${staffNameOf(id)} · until ${sec.inviteUntil(id) + 1 > 0 ? `Day ${sec.inviteUntil(id) + 1}` : ''}`, color: C.action })) }] : []),
       ...SECRET_CATEGORIES.map((cat) => ({ title: `${cat} (${rows.filter((r) => r.category === cat && r.found).length} / ${rows.filter((r) => r.category === cat).length})`, std: `sec:${cat}`, columns: 1, buttons: rows.filter((r) => r.category === cat).map(row) })),
       // (Milestone 27b) beyond the 50: the Founder's secret (shown once it has a clue)
-      ...(rows.some((r) => r.extra && r.stage >= 1) ? [{ title: 'Beyond the 50', std: 'sec:extra', columns: 1, buttons: rows.filter((r) => r.extra && r.stage >= 1).map(row) }] : []),
+      ...(rows.some((r) => r.extra && !r.god && r.stage >= 1) ? [{ title: 'Beyond the 50', std: 'sec:extra', columns: 1, buttons: rows.filter((r) => r.extra && !r.god && r.stage >= 1).map(row) }] : []),
+      // (Milestone 28b) the Works Gods, once any has a clue (Havoc's only after the other four are hired)
+      ...(rows.some((r) => r.god && r.stage >= 1) ? [{ title: 'The Works Gods', std: 'sec:gods', columns: 1, buttons: rows.filter((r) => r.god && r.stage >= 1).map(row) }] : []),
       back(act),
     ],
   };

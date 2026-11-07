@@ -139,7 +139,7 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
   const members = team ?? [{ id: founder.id, name: founder.name, role: founder.role, pattern: null, founder: true }];
   const crew = members.map((m, i) => {
     const w = walker({ id: m.founder ? 'staff' : m.id, kind: 'staff', name: m.name, art: STAFF_ROLES[m.role].art, speed: PERSON.staffSpeed, spot: STAFF_SPOTS[i % STAFF_SPOTS.length] });
-    return Object.assign(w, { member: m, memberId: m.id, role: m.role, pattern: m.pattern, founder: !!m.founder, tasks: [], task: null, shown: 0, sheet: staffDef(m.id)?.sheet ?? null }); // (M27b: Aaron's walking sheet)
+    return Object.assign(w, { member: m, memberId: m.id, role: m.role, pattern: m.pattern, founder: !!m.founder, tasks: [], task: null, shown: 0, sheet: staffDef(m.id)?.sheet ?? null, sheetFolder: staffDef(m.id)?.sheetFolder ?? 'cast', glow: staffDef(m.id)?.tier === 'divine' }); // (M27b: Aaron's walking sheet; M28b: the gods', with a glow)
   });
   const staff = crew.find((w) => w.founder) ?? crew[0];
   const seenJobs = new Set();

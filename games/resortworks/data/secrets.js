@@ -133,7 +133,25 @@ export const LEGEND_SECRETS = [
     arrival: 'The founder of Banx Games drops by to see what you’ve built.',
   },
 ];
-export const secretById = (id) => SECRETS.find((x) => x.id === id) ?? LEGEND_SECRETS.find((x) => x.id === id) ?? null;
+// (Milestone 28b) the Works Gods' five secrets — not of the 50, not for SEC50. Their own engine eases a repeat run by 25%
+// (the card). Cowork's starting conditions. Havoc's clues stay hidden until the other four have all been hired once.
+const godSec = (id, name, requires, reward, clues, arrival, extra = {}) => ({
+  ...sec(id, 'Gods', name, requires, staff(reward), clues[0], extra),
+  clueStages: [{ text: clues[0], minMet: 1 }, { text: clues[1], minMet: { share: 0.6 } }, { text: clues[2], minMet: 'allButOne' }],
+  triggerEvents: extra.trigger ?? ['tick'],
+  arrival,
+});
+export const GOD_SECRETS = [
+  godSec('SEC-GOD-1', 'Bolt, God of Tinkering', [yes('rankA', 'rank'), n('facilitiesLv3', 15, 'facilities'), n('perfectConditionBest', 120, 'maintenance')], 'GOD1', ['A guest swears the sheds hum a happy tune at night.', 'Something golden keeps tightening the pool pump before anyone notices it’s loose.', 'A cog-shaped glow was seen over the Maintenance Shed. Keep every building in perfect shape and see who comes to look.'], 'A cog-shaped glow settles over the Maintenance Shed. Bolt has come to look.'),
+  godSec('SEC-GOD-2', 'Jinx, Goddess of Luck', [n('rareFour90', 4, 'guests'), n('secretsFound', 25, 'secrets'), yes('closeWin', 'awards')], 'GOD2', ['Reception’s lucky cat statue winked. Probably.', 'The rarest guests seem to find a lucky resort sooner or later.', 'A giant die was seen rolling across the lobby. Welcome all four legendary guests and win something by a whisker.'], 'A giant die rolls across the lobby and lands on six. Jinx is here.'),
+  godSec('SEC-GOD-3', 'Zip, God of Speed', [n('zipStreakBest', 336, 'cleaning'), n('roomTurns', 2000, 'cleaning')], 'GOD3', ['Housekeeping found a room cleaned before they’d even got the keys.', 'Someone saw a blur with winged shoes carrying four suitcases at once.', 'Keep every room ready on time, all year, in a full house, and a bellhop like no other might apply.'], 'A blur with winged shoes stops at the desk. Zip would like a job.'),
+  godSec('SEC-GOD-4', 'Kaching, God of Fortune', [n('cash', 1000000, 'finance', 'threshold'), n('profitRecordsYearBest', 3, 'finance'), n('partnerGoals', 8, 'partners')], 'GOD4', ['The café tip jar keeps overflowing with gold coins nobody remembers leaving.', 'A booming laugh echoes round the bar on record-breaking nights.', 'Make a fortune, break your profit records, and keep your Partners happy. Someone very jolly is watching.'], 'A booming laugh fills the bar. Kaching has arrived.'),
+  godSec('SEC-GOD-5', 'Havoc, God of Chaos', [n('godsHiredEver', 4, 'gods', 'fixed'), yes('partyNow', 'events')], 'GOD5', ['The other four keep glancing at the pool deck, nervously.', 'Purple sparks were seen in the DJ booth. Nobody booked a DJ.', 'Start a new run with the whole pantheon behind you, then throw a party. He’ll invite himself.'], 'The pool party’s gone… strange.', { ng: 1, trigger: ['tick', 'party'] }),
+];
+export const GOD_EASING = { countFactor: 0.75, thresholdPct: 25 };
+export const PARTY_EVENTS = ['EV01', 'EV08']; // a pool party / evening event (Birthday Weekend, Festival Stay)
+export const LUCKY_TAGS = ['vip', 'celebrity', 'critic'];
+export const secretById = (id) => SECRETS.find((x) => x.id === id) ?? LEGEND_SECRETS.find((x) => x.id === id) ?? GOD_SECRETS.find((x) => x.id === id) ?? null;
 // Each fact in plain words (the Archive's exact conditions once a secret is found). level.Fxx / built.Fxx are worded from
 // the facility's name.
 export const FACT_WORDS = {
@@ -153,7 +171,7 @@ export const FACT_WORDS = {
   prestigeTypesHosted: 'prestige guest types hosted', beatCrownBay: 'award categories where you beat Crown Bay', rivalRehires: 'staff won back from a rival', twentyYears: 'Year 20, solvent, 4★+',
   stageIndex: 'World-Class stage', tenYearsEveryRole: 'someone with 10 years’ service in every role', mostReturns: 'returns by one guest', backToBasics: 'National Resort Award before anything luxurious',
   perfectDay: 'a day with every score at 100, 80%+ full', paradiseHosted: 'a Paradise Guest hosted', otherSecrets: 'other secrets found (account)',
-  legendsHiredEver: 'of the five Legendaries hired (any run)', hallOfFame: 'guests in the Hall of Fame (a 5★ stay)', rankS: 'Resort Rank S',
+  legendsHiredEver: 'of the five Legendaries hired (any run)', rankA: 'Resort Rank A', facilitiesLv3: 'facilities at Lv3', perfectConditionBest: 'days in a row with every facility at Condition 80+ and no breakdown', rareFour90: 'rare guest types hosted at 90+', closeWin: 'an award won by 1 point or less', zipStreakBest: 'days in a row with no late room, 85%+ full', roomTurns: 'room turns this run', profitRecordsYearBest: 'monthly profit records in one year', partnerGoals: 'different Partners’ goals met', godsHiredEver: 'of the other four gods hired (any run)', partyNow: 'a pool party or evening event just held', hallOfFame: 'guests in the Hall of Fame (a 5★ stay)', rankS: 'Resort Rank S',
 };
 // The categories the Secret Archive groups them by (bible §29 order).
 export const SECRET_CATEGORIES = ['Staff', 'Guests', 'Facilities', 'Behaviour', 'Awards', 'History', 'NG+'];

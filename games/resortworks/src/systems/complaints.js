@@ -89,6 +89,7 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
   // A trigger for one stay (each kind at most once a stay): rolled, and a complaint if it comes up. key: what counts as
   // "the same trigger" and seeds its roll (the kind; Milestone 8: each facility breakdown its own, 'breakdown:F03').
   let enabled = true; // (?debug=1&complaints=0: the older milestones' browser runs switch triggers off)
+  let guard = null; // (Milestone 28b)
   function trigger(b, kind, minute, info = {}, key = kind) {
     if (!enabled || !COMPLAINT_TYPES[kind]?.on) return null;
     const seen = (s.seen[b.id] ??= {});
@@ -102,6 +103,7 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
   }
   function raise(b, kind, minute, info = {}) {
     const w = at(minute);
+    if (guard?.(b, kind, minute)) return null; // (Milestone 28b) Jinx: a near miss
     const c = { id: `${b.id}-${kind}`, booking: b.id, type: b.type, party: b.party ?? 1, room: b.room, rate: b.rate, kind, at: r2(minute), day: w.day, band: w.band, status: 'open', tries: [], info };
     if (s.list.some((x) => x.id === c.id)) return null;
     s.list.push(c);
@@ -302,6 +304,9 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
     options,
     act,
     // Debug only: no new triggers (force still works).
+    setGuard(fn) {
+      guard = fn;
+    },
     setEnabled(on) {
       enabled = !!on;
     },
