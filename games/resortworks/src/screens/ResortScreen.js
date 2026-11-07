@@ -91,6 +91,7 @@ import { buildListSheet, buildItemSheet } from './buildSheets.js';
 import { LATE_SHEETS, LATE_OPS } from './lateSheets.js';
 import { eventById, RESULT, ROCCO } from '../../data/events.js';
 const eventArt = (id) => eventById(id)?.art ?? null;
+const plural2 = (n, one) => `${n} ${n === 1 ? one : `${one}s`}`;
 import { researchSheet } from './researchSheet.js';
 import { itemsSheet, itemSheet } from './itemSheets.js';
 import { itemType } from '../../data/items.js';
@@ -344,6 +345,8 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     if (i > 0) notes.toastWaiting.unshift(...notes.toastWaiting.splice(i, 1));
   });
   bus.on('events:result', ({ event, name, pay }) => toast(`${name}: ${RESULT[event.result].name}`, `Score ${Math.round(event.score)}/100 · ${credits(pay)} fee.`, eventArt(event.ev), { panel: ['events'] }));
+  // (Milestone 20) a returning guest's offer
+  bus.on('guestbook:return', ({ guest }) => toast(`${guest.name} ${guest.stays.length >= 2 ? '(a Regular) ' : ''}want${guest.name.startsWith('The ') || guest.name.endsWith('Co.') ? '' : 's'} to come back`, `${plural2(guest.stays.length, 'stay')} so far. See their offer at Reception.`, GUEST_TYPES[guest.type]?.art, { panel: ['guest', guest.id] }));
   bus.on('site:dougie', ({ line, id }) => toast(DOUGIE.name, line, DOUGIE.art, id && world?.byId(id) ? { open: id } : null));
   bus.on('progress:stage', ({ name }) => toast(`Welcome to the ${name} stage!`, 'New rooms and facilities are in the build list.', DOUGIE.art));
   // (Milestone 13) a level reached (a toast; Lv8 / Lv16 ask for a specialisation)

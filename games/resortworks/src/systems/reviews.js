@@ -157,6 +157,7 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
   let ly = null; // (Milestone 9) the layout, once attached
   const appealNow = () => ly?.appeal() ?? null;
   let st = null; // (Milestone 10) the team side (fatigue, Staff Wellbeing), once attached
+  let extraSat = null; // (Milestone 20) a Regular's +5 (the Guestbook)
 
   function prune(today) {
     s.list = s.list.filter((v, i) => i < LIST_MAX || v.day > today - WINDOW_DAYS - 1);
@@ -175,7 +176,7 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
     const fx = cp?.closeStay(b, day) ?? null; // (Milestone 7) the stay's complaints, settled
     const place = placeOf(b.room); // (Milestone 9) the room's view and walks; (M15) its level and Loved bonus
     const cats = stayCategories(b, { team, facilities, roomType: roomTypeOf(b), cancel: fx?.cancel ?? {}, place, guests: guestsNow() });
-    const base = finalSatisfaction(cats, b.type) + (GUEST_TYPES[b.type]?.family ? rx('familySat') : 0); // (M17) Family Activities
+    const base = finalSatisfaction(cats, b.type) + (GUEST_TYPES[b.type]?.family ? rx('familySat') : 0) + (extraSat?.(b) ?? 0); // (M17) Family Activities; (M20) a Regular's +5
     const sat = fx ? r2(clamp(base + fx.bonus + fx.penalty)) : base;
     const stars = reviewStars(sat);
     const id = `V${s.nextId++}`;
@@ -183,7 +184,7 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
     let text = writeReview(placeText(place, b.noise, fx?.cancel ?? {}), { stats: cats, fitBand, seed: `${seed}:${id}` });
     const unresolved = fx?.unresolved ?? 0;
     if (fx?.complaints.length) text = `${text} ${new Rng(`${seed}:${id}:complaint`).pick(COMPLAINT_TEXT[unresolved ? 'unresolved' : 'recovered'])}`;
-    const review = { id, booking: b.id, type: b.type, room: b.room, got: roomTypeOf(b), wanted: b.roomType, nights: b.nights, day, cats, sat, stars, rep: repFor(stars) + REP_UNRESOLVED * unresolved, text, late: !!b.late, short: !!b.shortLinen };
+    const review = { id, booking: b.id, guest: b.guestId ?? null, pkg: b.pkg ?? null, event: b.event ?? null, type: b.type, room: b.room, got: roomTypeOf(b), wanted: b.roomType, nights: b.nights, day, cats, sat, stars, rep: repFor(stars) + REP_UNRESOLVED * unresolved, text, late: !!b.late, short: !!b.shortLinen };
     if (place) Object.assign(review, { view: place.view, convenience: place.convenience, noise: fx?.cancel?.comfort ? 0 : b.noise?.loss ?? 0 }); // (Milestone 9)
     if (fx?.complaints.length) Object.assign(review, { complaints: fx.complaints, recovered: fx.recovered, unresolved, bonus: fx.bonus, penalty: fx.penalty, base, memory: fx.saved ? SAVED_MEMORY : null });
     s.list.unshift(review);
@@ -237,6 +238,9 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
     },
     attachGuests(fn) {
       guestsNow = fn;
+    },
+    attachExtraSat(fn) {
+      extraSat = fn;
     },
     // (Milestone 10) Auto Accept's expected satisfaction: the stay scored as if it went perfectly (no late room, short
     // linen, noise or complaint) in this room, for this guest type at this rate.

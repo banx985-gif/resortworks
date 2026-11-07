@@ -6,6 +6,7 @@
 //   saveLate(run, data) — writes each one's serialize() into the save
 import { createPackages } from './packages.js';
 import { createEvents } from './events.js';
+import { createGuestbook } from './guestbook.js';
 
 export function attachLate(run, data = {}, { bus = null } = {}) {
   // (Milestone 18) packages: offers pick them, accepting reserves their places, each day gives the inclusions
@@ -20,11 +21,19 @@ export function attachLate(run, data = {}, { bus = null } = {}) {
     run.events.onEdge(day, band);
   });
   run.staffing.setExtraLoad((day) => run.events.loadOn(day));
+  // (Milestone 20) the Guestbook: every notable stay, memories, returning guests and Regulars
+  run.guestbook = createGuestbook({ saved: data.guestbook ?? null, bus, seed: data.seed ?? run.seed ?? 'resortworks', items: run.items, team: run.team });
+  run.bookings.attachRepeat((day, pricing) => run.guestbook.dueOffers(day, pricing));
+  run.reviews.attachExtraSat((b) => run.guestbook.extraSat(b));
+  bus?.on('review:new', ({ review }) => run.guestbook.onReview(review));
+  bus?.on('events:result', ({ event }) => run.guestbook.onEvent(event));
+  bus?.on('booking:checkin', ({ bookings }) => bookings.forEach((b) => b.repeat && run.guestbook.onReturnStay()));
   return run;
 }
 
 export function saveLate(run, data) {
   data.packages = run.packages?.serialize() ?? data.packages; // (Milestone 18)
   data.events = run.events?.serialize() ?? data.events; // (Milestone 19)
+  data.guestbook = run.guestbook?.serialize() ?? data.guestbook; // (Milestone 20)
   return data;
 }

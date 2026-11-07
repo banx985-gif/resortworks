@@ -12,6 +12,8 @@ import { GUEST_TYPES } from '../../data/bookings.js';
 import { credits } from '../systems/finance.js';
 import { facilityInfo } from '../../data/facilities.js';
 import { EVENTS, eventById, RESULT, ROCCO } from '../../data/events.js';
+import { memoryById, REGULAR } from '../../data/guestbook.js';
+import { ROOM_TYPES } from '../../data/bookings.js';
 
 const C = THEME.color;
 const pct = (x) => `${x > 0 ? '+' : ''}${Math.round(x * 100)}%`;
@@ -34,6 +36,8 @@ function officeSheet(run, arg, { act, accent }) {
     const ch = evs.pendingChoice;
     rows.push({ id: 'office:events', icon: 'ui_22', label: 'Events', sub: ch ? `Rocco needs a choice: ${eventById(ch.ev).name}` : `${plural(wait, 'enquiry', 'enquiries')} · ${evs.booked.length} booked · ${evs.stats.held} held`, accent: ch ? C.action : C.progress, onTap: () => act.panel(ch ? 'eventChoice' : 'events', ch?.id ?? null) });
   }
+  const gb = run.guestbook;
+  if (gb) rows.push({ id: 'office:guestbook', icon: 'ui_21', label: 'Guestbook', sub: `${plural(gb.guests.length, 'guest')} · ${plural(gb.regulars.length, 'Regular')} · ${plural(gb.stats.returns, 'return')}`, accent: C.progress, onTap: () => act.panel('guestbook') });
   const next = nextStep(run);
   return {
     key: 'panel:office',
@@ -118,7 +122,62 @@ function eventChoiceSheet(run, id, { act, accent }) {
   return { key: 'panel:eventChoice', title: `${ROCCO.name} · ${e.name}`, subtitle: e.choice.q, art: ROCCO.art, accent, sections: [{ std: 'ev:choice', columns: 1, buttons: opts }] };
 }
 
-export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet };
+const starStr = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
+// (Milestone 20) the Guestbook: notable guests (Regulars first), each with their stays and memories; the Hall of Fame.
+function guestbookSheet(run, arg, { act, accent, dateOf = (d) => `Day ${d + 1}` }) {
+  const gb = run.guestbook;
+  const st = gb.stats;
+  const sections = [
+    { lines: [{ text: 'Guests who loved their stay (or made a memory) are kept here. Some come back — months or years later — with every stay remembered.', color: C.textMuted }, { text: 'Guests', right: String(gb.guests.length) }, { text: `Regulars (${REGULAR.stays}+ stays: +${REGULAR.sat} satisfaction, book early)`, right: String(gb.regulars.length) }, { text: 'Returns', right: String(st.returns) }] },
+    { columns: 1, buttons: [{ id: 'gb:hof', icon: 'ui_29', label: 'Hall of Fame', sub: 'Best stays, best reviews, most returns', accent: C.gold ?? C.action, onTap: () => act.panel('hallOfFame') }] },
+  ];
+  const list = [...gb.guests].sort((a, b) => b.stays.length - a.stays.length || b.lastDay - a.lastDay).slice(0, 30);
+  sections.push({
+    title: list.length ? `Guests (the ${list.length} most notable)` : 'Guests',
+    std: 'gb:list',
+    columns: 1,
+    lines: list.length ? [] : [{ text: 'The first guest to leave a 4★ review will be the first entry.', color: C.textMuted }],
+    buttons: list.map((g) => ({ id: `gb:${g.id}`, icon: GUEST_TYPES[g.type].art, label: `${g.name}${g.stays.length >= REGULAR.stays ? ' · Regular' : ''}`, sub: `${GUEST_TYPES[g.type].name} · ${plural(g.stays.length, 'stay')} · last ${dateOf(g.lastDay)}${g.memories.length ? ` · ${g.memories.map((m) => memoryById(m).name).join(', ')}` : ''}`, accent: g.stays.length >= REGULAR.stays ? C.good : C.progress, onTap: () => act.panel('guest', g.id) })),
+  });
+  sections.push(back(act));
+  return { key: 'panel:guestbook', title: 'Guestbook', subtitle: 'Who stayed, what they loved, who came back.', art: 'ui_21', accent, sections };
+}
+function guestSheet(run, id, { act, accent, dateOf = (d) => `Day ${d + 1}` }) {
+  const gb = run.guestbook;
+  const g = gb.byId(id);
+  if (!g) return guestbookSheet(run, null, { act, accent, dateOf });
+  const t = GUEST_TYPES[g.type];
+  const lines = g.stays.map((x) => ({ text: `${dateOf(x.day)} · ${ROOM_TYPES[x.roomType]?.name ?? ''} · ${plural(x.nights, 'night')}${x.pkg ? ' · package' : ''}${x.event ? ' · event' : ''}`, right: `${starStr(x.stars)} ${Math.round(x.sat)}` }));
+  const mem = g.memories.map((m) => ({ text: memoryById(m).name, color: memoryById(m).kind === 'negative' ? C.bad : C.good }));
+  return {
+    key: `panel:guest`,
+    title: g.name,
+    subtitle: `${t.name}${g.stays.length >= REGULAR.stays ? ' · a Regular' : ''} · favourite room: ${ROOM_TYPES[g.favRoomType]?.name ?? '—'}`,
+    art: t.art,
+    accent,
+    sections: [{ title: 'Stays', std: 'guest:stays', lines }, { title: 'Memories', std: 'guest:memories', lines: mem.length ? mem : [{ text: 'No memories yet.', color: C.textMuted }] }, { columns: 1, buttons: [{ id: 'guest:back', label: '‹ Guestbook', accent: C.textMuted, onTap: () => act.panel('guestbook') }] }],
+  };
+}
+// Kairosoft rule 3: the Hall of Fame page.
+function hallOfFameSheet(run, arg, { act, accent, dateOf = (d) => `Day ${d + 1}` }) {
+  const h = run.guestbook.hallOfFame();
+  const empty = (w) => [{ text: w, color: C.textMuted }];
+  return {
+    key: 'panel:hallOfFame',
+    title: 'Hall of Fame',
+    subtitle: 'The best of the Guestbook.',
+    art: 'ui_29',
+    accent,
+    sections: [
+      { title: 'Best stays', std: 'hof:stays', lines: h.bestStays.length ? h.bestStays.map((x, i) => ({ text: `${i + 1}. ${x.name} · ${dateOf(x.day)}`, right: `${Math.round(x.sat)}/100` })) : empty('No stays yet.') },
+      { title: 'Best reviews', std: 'hof:reviews', lines: h.bestReviews.length ? h.bestReviews.flatMap((x, i) => [{ text: `${i + 1}. ${starStr(x.stars)} ${x.name}`, right: `${Math.round(x.sat)}` }, ...(x.text ? [{ text: `“${x.text}”`, color: C.textMuted }] : [])]) : empty('No reviews yet.') },
+      { title: 'Most returns', std: 'hof:returns', lines: h.mostReturns.length ? h.mostReturns.map((g, i) => ({ text: `${i + 1}. ${g.name} (${GUEST_TYPES[g.type].name})`, right: plural(g.stays.length, 'stay') })) : empty('Nobody has come back yet.') },
+      { columns: 1, buttons: [{ id: 'hof:back', label: '‹ Guestbook', accent: C.textMuted, onTap: () => act.panel('guestbook') }] },
+    ],
+  };
+}
+
+export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet };
 
 export const LATE_OPS = {
   evAccept(run, id) {

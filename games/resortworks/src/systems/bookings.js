@@ -178,6 +178,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   let pk = null; // (Milestone 18) packages, once attached
   let pg = null; // (Milestone 18) the stage (who can book), once attached
   let late = null; // (Milestone 18 on) the later systems' band edge (src/systems/lateSystems.js)
+  let repeat = null; // (Milestone 20) the Guestbook's returning guests for a Morning
   const fit = (x, r) => fitOf(x, r, ly?.fitParts(r.id) ?? null);
   const pricing = (day) => (fin ? { rateOf: fin.rateOf, chance: (o) => fin.offerChance(o, rv?.headline(day).service ?? null) } : null);
   const changed = () => {
@@ -300,6 +301,13 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
       s.at = { day, band };
       if (outs.length) hk?.enqueue(outs.map((b) => b.room));
       fresh = makeOffers(seed, day, s.stats, pricing(day), pk, pg?.stage);
+      // (Milestone 20) returning guests: each takes one of the Morning's offer places (returns change who books, not how many)
+      const back = repeat?.(day, pricing(day)) ?? [];
+      if (back.length) {
+        fresh.splice(Math.max(0, fresh.length - back.length), back.length);
+        fresh.push(...back);
+        s.stats.repeatOffers = (s.stats.repeatOffers ?? 0) + back.length;
+      }
       s.offers.push(...fresh);
     }
     const late = [];
@@ -329,6 +337,10 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     s.offers = s.offers.filter((x) => x !== o);
     const b = { id: `B${s.nextId++}`, type: o.type, party: o.party, nights: o.nights, arrival: o.arrival, roomType: o.roomType, rate: Math.round(o.rate * (site?.rateMult(r.id) ?? 1)), room: r.id, pinned, status: 'upcoming', nightsLeft: o.nights, inDay: null, inBand: null, outDay: null };
     if (auto) b.auto = true;
+    if (o.guestId) {
+      b.guestId = o.guestId; // (Milestone 20) a returning guest keeps who they are
+      b.repeat = true;
+    }
     // (Milestone 18) a package: its price is the room's nightly rate × the multiplier, its places reserved now
     if (o.pkg && pk) {
       const pl = pk.plan(o.pkg, o);
@@ -384,7 +396,8 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   function autoAccept() {
     if (!s.autoAccept.on) return 0;
     let n = 0;
-    const list = s.autoAccept.preferPackage ? [...s.offers].sort((a, b) => (b.pkg ? 1 : 0) - (a.pkg ? 1 : 0)) : [...s.offers]; // (M18) package guests first
+    const pri = (o) => (s.autoAccept.preferRepeat && o.repeat ? 2 : 0) + (s.autoAccept.preferPackage && o.pkg ? 1 : 0); // (M18 / M20) package and returning guests first
+    const list = [...s.offers].sort((a, b) => pri(b) - pri(a));
     for (const o of list) {
       const c = autoCheck(o);
       if (c.why) continue;
@@ -531,6 +544,9 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     },
     attachLate(fn) {
       late = fn;
+    },
+    attachRepeat(fn) {
+      repeat = fn;
     },
     // (Milestone 19) an event's room block: as many rooms as are free on its dates (the biggest first, up to half the
     // rooms — Claude Code's pick), each a booking of the event's guest type at the room's rate, tagged with the event.

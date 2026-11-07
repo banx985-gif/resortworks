@@ -67,7 +67,7 @@ export const ITEM_SOURCES = {
   stay: { name: 'An excellent stay', live: true, chance: 0.3 },
   training: { name: 'A great training session', live: true, chance: 0.25 },
   wellwisher: { name: 'A well-wisher', live: true, chance: 0.6 },
-  gift: { name: 'A guest’s gift', live: false, later: 'M20' },
+  gift: { name: 'A guest’s gift', live: true }, // (Milestone 20) a Regular who loved the stay
   partner: { name: 'A Partner', live: false, later: 'M22' },
   event: { name: 'A Great Success event', live: true }, // (Milestone 19)
   award: { name: 'An award', live: false, later: 'M23' },

@@ -191,9 +191,10 @@ function receptionSpec(it, { bookings: bk, today, act, reviews = null, dateOf = 
   for (const o of offers) {
     const t = GUEST_TYPES[o.type];
     const why = bk.whyNot(o);
+    // (M20) a returning guest / Regular is marked on its offer
     body.push({
       columns: 1,
-      buttons: [{ id: `offer:${o.id}`, icon: t.art, label: o.pkg ? `${t.name} · ${packageWords(o)}` : t.name, sub: `${partyWords(o.party)} · ${plural(o.nights, 'night')} · arrives ${arrivalWords(o.arrival, today)} · wants ${ROOM_TYPES[o.roomType].name.replace(' Room', '')}`, cost: rateWords(packageRate(o)), accent: C.progress, onTap: () => act.pick(o.id) }], // (M18) a package offer: its name and price
+      buttons: [{ id: `offer:${o.id}`, icon: t.art, label: `${t.name}${o.repeat ? (o.regular ? ' · Regular' : ' · returning') : ''}${o.pkg ? ` · ${packageWords(o)}` : ''}`, sub: `${partyWords(o.party)} · ${plural(o.nights, 'night')} · arrives ${arrivalWords(o.arrival, today)} · wants ${ROOM_TYPES[o.roomType].name.replace(' Room', '')}`, cost: rateWords(packageRate(o)), accent: C.progress, onTap: () => act.pick(o.id) }], // (M18) a package offer: its name and price
     });
     const auto = !why && bk.autoAcceptSettings?.on ? bk.autoWhy(o.id) : null; // (Milestone 10) why Auto Accept left it
     body.push({
