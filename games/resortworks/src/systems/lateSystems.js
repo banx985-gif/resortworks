@@ -13,8 +13,10 @@ import { createSupplies } from './supplies.js';
 import { createPartners } from './partners.js';
 import { createAwards } from './awards.js';
 import { createWeather } from './weather.js';
+import { createAchievements } from './achievements.js';
 
-export function attachLate(run, data = {}, { bus = null } = {}) {
+// account: the account store (achievements live there, across every slot); {} in tests.
+export function attachLate(run, data = {}, { bus = null, account = {} } = {}) {
   // (Milestone 18) this resort's demand book (every source adds to it, held within ±20%)
   run.demand = createDemand();
   run.bookings.attachDemand(run.demand);
@@ -35,6 +37,7 @@ export function attachLate(run, data = {}, { bus = null } = {}) {
     run.themes?.onEdge(day, band, run.bookings); // (Milestone 21)
     run.partners?.onEdge(day, band); // (Milestone 22)
     run.awards?.onEdge(day, band); // (Milestone 23)
+    run.achievements?.onEdge(day, band); // (Milestone 26) last: everything else has moved
   });
   run.staffing.setExtraLoad((day) => run.events.loadOn(day));
   // (Milestone 20) the Guestbook: every notable stay, memories, returning guests and Regulars
@@ -60,6 +63,8 @@ export function attachLate(run, data = {}, { bus = null } = {}) {
   // (Milestone 25) wages and upkeep scale with the stage; the Rescue Investor costs Prestige 5
   run.finance.attachStage(() => run.progress.stage);
   run.finance.onRescue(() => run.awards.addPrestige?.(-5, 'Rescue Investor'));
+  // (Milestone 26) the 40 visible achievements (account-wide unlocks; this run's counters in the save)
+  run.achievements = createAchievements({ account, saved: data.achv ?? null, bus, run: { ...run, get seed() { return data.seed ?? run.seed; } } });
   run.reviews.attachPrestige(() => run.awards.prestige);
   run.themes.setPrestige(() => run.awards.prestige);
   bus?.on('review:new', ({ review }) => run.awards.onReview(review));
@@ -80,5 +85,6 @@ export function saveLate(run, data) {
   data.partners = run.partners?.serialize() ?? data.partners;
   data.awards = run.awards?.serialize() ?? data.awards; // (Milestone 23)
   data.weather = run.weather?.serialize() ?? data.weather; // (Milestone 24)
+  data.achv = run.achievements?.serialize() ?? data.achv; // (Milestone 26) this run's achievement counters
   return data;
 }

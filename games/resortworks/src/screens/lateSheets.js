@@ -59,6 +59,7 @@ function officeSheet(run, arg, { act, accent }) {
     if (aw.expo && !aw.expo.done) rows.push({ id: 'office:expo', icon: 'ui_28', label: EXPO.name, sub: 'This month: enter for a ranked result against the rivals (or skip)', accent: C.action, onTap: () => act.panel('expo') });
     rows.push({ id: 'office:awards', icon: 'ui_29', label: 'Awards & Rivals', sub: `${plural(aw.wins.length, 'award')} won · Prestige ${Math.round(aw.prestige)}`, accent: C.progress, onTap: () => act.panel('awards') });
   }
+  if (run.achievements) rows.push({ id: 'office:achievements', icon: 'ach_medal', label: 'Achievements', sub: `${run.achievements.count} of 40 unlocked`, accent: C.progress, onTap: () => act.panel('achievements') });
   if (run.weather) rows.push({ id: 'office:weather', icon: 'ui_23', label: 'Weather', sub: `${WEATHER[run.weather.now].name} this month · ${WEATHER[run.weather.now].line.split(': ')[1] ?? 'nothing changes.'}`, accent: C.progress, onTap: () => act.panel('weather') });
   if (run.supplies) rows.push({ id: 'office:supplies', icon: 'ui_13', label: 'Suppliers', sub: SUPPLY_GROUPS.map((g) => `${g.name}: ${TIER_NAMES[run.supplies.tier(g.id)]}`).join(' · '), accent: C.progress, onTap: () => act.panel('supplies') });
   const gb = run.guestbook;
@@ -322,7 +323,29 @@ function weatherSheet(run, arg, { act, accent, today = 0 }) {
   return { key: 'panel:weather', title: 'Weather', subtitle: 'Seasons change who comes.', art: 'ui_23', accent, sections };
 }
 
-export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet, awards: awardsSheet, expo: expoSheet, weather: weatherSheet };
+// (Milestone 26) the 40 achievements: unlocked first (when), then the rest with their goal and progress bar words.
+function achievementsSheet(run, arg, { act, accent, dateOf = (d) => `Day ${d + 1}` }) {
+  const ach = run.achievements;
+  const list = ach.list;
+  const done = list.filter((x) => x.unlocked);
+  const rest = list.filter((x) => !x.unlocked);
+  ach.markSeen?.();
+  const row = (x) => ({ id: `ach:${x.def.id}`, icon: x.unlocked ? 'ach_medal' : 'ach_locked', label: x.def.name, sub: x.unlocked ? `${x.def.text} · ${dateOf(x.unlocked.day ?? 0)}` : `${x.def.text}${x.progress ? ` · ${x.progress.value} / ${x.progress.target}` : ''}`, accent: x.unlocked ? C.good : C.textMuted, onTap: () => {} });
+  return {
+    key: 'panel:achievements',
+    title: 'Achievements',
+    subtitle: `${done.length} of 40 · kept on your account in every resort.`,
+    art: 'ach_medal',
+    accent,
+    sections: [
+      { title: `Unlocked (${done.length})`, std: 'ach:done', columns: 1, lines: done.length ? [] : [{ text: 'Your first comes with your first booked guest.', color: C.textMuted }], buttons: done.map(row) },
+      { title: `Still to do (${rest.length})`, std: 'ach:rest', columns: 1, buttons: rest.map(row) },
+      back(act),
+    ],
+  };
+}
+
+export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet, awards: awardsSheet, expo: expoSheet, weather: weatherSheet, achievements: achievementsSheet };
 
 export const LATE_OPS = {
   expoEnter(run) {

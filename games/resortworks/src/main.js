@@ -84,6 +84,7 @@ import { attachLate, saveLate } from './systems/lateSystems.js';
 import { setStage as setLiveStage } from './systems/guests.js';
 import { RESEARCH, BRANCHES, ART_REDO } from '../data/research.js';
 import { ITEM_TYPES, ITEM_GROUPS, ITEM_RARITIES, ITEMS_ICON } from '../data/items.js';
+import { MEDAL } from '../data/achievements.js';
 import { MajorFeedback } from '../../../core/MajorFeedback.js';
 import { skipMoment, opalWelcomeMoment } from './screens/reviewMoments.js';
 import { validateCast } from '../data/cast.js';
@@ -197,6 +198,29 @@ assets.setFallback(
   },
   { aspect: 0.8 },
 );
+// (Milestone 26) achievements have no filed art: a code-drawn medal (gold with a star; locked: grey with a ?)
+for (const [key, fill, mark] of [['ach_medal', MEDAL.gold, '★'], ['ach_locked', MEDAL.locked, '?']])
+  assets.setFallback(key, (ctx, x, y, w, h) => {
+    const r = Math.min(w, h) * 0.42;
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    ctx.save();
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = r * 0.12;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.78, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = font(Math.round(r * 1.1), true);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(mark, cx, cy + 1);
+    ctx.restore();
+  });
 watchCanvasLoss(renderer.canvas ?? document.getElementById('game')); // a wiped canvas → the caches are made again
 const router = new ScreenRouter(bus, { roots: ['menu', 'test', 'resort'] });
 const dialog = new Dialog({ layout, assets }); // confirm boxes (delete / replace a slot)
@@ -412,7 +436,7 @@ function openRun(n, data) {
   // (Milestone 14) Staff Items
   run.items = createItems({ saved: data.items ?? null, bus, team: run.team, seed: data.seed, now: () => run.calendar.minute, progress: run.progress, finance: run.finance });
   run.bookings.attachItems(run.items);
-  attachLate(run, data, { bus, now: () => run.calendar.minute }); // (Milestone 18 on) packages …
+  attachLate(run, data, { bus, now: () => run.calendar.minute, account }); // (Milestone 18 on) packages … (M26: achievements in the account store)
   open = run;
   run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;
@@ -425,6 +449,8 @@ function welcomeIfDue(run) {
   autosave.request('welcome');
   debug.log('Opal: welcome card');
 }
+// (Milestone 26) an achievement: the account store is saved at once (it is kept across every slot)
+bus.on('achievement:unlocked', () => campaigns?.slots.saveAccount(account));
 // Every band edge moves the open resort's bookings on (check-ins, check-outs, nights, offers), in order.
 bus.on('band:change', () => open && open.bookings.sync(open.calendar.today, open.calendar.bandIndex));
 // The campaign save: the calendar as it stands, the date the slot card shows, then the slot (save + summary record).
@@ -452,7 +478,7 @@ async function saveRun() {
 }
 const autosave = new Autosave({
   bus,
-  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage', 'research:change', 'items:change', 'packages:change', 'packages:sold', 'events:change', 'guestbook:change', 'themes:change', 'supplies:change', 'partners:change', 'awards:change', 'weather:change'],
+  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage', 'research:change', 'items:change', 'packages:change', 'packages:sold', 'events:change', 'guestbook:change', 'themes:change', 'supplies:change', 'partners:change', 'awards:change', 'weather:change', 'achievements:change'],
   save: () => saveRun(),
   stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize(), open.maintenance.serialize(), open.staffing.serialize(), open.site.serialize(), open.progress.serialize(), open.research.serialize(), open.items.serialize()]) : null),
   enabled: () => !!open,

@@ -367,6 +367,8 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   bus.on('weather:change', ({ weather }) => weather !== 'mild' && toast(`${WEATHER[weather].name} weather this month`, WEATHER[weather].line, 'ui_23', { panel: ['weather'] }));
   // (Milestone 25) the Rescue Investor
   bus.on('finance:rescue', ({ cut }) => toast('The Rescue Investor stepped in', `They wrote off ${credits(cut)} of your debt and take 8% of revenue for a year. Prestige −5.`, 'ui_25', { panel: ['office'] }));
+  // (Milestone 26) an achievement: a one-tap toast (it opens the list)
+  bus.on('achievement:unlocked', ({ def }) => toast(`Achievement: ${def.name}`, `${def.text}${def.big ? ' A Staff Item too!' : ''}`, 'ach_medal', { panel: ['achievements'] }));
   bus.on('site:dougie', ({ line, id }) => toast(DOUGIE.name, line, DOUGIE.art, id && world?.byId(id) ? { open: id } : null));
   bus.on('progress:stage', ({ name }) => toast(`Welcome to the ${name} stage!`, 'New rooms and facilities are in the build list.', DOUGIE.art));
   // (Milestone 13) a level reached (a toast; Lv8 / Lv16 ask for a specialisation)

@@ -71,7 +71,7 @@ export const ITEM_SOURCES = {
   partner: { name: 'A Partner', live: true }, // (Milestone 22) a contract goal met
   event: { name: 'A Great Success event', live: true }, // (Milestone 19)
   award: { name: 'An award', live: true }, // (Milestone 23) a visible award won
-  achievement: { name: 'An achievement', live: false, later: 'M26' },
+  achievement: { name: 'An achievement', live: true }, // (Milestone 26) the ten big ones
   debug: { name: 'Test', live: true, debug: true }, // (?debug=1 and tests only)
 };
 // The Staff Items sheet's icon (ui_35, not drawn yet: a code-drawn placeholder).

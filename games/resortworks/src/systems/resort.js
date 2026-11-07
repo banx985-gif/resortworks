@@ -24,6 +24,7 @@ import { freshSupplies } from './supplies.js';
 import { freshPartners } from './partners.js';
 import { freshAwards } from './awards.js';
 import { freshWeather } from './weather.js';
+import { freshAchvRun } from './achievements.js';
 
 // A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
 // before the calendar existed (Milestone 2).
@@ -73,6 +74,7 @@ export function newCampaign(setup, now = Date.now()) {
     partners: freshPartners(), // (Milestone 22) an empty Partner Board
     awards: freshAwards(), // (Milestone 23) no awards, Prestige 0
     weather: freshWeather(), // (Milestone 24) rolled at the first band edge
+    achv: freshAchvRun(), // (Milestone 26) this run's achievement counters
     opal: { welcomed: false }, // (M6b) Dame Opal's welcome card is due (a save from before M6b has none: no welcome)
     playSec: 0,
     ngPlus: 0,
@@ -209,4 +211,7 @@ export const SAVE_MIGRATIONS = {
     const day = d.calendar?.totalDays ?? 0;
     return { ...record, data: { ...d, finance: { years: [], year: { n: Math.floor(day / 336) + 1, lines: {} }, nights: [], strikes: 0, rescue: null, ...d.finance } } };
   },
+  // 23 → 24 (Milestone 26): this run's achievement counters start now (the unlocks check what the resort already did at
+  // the next tick: its stage, awards, research, Guestbook …).
+  23: (record) => ({ ...record, data: { ...record.data, achv: record.data.achv ?? freshAchvRun() } }),
 };
