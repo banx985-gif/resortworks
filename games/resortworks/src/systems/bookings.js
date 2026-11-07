@@ -177,6 +177,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   let items = null; // (Milestone 14) Staff Items, once attached
   let pk = null; // (Milestone 18) packages, once attached
   let pg = null; // (Milestone 18) the stage (who can book), once attached
+  let late = null; // (Milestone 18 on) the later systems' band edge (src/systems/lateSystems.js)
   const fit = (x, r) => fitOf(x, r, ly?.fitParts(r.id) ?? null);
   const pricing = (day) => (fin ? { rateOf: fin.rateOf, chance: (o) => fin.offerChance(o, rv?.headline(day).service ?? null) } : null);
   const changed = () => {
@@ -437,7 +438,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
         st?.onEdge(next.day, next.band); // (Milestone 10) fatigue for the band just ended; the day change's Auto Schedule
         hk?.onEdge(next.day, next.band);
         edge(next.day, next.band);
-        pk?.onEdge(next.day, next.band, api); // (Milestone 18) at-risk packages, today's inclusions given
+        late ? late(next.day, next.band) : pk?.onEdge(next.day, next.band, api); // (Milestone 18 on) packages, events …
         mt?.onEdge(next.day, next.band, api); // (Milestone 8) the day change: wear, breakdowns
         ly?.onEdge(next.day, next.band, api); // (Milestone 9) each party staying hears its room's noise this band
         cp?.onEdge(next.day, next.band, api); // (Milestone 7) the café band
@@ -527,6 +528,30 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     },
     attachProgress(x) {
       pg = x;
+    },
+    attachLate(fn) {
+      late = fn;
+    },
+    // (Milestone 19) an event's room block: as many rooms as are free on its dates (the biggest first, up to half the
+    // rooms — Claude Code's pick), each a booking of the event's guest type at the room's rate, tagged with the event.
+    addGroup({ type, arrival, nights, people, tag }) {
+      const t = GUEST_TYPES[type];
+      const out = [];
+      let left = people;
+      const max = Math.ceil(ROOMS.length / 2);
+      const probe = { arrival, nights };
+      const free = ROOMS.filter((r) => !site?.isClosed(r.id) && freeBy(r.id, probe) && (!t?.family || ROOM_TYPES[r.typeId].cap >= CAPACITY.familyMin)).sort((a, b) => ROOM_TYPES[b.typeId].cap - ROOM_TYPES[a.typeId].cap || a.number - b.number);
+      for (const r of free) {
+        if (left <= 0 || out.length >= max) break;
+        const party = Math.min(left, ROOM_TYPES[r.typeId].cap);
+        const o = { id: `G${s.nextId}`, day: s.at.day, type, party, nights, arrival, roomType: r.typeId, rate: fin ? fin.rateOf(r.typeId) : rateOf(r.typeId) };
+        const b = take(o, r, true);
+        b.event = tag;
+        out.push(b);
+        left -= party;
+      }
+      if (out.length) changed();
+      return out;
     },
     get packages() {
       return pk;

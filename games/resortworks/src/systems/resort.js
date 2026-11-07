@@ -17,6 +17,7 @@ import { freshResearch } from './research.js';
 import { freshItems } from './items.js';
 import { setStage as setLiveStage } from './guests.js';
 import { freshPackages } from './packages.js';
+import { freshEvents } from './events.js';
 
 // A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
 // before the calendar existed (Milestone 2).
@@ -59,6 +60,7 @@ export function newCampaign(setup, now = Date.now()) {
     research: freshResearch(), // (Milestone 17) nothing researched yet
     items: freshItems(), // (Milestone 14) an empty Staff Items store
     packages: freshPackages(), // (Milestone 18) no package on sale yet
+    events: freshEvents(), // (Milestone 19) no events yet
     opal: { welcomed: false }, // (M6b) Dame Opal's welcome card is due (a save from before M6b has none: no welcome)
     playSec: 0,
     ngPlus: 0,
@@ -174,4 +176,6 @@ export const SAVE_MIGRATIONS = {
   14: (record) => ({ ...record, data: { ...record.data, items: record.data.items ?? freshItems() } }),
   // 15 → 16 (Milestone 18): no package on sale, no places reserved (every booking already made is a plain room booking).
   15: (record) => ({ ...record, data: { ...record.data, packages: record.data.packages ?? freshPackages() } }),
+  // 16 → 17 (Milestone 19): no enquiries, no events booked or held yet.
+  16: (record) => ({ ...record, data: { ...record.data, events: record.data.events ?? freshEvents() } }),
 };

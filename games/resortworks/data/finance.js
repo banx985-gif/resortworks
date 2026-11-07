@@ -49,6 +49,8 @@ export const LINES = {
   dining: { kind: 'income', name: 'Dining' }, // (Milestone 18) Restaurant, BBQ Terrace, Premium Restaurant
   retail: { kind: 'income', name: 'Gift Shop' },
   evening: { kind: 'income', name: 'Evening spend' }, // (Milestone 18) Rooftop Lounge
+  events: { kind: 'income', name: 'Event fees' }, // (Milestone 19)
+  eventCosts: { kind: 'cost', name: 'Event food & service' }, // (Milestone 19) 18 Cr an attendee a day, the live choice's cost
   wages: { kind: 'cost', name: 'Wages' },
   facilityUpkeep: { kind: 'cost', name: 'Facility upkeep' },
   roomUpkeep: { kind: 'cost', name: 'Room upkeep' },

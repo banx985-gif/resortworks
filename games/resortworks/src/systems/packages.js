@@ -178,6 +178,11 @@ export function createPackages({ saved = null, bus = null, team = null, maintena
     onEdge,
     placesFor: (fac) => placesFor(fac, team),
     reservedOn: (day, fac) => reservedOn(day, fac, s),
+    // (Milestone 19) an event holds places too (its venue and facilities, for its group, every day)
+    hold(day, fac, n) {
+      const d = (s.res[day] ??= {});
+      d[fac] = (d[fac] ?? 0) + n;
+    },
     attachMaintenance(m) {
       mt = m;
     },

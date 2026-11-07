@@ -33,7 +33,7 @@ export const PICK = { base: 0.4 };
 // Places a day for package guests: the facility's guests a part of the day (bible §27G users/band, × level, × R07 / R23
 // / the team's traits), the Tour Desk's 16 tour places a day (× R21 Tours & Excursions +25%), an event venue's capacity
 // (80 / 100 / 220). A facility not in this list has no places to give (it can't be an inclusion).
-export const VENUE_CAP = { F19: 80, F20: 100, F32: 220 };
+export const VENUE_CAP = { F19: 80, F20: 100, F32: 220, F31: 60 }; // (M19: the Media & Event Studio holds a crew of 60 — Claude Code's pick)
 export const TOUR_PLACES = { F14: 16 };
 
 // (Milestone 18) food and the other places guests spend in (Claude Code's picks, bible §26 "food/drink, activities,

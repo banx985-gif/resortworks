@@ -5,6 +5,7 @@
 //     Adds run.packages (M18) …
 //   saveLate(run, data) — writes each one's serialize() into the save
 import { createPackages } from './packages.js';
+import { createEvents } from './events.js';
 
 export function attachLate(run, data = {}, { bus = null } = {}) {
   // (Milestone 18) packages: offers pick them, accepting reserves their places, each day gives the inclusions
@@ -12,10 +13,18 @@ export function attachLate(run, data = {}, { bus = null } = {}) {
   run.bookings.attachPackages(run.packages);
   run.bookings.attachProgress(run.progress); // who can book follows this resort's stage
   run.finance.attachPackages(run.packages);
+  // (Milestone 19) events: enquiries, bookings with their venue places and room blocks, the live choice, the results
+  run.events = createEvents({ saved: data.events ?? null, bus, seed: data.seed ?? run.seed ?? 'resortworks', team: run.team, finance: run.finance, reviews: run.reviews, maintenance: run.maintenance, packages: run.packages, bookings: run.bookings, items: run.items });
+  run.bookings.attachLate((day, band) => {
+    run.packages.onEdge(day, band, run.bookings);
+    run.events.onEdge(day, band);
+  });
+  run.staffing.setExtraLoad((day) => run.events.loadOn(day));
   return run;
 }
 
 export function saveLate(run, data) {
   data.packages = run.packages?.serialize() ?? data.packages; // (Milestone 18)
+  data.events = run.events?.serialize() ?? data.events; // (Milestone 19)
   return data;
 }

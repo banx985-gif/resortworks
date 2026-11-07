@@ -89,6 +89,8 @@ import { FACILITY_INFO } from '../../data/facilities.js';
 import { siteVersion, tileOwned } from '../systems/site.js';
 import { buildListSheet, buildItemSheet } from './buildSheets.js';
 import { LATE_SHEETS, LATE_OPS } from './lateSheets.js';
+import { eventById, RESULT, ROCCO } from '../../data/events.js';
+const eventArt = (id) => eventById(id)?.art ?? null;
 import { researchSheet } from './researchSheet.js';
 import { itemsSheet, itemSheet } from './itemSheets.js';
 import { itemType } from '../../data/items.js';
@@ -333,6 +335,15 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   bus.on('items:new', ({ item, name, source }) => toast(`New Staff Item: ${name}`, `${source}. Give it from the Motel Service Block.`, itemType(item.type)?.art ?? null));
   bus.on('items:inbox', ({ entry }) => toast('The Staff Items store is full', `${itemType(entry.type)?.name} waits in the Inbox for 28 days.`, itemType(entry.type)?.art ?? null));
   bus.on('research:done', ({ id, name }) => toast(`Research done: ${name}`, researchById(id)?.line ?? '', researchById(id)?.art ?? null));
+  // (Milestone 19) events: an enquiry, Rocco's opening line, his live choice (to the front of the line), the result
+  bus.on('events:enquiry', ({ name, enquiry }) => toast(`Event enquiry: ${name}`, `${enquiry.group} guests · ${credits(enquiry.fee)}. Tap to answer.`, eventArt(enquiry.ev), { panel: ['events'] }));
+  bus.on('events:start', ({ line }) => toast(ROCCO.name, line, ROCCO.art));
+  bus.on('events:choice', ({ event }) => {
+    const e = toast(`${ROCCO.name}: your call!`, eventById(event.ev).choice.q, ROCCO.art, { panel: ['eventChoice', event.id] });
+    const i = notes.toastWaiting.indexOf(e);
+    if (i > 0) notes.toastWaiting.unshift(...notes.toastWaiting.splice(i, 1));
+  });
+  bus.on('events:result', ({ event, name, pay }) => toast(`${name}: ${RESULT[event.result].name}`, `Score ${Math.round(event.score)}/100 · ${credits(pay)} fee.`, eventArt(event.ev), { panel: ['events'] }));
   bus.on('site:dougie', ({ line, id }) => toast(DOUGIE.name, line, DOUGIE.art, id && world?.byId(id) ? { open: id } : null));
   bus.on('progress:stage', ({ name }) => toast(`Welcome to the ${name} stage!`, 'New rooms and facilities are in the build list.', DOUGIE.art));
   // (Milestone 13) a level reached (a toast; Lv8 / Lv16 ask for a specialisation)
@@ -1085,6 +1096,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         if (t0?.entry.data?.review) showReview(t0.entry.data.review); // (M5) a review toast opens its card
         if (t0?.entry.data?.complaint) openComplaint(t0.entry.data.complaint, 'toast'); // (M7) a complaint toast opens its sheet
         if (t0?.entry.data?.open) openSheet(t0.entry.data.open, 'toast'); // (M8) a breakdown toast opens the broken thing's sheet
+        if (t0?.entry.data?.panel) openPanel(t0.entry.data.panel[0], t0.entry.data.panel[1] ?? null, 'toast'); // (M19 on) a Resort Office sheet
         return log('toast');
       }
       const sk = debugSkips() ? SKIPS.findIndex((_, i) => hitRect(p, skipRect(i))) : -1;
@@ -1288,7 +1300,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     openComplaint,
     // (Milestone 7) the calendar stands still while a complaint's sheet is open (main reads it).
     get holdsCalendar() {
-      return active && sheet.active && !!opened?.id?.startsWith?.('complaint:');
+      return active && sheet.active && (!!opened?.id?.startsWith?.('complaint:') || opened?.id === 'panel:eventChoice'); // (M19) and while Rocco's live choice is open
     },
     floats,
     barStats: () => barStats().map((x) => x.text),

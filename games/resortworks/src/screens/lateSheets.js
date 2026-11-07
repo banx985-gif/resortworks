@@ -11,6 +11,7 @@ import { PACKAGES, packageById } from '../../data/packages.js';
 import { GUEST_TYPES } from '../../data/bookings.js';
 import { credits } from '../systems/finance.js';
 import { facilityInfo } from '../../data/facilities.js';
+import { EVENTS, eventById, RESULT, ROCCO } from '../../data/events.js';
 
 const C = THEME.color;
 const pct = (x) => `${x > 0 ? '+' : ''}${Math.round(x * 100)}%`;
@@ -27,6 +28,12 @@ function officeSheet(run, arg, { act, accent }) {
     const open = PACKAGES.filter((p) => !pk.whyOff(p.id)).length;
     rows.push({ id: 'office:packages', icon: 'ui_26', label: 'Packages', sub: `${on} on sale · ${open} of 10 can be sold`, accent: C.progress, onTap: () => act.panel('packages') });
   }
+  const evs = run.events;
+  if (evs) {
+    const wait = evs.enquiries.length;
+    const ch = evs.pendingChoice;
+    rows.push({ id: 'office:events', icon: 'ui_22', label: 'Events', sub: ch ? `Rocco needs a choice: ${eventById(ch.ev).name}` : `${plural(wait, 'enquiry', 'enquiries')} · ${evs.booked.length} booked · ${evs.stats.held} held`, accent: ch ? C.action : C.progress, onTap: () => act.panel(ch ? 'eventChoice' : 'events', ch?.id ?? null) });
+  }
   const next = nextStep(run);
   return {
     key: 'panel:office',
@@ -39,6 +46,9 @@ function officeSheet(run, arg, { act, accent }) {
 }
 // One plain next step (the series hint line).
 export function nextStep(run) {
+  const ch = run.events?.pendingChoice;
+  if (ch) return `Rocco needs your call at the ${eventById(ch.ev).name} (Events).`;
+  if (run.events?.enquiries.length) return 'answer an event enquiry (Events).';
   const pk = run.packages;
   if (pk && !pk.onSale().length && PACKAGES.some((p) => !pk.whyOff(p.id))) return 'put a package on sale (Packages).';
   return null;
@@ -66,9 +76,64 @@ function packagesSheet(run, arg, { act, accent, today = 0 }) {
   return { key: 'panel:packages', title: 'Packages', subtitle: 'Bundles that bring the guests they suit.', art: 'ui_26', accent, sections };
 }
 
-export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet };
+const fac = (id) => facilityInfo(id)?.name ?? id;
+const dayWords = (d, today) => (d <= today ? 'today' : d === today + 1 ? 'tomorrow' : `in ${d - today} days`);
+// (Milestone 19) Events: enquiries to answer, what is booked or on now, the results; and every event's needs.
+function eventsSheet(run, arg, { act, accent, today = 0 }) {
+  const evs = run.events;
+  const sections = [{ lines: [{ text: 'Groups book the resort for a few days. The venue and rooms are kept for them; they pay the fee by how well it goes.', color: C.textMuted }, { text: 'Events held', right: String(evs.stats.held) }] }];
+  const ch = evs.pendingChoice;
+  if (ch) sections.push({ columns: 1, buttons: [{ id: `evchoice:${ch.id}`, icon: ROCCO.art, label: `Rocco: ${eventById(ch.ev).choice.q}`, sub: 'Tap to choose (or skip)', accent: C.action, onTap: () => act.panel('eventChoice', ch.id) }] });
+  sections.push({ title: `Enquiries (${evs.enquiries.length})`, std: 'ev:enquiries', lines: evs.enquiries.length ? [] : [{ text: 'Enquiries come in some Mondays for the events your facilities can hold.', color: C.textMuted }] });
+  for (const q of evs.enquiries) {
+    const e = eventById(q.ev);
+    const why = evs.whyNoBook(q.id);
+    sections.push({ columns: 1, buttons: [{ id: `enq:${q.id}`, icon: e.art, label: e.name, sub: `${q.group} guests · ${plural(q.nights, 'night')} · starts ${dayWords(q.date, today)} · Success at ${e.success}, Great at ${e.great}`, cost: credits(q.fee), accent: C.progress, onTap: () => {} }] });
+    sections.push({ lines: why ? [{ text: why, color: C.bad }] : [], columns: 2, buttons: [{ id: `evaccept:${q.id}`, label: 'Book it', accent: C.action, disabled: !!why, onTap: () => act.do('evAccept', q.id) }, { id: `evdecline:${q.id}`, label: 'Decline', accent: C.textMuted, onTap: () => act.do('evDecline', q.id) }] });
+  }
+  if (evs.booked.length)
+    sections.push({
+      title: 'Booked and on now',
+      std: 'ev:booked',
+      columns: 1,
+      buttons: evs.booked.map((x) => {
+        const e = eventById(x.ev);
+        return { id: `evb:${x.id}`, icon: e.art, label: `${e.name}${x.status === 'running' ? ' · ON NOW' : ''}`, sub: `${x.group} guests · ${fac(x.venue)} · ${x.housed} staying in your rooms · ${x.status === 'running' ? 'running' : `starts ${dayWords(x.date, today)}`}`, cost: credits(x.fee), accent: x.status === 'running' ? C.good : C.progress, onTap: () => (x.status === 'running' && !x.choice && x.asked ? act.panel('eventChoice', x.id) : null) };
+      }),
+    });
+  if (evs.history.length)
+    sections.push({ title: 'Results', std: 'ev:results', lines: evs.history.slice(0, 8).map((x) => ({ text: `${eventById(x.ev).name}: ${RESULT[x.result].name}`, right: `${Math.round(x.score)}/100`, color: x.result === 'fail' ? C.bad : x.result === 'great' ? C.good : C.text })) });
+  sections.push({ title: 'What each event needs', std: 'ev:needs', lines: EVENTS.map((e) => ({ text: `${e.name}${e.rare ? ' (rare)' : ''}`, right: evs.whyNot(e.id) ? 'not yet' : 'can be held', color: evs.whyNot(e.id) ? C.textMuted : C.good })) });
+  sections.push(back(act));
+  return { key: 'panel:events', title: 'Events', subtitle: 'Birthdays to summits: book them, host them.', art: 'ui_22', accent, sections };
+}
+// (Milestone 19) Rocco Sparkle's live choice: the question, two or three options and Skip.
+function eventChoiceSheet(run, id, { act, accent }) {
+  const evs = run.events;
+  const x = evs.booked.find((y) => y.id === id) ?? evs.pendingChoice;
+  if (!x || x.choice) return eventsSheet(run, null, { act, accent });
+  const e = eventById(x.ev);
+  const opts = e.choice.options.map((o) => ({ id: `evopt:${o.id}`, label: o.label, sub: [o.cost ? `costs ${credits(o.cost)}` : null, o.risk ? 'a gamble' : null].filter(Boolean).join(' · ') || 'no cost', accent: C.action, onTap: () => act.do('evChoose', x.id, o.id) }));
+  opts.push({ id: 'evopt:skip', label: 'Skip', sub: 'Carry on as planned', accent: C.textMuted, onTap: () => act.do('evChoose', x.id, 'skip') });
+  return { key: 'panel:eventChoice', title: `${ROCCO.name} · ${e.name}`, subtitle: e.choice.q, art: ROCCO.art, accent, sections: [{ std: 'ev:choice', columns: 1, buttons: opts }] };
+}
+
+export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet };
 
 export const LATE_OPS = {
+  evAccept(run, id) {
+    const r = run.events?.accept(id);
+    return r?.ok ? { say: `${eventById(r.event.ev).name} booked: ${r.event.housed} guests in your rooms.` } : { why: r?.why };
+  },
+  evDecline(run, id) {
+    run.events?.decline(id);
+    return null;
+  },
+  evChoose(run, id, opt) {
+    const r = run.events?.choose(id, opt);
+    if (!r?.ok) return { why: r?.why };
+    return { say: opt === 'skip' ? 'Rocco carries on as planned.' : r.choice.unlucky ? 'That didn’t go to plan…' : 'Rocco: great call!', panel: ['events'] };
+  },
   pkgToggle(run, id) {
     const pk = run.packages;
     if (!pk) return null;

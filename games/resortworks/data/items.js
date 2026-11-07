@@ -69,7 +69,7 @@ export const ITEM_SOURCES = {
   wellwisher: { name: 'A well-wisher', live: true, chance: 0.6 },
   gift: { name: 'A guest’s gift', live: false, later: 'M20' },
   partner: { name: 'A Partner', live: false, later: 'M22' },
-  event: { name: 'An event', live: false, later: 'M19' },
+  event: { name: 'A Great Success event', live: true }, // (Milestone 19)
   award: { name: 'An award', live: false, later: 'M23' },
   achievement: { name: 'An achievement', live: false, later: 'M26' },
   debug: { name: 'Test', live: true, debug: true }, // (?debug=1 and tests only)

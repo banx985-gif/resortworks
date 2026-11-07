@@ -74,6 +74,7 @@ export function freshStaffing({ day = 0, band = 1 } = {}) {
 }
 
 export function createStaffing({ saved = null, team = [], seed = 'resortworks', bus = null, day = 0, band = 'morning' } = {}) {
+  let extraLoad = null; // (Milestone 19) events' extra fatigue a working band, by day
   const s = load(saved);
   let version = 0;
   const changed = () => {
@@ -189,7 +190,8 @@ export function createStaffing({ saved = null, team = [], seed = 'resortworks', 
       }
       const f0 = fatigueOf(m.id);
       const pr = priorityOf(m.role);
-      const extra = pr.extra * (pr.id === 'emergency' && (s.streak[m.role] ?? 0) > EMERGENCY.maxDays ? 2 : 1);
+      // (Milestone 19) an event on today spikes the work: extraLoad(day) more for everyone on shift
+      const extra = pr.extra * (pr.id === 'emergency' && (s.streak[m.role] ?? 0) > EMERGENCY.maxDays ? 2 : 1) + (extraLoad?.(prev.day) ?? 0);
       const add = working ? (FATIGUE.work + extra) * (1 - (m.stats?.stamina ?? 0) / FATIGUE.staminaDiv) : -FATIGUE.rest;
       const f = r2(clamp(f0 + add));
       s.fatigue[m.id] = f;
@@ -285,6 +287,9 @@ export function createStaffing({ saved = null, team = [], seed = 'resortworks', 
     },
     get cap() {
       return capNow();
+    },
+    setExtraLoad(fn) {
+      extraLoad = fn;
     },
     attachProgress(pg) {
       progress = pg;

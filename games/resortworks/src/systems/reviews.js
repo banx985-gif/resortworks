@@ -281,6 +281,13 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
       return rep.highestRankIndex;
     },
     rankAtLeast: (id) => reached(RANKS, rep.highestRankIndex, id),
+    // (Milestone 19) REP from something other than a stay (an event's result, an award …), with its reason.
+    addRepFor(n, reason) {
+      if (!n) return rep.value;
+      rep.add(n, reason);
+      syncRep();
+      return rep.value;
+    },
     // Debug: REP straight to the next Rank (or +n).
     addRep(n = null) {
       const next = rep.nextRank;
