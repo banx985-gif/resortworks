@@ -19,7 +19,7 @@ const ADVENTURE_R21 = 0.08; // R21 Tours & Excursions: adventure demand +8% (its
 
 export const DEMAND_CAP = 0.2;
 const WANT_FLOOR = 0.02;
-const LIVE = { stage: 'roadside', sources: new Map() };
+const LIVE = { stage: 'roadside', book: null };
 
 export const setStage = (id) => {
   if (STAGES.some((s) => s.id === id)) LIVE.stage = id;
@@ -49,28 +49,44 @@ export function wantsOf(t) {
 }
 
 // --- demand ------------------------------------------------------------------------------------------------------
-export const setDemandSource = (name, fn) => (fn ? LIVE.sources.set(name, fn) : LIVE.sources.delete(name));
-export const clearDemand = () => LIVE.sources.clear();
+// Each resort has its own demand book (createDemand: its sources), so two resorts in one test process never share them;
+// the module functions read the book made last (the resort open now) — the sheets and tests use them.
 const clampCap = (x) => Math.max(-DEMAND_CAP, Math.min(DEMAND_CAP, x));
-export function demandParts(typeId = null) {
-  const out = [];
-  for (const [name, fn] of LIVE.sources) {
-    const v = fn(typeId) ?? {};
-    if (v.type || v.base) out.push({ name, type: v.type ?? 0, base: v.base ?? 0, words: v.words ?? name });
-  }
-  return out;
+export function createDemand() {
+  const sources = new Map();
+  const book = {
+    set: (name, fn) => (fn ? sources.set(name, fn) : sources.delete(name)),
+    parts(typeId = null) {
+      const out = [];
+      for (const [name, fn] of sources) {
+        const v = fn(typeId) ?? {};
+        if (v.type || v.base) out.push({ name, type: v.type ?? 0, base: v.base ?? 0, words: v.words ?? name });
+      }
+      return out;
+    },
+    rawDemandFor: (typeId) => book.parts(typeId).reduce((t, p) => t + p.type, 0),
+    rawBaseDemand: () => book.parts(null).reduce((t, p) => t + p.base, 0),
+    demandFor: (typeId) => clampCap(book.rawDemandFor(typeId)),
+    baseDemand: () => clampCap(book.rawBaseDemand()),
+  };
+  book.set('Research', researchDemand);
+  LIVE.book = book;
+  return book;
 }
+const live = () => LIVE.book ?? createDemand();
+export const setDemandSource = (name, fn, book = null) => (book ?? live()).set(name, fn);
+export const demandParts = (typeId = null) => live().parts(typeId);
 // The raw sums (tests of the cap) and the capped ones the offers use.
-export const rawDemandFor = (typeId) => demandParts(typeId).reduce((t, p) => t + p.type, 0);
-export const rawBaseDemand = () => demandParts(null).reduce((t, p) => t + p.base, 0);
-export const demandFor = (typeId) => clampCap(rawDemandFor(typeId));
-export const baseDemand = () => clampCap(rawBaseDemand());
+export const rawDemandFor = (typeId) => live().rawDemandFor(typeId);
+export const rawBaseDemand = () => live().rawBaseDemand();
+export const demandFor = (typeId) => live().demandFor(typeId);
+export const baseDemand = () => live().baseDemand();
 
 // Research's demand (bible §27H): R09 foodie +5%, R21 adventure +8%, R34 celebrity / influencer +15%, R35 international /
 // luxury +10% (R31 Local Ads is the base demand, read where the offers are made).
 const has = (typeId, tag) => !!GUEST_TYPES[typeId]?.tags?.includes(tag);
-setDemandSource('Research', (typeId) => {
+function researchDemand(typeId) {
   if (!typeId) return null;
   const v = (has(typeId, 'foodie') ? rx('foodieDemand') : 0) + (has(typeId, 'adventure') ? rx('tours') > 0 ? ADVENTURE_R21 : 0 : 0) + (has(typeId, 'celebrity') ? rx('celebrity') : 0) + (has(typeId, 'luxury') ? rx('luxDemand') : 0);
   return v ? { type: v, words: 'Research' } : null;
-});
+}

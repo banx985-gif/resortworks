@@ -55,7 +55,7 @@ export const activeCombos = () => COMBOS.filter((c) => comboOn(c.id)).map((c) =>
 export const combosFor = (facId) => COMBOS.filter((c) => c.need.includes(facId));
 const comboFx = (k) => COMBOS.filter((c) => comboOn(c.id)).flatMap((c) => c.fx.filter((f) => f.k === k));
 
-export function createThemes({ saved = null, bus = null, layout = null, finance = null, progress = null } = {}) {
+export function createThemes({ demand = null, saved = null, bus = null, layout = null, finance = null, progress = null } = {}) {
   const s = load(saved);
   LIVE.layout = layout;
   const changed = () => bus?.emit('themes:change', {});
@@ -189,12 +189,12 @@ export function createThemes({ saved = null, bus = null, layout = null, finance 
     for (const t of THEMES) if (hasTag(typeId, t.tags)) v += levelOf(t.id)?.demand ?? 0;
     if (s.signature && hasTag(typeId, sigTags())) v += SIGNATURE.demand;
     return v ? { type: v, words: 'Resort themes' } : null;
-  });
+  }, demand);
   setDemandSource('Combos', (typeId) => {
     if (!typeId) return null;
     const v = comboFx('demand').filter((f) => hasTag(typeId, f.tags)).length * COMBO_BONUS;
     return v ? { type: v, words: 'Facility combos' } : null;
-  });
+  }, demand);
 
   return {
     onReview,

@@ -29,6 +29,7 @@ import { lotGrid, doorOf, windowAt, nextShiftAfter } from './housekeeping.js';
 import { teamBonus } from './staff.js';
 import { systemValue, mult } from './facilities.js';
 import { rx } from './research.js';
+import { supplyMult, partsFailure } from './supplies.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const r2 = (x) => Math.round(x * 100) / 100;
@@ -144,7 +145,7 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
     const from = s.where[m.id] ?? m.station ?? R.shed;
     const walk = r2((walkTiles(from, q.target) * R.walkPerTile) / (1 + systemValue('routing', eff))); // (M16) the Service Block's routing
     const work = r2(minutesFor(q.kind, m.stats) / (m.pace ?? 1)); // (Milestone 10) tired: slower
-    const cost = costOf(q.target, q.kind);
+    const cost = Math.round(costOf(q.target, q.kind) * (q.kind === 'repair' ? 1 : supplyMult('parts'))); // (M22) the parts tier's cost
     const day = Math.floor(t / MINUTES_PER_DAY);
     const job = { id: q.id ?? `M${s.nextId++}`, target: q.target, kind: q.kind, created: q.created, priority: !!q.priority, auto: !!q.auto, staff: m.id, start: t, walk, work, arrive: r2(t + walk), end: r2(t + walk + work), cost, phase: 'walk' };
     s.queue = s.queue.filter((x) => x !== q);
@@ -232,7 +233,8 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
       if (s.offline[id] || busy(id)) continue; // (someone working on it right now: it holds)
       if (s.cond[id] <= 0) breakDown(id, minute, 'worn out');
       else {
-        const p = breakdownChance(s.cond[id]) * (1 - rx('breakdown')) * Math.max(0, 1 - teamBonus(team, 'prevention') - (POOLS.includes(id) ? teamBonus(team, 'poolReliability') : 0)); // (M13) Preventive, Pool Tech …
+        const p = breakdownChance(s.cond[id]) * (1 - rx('breakdown')) * (1 - partsFailure()) * // (M22) Quality / Luxury parts: −12% / −25%
+           Math.max(0, 1 - teamBonus(team, 'prevention') - (POOLS.includes(id) ? teamBonus(team, 'poolReliability') : 0)); // (M13) Preventive, Pool Tech …
         if (p > 0 && new Rng(`${seed}:breakdown:${id}:${day}`).next() < p) breakDown(id, minute, 'roll');
       }
     }

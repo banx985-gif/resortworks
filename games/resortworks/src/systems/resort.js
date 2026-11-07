@@ -20,6 +20,8 @@ import { freshPackages } from './packages.js';
 import { freshEvents } from './events.js';
 import { freshGuestbook } from './guestbook.js';
 import { freshThemes } from './themes.js';
+import { freshSupplies } from './supplies.js';
+import { freshPartners } from './partners.js';
 
 // A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
 // before the calendar existed (Milestone 2).
@@ -65,6 +67,8 @@ export function newCampaign(setup, now = Date.now()) {
     events: freshEvents(), // (Milestone 19) no events yet
     guestbook: freshGuestbook(), // (Milestone 20) an empty Guestbook
     themes: freshThemes(), // (Milestone 21) no theme yet
+    supplies: freshSupplies(), // (Milestone 22) Basic everything
+    partners: freshPartners(), // (Milestone 22) an empty Partner Board
     opal: { welcomed: false }, // (M6b) Dame Opal's welcome card is due (a save from before M6b has none: no welcome)
     playSec: 0,
     ngPlus: 0,
@@ -186,4 +190,6 @@ export const SAVE_MIGRATIONS = {
   17: (record) => ({ ...record, data: { ...record.data, guestbook: record.data.guestbook ?? freshGuestbook() } }),
   // 18 → 19 (Milestone 21): every theme at 0 until the first month end works it out from the play from then on; no Signature.
   18: (record) => ({ ...record, data: { ...record.data, themes: record.data.themes ?? freshThemes() } }),
+  // 19 → 20 (Milestone 22): every supply group at Basic (what the costs always were); an empty Partner Board.
+  19: (record) => ({ ...record, data: { ...record.data, supplies: record.data.supplies ?? freshSupplies(), partners: record.data.partners ?? freshPartners() } }),
 };

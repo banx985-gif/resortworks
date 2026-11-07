@@ -90,6 +90,7 @@ import { siteVersion, tileOwned } from '../systems/site.js';
 import { buildListSheet, buildItemSheet } from './buildSheets.js';
 import { LATE_SHEETS, LATE_OPS } from './lateSheets.js';
 import { eventById, RESULT, ROCCO } from '../../data/events.js';
+import { PRIYA } from '../../data/partners.js';
 const eventArt = (id) => eventById(id)?.art ?? null;
 const plural2 = (n, one) => `${n} ${n === 1 ? one : `${one}s`}`;
 import { researchSheet } from './researchSheet.js';
@@ -349,6 +350,10 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   bus.on('guestbook:return', ({ guest }) => toast(`${guest.name} ${guest.stays.length >= 2 ? '(a Regular) ' : ''}want${guest.name.startsWith('The ') || guest.name.endsWith('Co.') ? '' : 's'} to come back`, `${plural2(guest.stays.length, 'stay')} so far. See their offer at Reception.`, GUEST_TYPES[guest.type]?.art, { panel: ['guest', guest.id] }));
   // (Milestone 21) the month's themes: a toast when the leading theme changes level
   bus.on('themes:signature', ({ id }) => toast('A Signature resort!', `Known everywhere for one thing now.`, null, { panel: ['themes'] }));
+  // (Milestone 22) Priya Lark: a Partner offer, a goal met (its reward), a contract ended
+  bus.on('partners:offer', ({ name, renewal }) => toast(`${PRIYA.name}: ${renewal ? 'a renewal' : 'a Partner offer'}`, `${name} would like to work with you. Tap to see the deal.`, PRIYA.art, { panel: ['partners'] }));
+  bus.on('partners:met', ({ name, credits: cr, items }) => toast(`${PRIYA.name}: goal met!`, `${name} pays ${credits(cr)} and ${plural2(items.length, 'Staff Item')}.`, PRIYA.art, { panel: ['partners'] }));
+  bus.on('partners:ended', ({ name, record }) => toast(`${PRIYA.name}: ${name}'s contract ended`, record.result === 'met' ? 'They want to renew. Tap to see.' : 'The goal was missed: they will wait before offering again.', PRIYA.art, { panel: ['partners'] }));
   bus.on('site:dougie', ({ line, id }) => toast(DOUGIE.name, line, DOUGIE.art, id && world?.byId(id) ? { open: id } : null));
   bus.on('progress:stage', ({ name }) => toast(`Welcome to the ${name} stage!`, 'New rooms and facilities are in the build list.', DOUGIE.art));
   // (Milestone 13) a level reached (a toast; Lv8 / Lv16 ask for a specialisation)

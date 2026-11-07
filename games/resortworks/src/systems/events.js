@@ -25,6 +25,7 @@ import { has, mult, categoryAdd, diningCovers } from './facilities.js';
 import { rx } from './research.js';
 import { teamBonus } from './staff.js';
 import { stayCategories } from './reviews.js';
+import { supplyCap } from './supplies.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const BAND = Object.fromEntries(BANDS.map((b, i) => [b.id, i]));
@@ -157,7 +158,7 @@ export function createEvents({ saved = null, bus = null, seed = 'resortworks', t
     const service = clamp((h.service ?? 70) * (1 + tb('groupEvent')));
     const covers = diningCovers((id) => maintenance?.eff(id) ?? 1, team);
     const foodBase = 60 + categoryAdd('food', { guests: group }) + rx('food');
-    const food = clamp(Math.min(78 + rx('foodCap'), foodBase) * Math.min(1, Math.max(0.5, covers / group)) * (1 + rx('eventCatering') + tb('eventCatering')));
+    const food = clamp(Math.min(supplyCap('food') ?? 78, foodBase) * Math.min(1, Math.max(0.5, covers / group)) * (1 + rx('eventCatering') + tb('eventCatering')));
     const hall = !!VENUE_CAP[evt.venue];
     const delivery = clamp((55 + (hall ? 15 : 0) + categoryAdd('activities', { guests: group })) * (1 + tb('event') + (e.id === 'EV03' || e.id === 'EV11' ? tb('wedding') : 0)));
     const roomOf = (bid) => {

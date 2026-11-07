@@ -51,7 +51,8 @@ export const LINES = {
   evening: { kind: 'income', name: 'Evening spend' }, // (Milestone 18) Rooftop Lounge
   events: { kind: 'income', name: 'Event fees' }, // (Milestone 19)
   eventCosts: { kind: 'cost', name: 'Event food & service' },
-  signature: { kind: 'cost', name: 'Signature change' }, // (Milestone 21) 10,000 to change the Signature // (Milestone 19) 18 Cr an attendee a day, the live choice's cost
+  signature: { kind: 'cost', name: 'Signature change' },
+  partners: { kind: 'income', name: 'Partner rewards' }, // (Milestone 22) a contract goal met // (Milestone 21) 10,000 to change the Signature // (Milestone 19) 18 Cr an attendee a day, the live choice's cost
   wages: { kind: 'cost', name: 'Wages' },
   facilityUpkeep: { kind: 'cost', name: 'Facility upkeep' },
   roomUpkeep: { kind: 'cost', name: 'Room upkeep' },

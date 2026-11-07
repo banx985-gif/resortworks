@@ -45,7 +45,7 @@ export const reservedOn = (day, fac, st = LIVE.s) => st?.res?.[day]?.[fac] ?? 0;
 // The facility ids a booking's package was given (its reviews count those places in full).
 export const reservedFacs = (b) => [...new Set((b?.pkgRes ?? []).map((r) => r.fac))];
 
-export function createPackages({ saved = null, bus = null, team = null, maintenance = null, complaints = null } = {}) {
+export function createPackages({ demand = null, saved = null, bus = null, team = null, maintenance = null, complaints = null } = {}) {
   const s = load(saved);
   LIVE.s = s;
   LIVE.team = team;
@@ -159,7 +159,7 @@ export function createPackages({ saved = null, bus = null, team = null, maintena
     if (!typeId) return null;
     const v = PACKAGES.filter((p) => isOn(p.id) && fitsAudience(p, typeId)).reduce((t, p) => t + p.demand, 0);
     return v ? { type: v, words: 'Packages on sale' } : null;
-  });
+  }, demand);
 
   return {
     whyOff,

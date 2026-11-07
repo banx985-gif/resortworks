@@ -104,10 +104,10 @@ function weighted(rng, entries) {
 // Roadside types at the start, so a Roadside resort's offers are exactly as before), each weighted × (1 + its stacked
 // demand, ±20%); base demand (R31 Local Ads, a partner …, ±20%) is the chance of one more offer (or, below 0, one fewer).
 // pk: the package system — an offer from a package's guest types may pick one (its own seeded roll per offer).
-export function makeOffers(seed, day, stats = null, pricing = null, pk = null, stage = undefined) {
+export function makeOffers(seed, day, stats = null, pricing = null, pk = null, stage = undefined, book = null) {
   const rng = new Rng(`${seed}:offers:${day}`);
   // (Milestone 17) Local Ads: booking demand +6% — that chance of one more offer each morning (its own seeded roll)
-  const base = Math.max(-DEMAND_CAP, Math.min(DEMAND_CAP, rx('demand') + rawBaseDemand()));
+  const base = Math.max(-DEMAND_CAP, Math.min(DEMAND_CAP, rx('demand') + (book ?? { rawBaseDemand }).rawBaseDemand()));
   const avgN = (OFFERS.perMorning[0] + OFFERS.perMorning[1]) / 2;
   let n = rng.int(OFFERS.perMorning[0], OFFERS.perMorning[1]);
   if (base !== 0) {
@@ -119,7 +119,7 @@ export function makeOffers(seed, day, stats = null, pricing = null, pk = null, s
   const types = typesNow(stage);
   if (!types.length) types.push(GUEST_TYPES.GT01, GUEST_TYPES.GT03, GUEST_TYPES.GT04); // (a lot with no rooms: nobody fits — keep the old draw)
   for (let k = 1; k <= n; k++) {
-    const t = GUEST_TYPES[weighted(rng, types.map((g) => [g.id, g.weight * (1 + demandFor(g.id))]))];
+    const t = GUEST_TYPES[weighted(rng, types.map((g) => [g.id, g.weight * (1 + (book ?? { demandFor }).demandFor(g.id))]))];
     let nights = rng.int(t.nights[0], t.nights[1]);
     const arrival = day + rng.int(OFFERS.arriveWithin[0], OFFERS.arriveWithin[1]);
     const wants = Object.entries(wantsOf(t));
@@ -178,6 +178,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   let pk = null; // (Milestone 18) packages, once attached
   let pg = null; // (Milestone 18) the stage (who can book), once attached
   let late = null; // (Milestone 18 on) the later systems' band edge (src/systems/lateSystems.js)
+  let book = null; // (Milestone 18) this resort's demand book (src/systems/guests.js)
   let repeat = null; // (Milestone 20) the Guestbook's returning guests for a Morning
   const fit = (x, r) => fitOf(x, r, ly?.fitParts(r.id) ?? null);
   const pricing = (day) => (fin ? { rateOf: fin.rateOf, chance: (o) => fin.offerChance(o, rv?.headline(day).service ?? null) } : null);
@@ -300,7 +301,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
         }
       s.at = { day, band };
       if (outs.length) hk?.enqueue(outs.map((b) => b.room));
-      fresh = makeOffers(seed, day, s.stats, pricing(day), pk, pg?.stage);
+      fresh = makeOffers(seed, day, s.stats, pricing(day), pk, pg?.stage, book);
       // (Milestone 20) returning guests: each takes one of the Morning's offer places (returns change who books, not how many)
       const back = repeat?.(day, pricing(day)) ?? [];
       if (back.length) {
@@ -544,6 +545,9 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     },
     attachLate(fn) {
       late = fn;
+    },
+    attachDemand(x) {
+      book = x;
     },
     attachRepeat(fn) {
       repeat = fn;

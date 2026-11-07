@@ -15,6 +15,9 @@ import { EVENTS, eventById, RESULT, ROCCO } from '../../data/events.js';
 import { memoryById, REGULAR } from '../../data/guestbook.js';
 import { THEMES, COMBOS, SIGNATURE, themeById } from '../../data/themes.js';
 import { comboOn, whyNoCombo, activeCombos } from '../systems/themes.js';
+import { PARTNERS, partnerById, PRIYA, SUPPLY_GROUPS, SUPPLY_TIERS, TIER_IDS, TIER_NAMES } from '../../data/partners.js';
+import { supplyMult } from '../systems/supplies.js';
+import { SUPPLIES } from '../../data/finance.js';
 import { ROOM_TYPES } from '../../data/bookings.js';
 
 const C = THEME.color;
@@ -43,6 +46,12 @@ function officeSheet(run, arg, { act, accent }) {
     const top = [...THEMES].sort((a, b) => (th.progress[b.id] ?? 0) - (th.progress[a.id] ?? 0))[0];
     rows.push({ id: 'office:themes', icon: 'ui_05', label: 'Themes & Combos', sub: `${th.signature ? `Signature: ${themeById(th.signature.id).name}` : `Leading: ${top.name} ${Math.round(th.progress[top.id] ?? 0)}`} · ${activeCombos().length} of 10 combos on`, accent: C.progress, onTap: () => act.panel('themes') });
   }
+  const pb = run.partners;
+  if (pb) {
+    const on = pb.active.filter(Boolean).length;
+    rows.push({ id: 'office:partners', icon: 'ui_27', label: 'Partners', sub: `${on} of ${pb.slotsNow} on the board · ${plural(pb.offers.length, 'offer')} waiting`, accent: pb.offers.length ? C.action : C.progress, onTap: () => act.panel('partners') });
+  }
+  if (run.supplies) rows.push({ id: 'office:supplies', icon: 'ui_13', label: 'Suppliers', sub: SUPPLY_GROUPS.map((g) => `${g.name}: ${TIER_NAMES[run.supplies.tier(g.id)]}`).join(' · '), accent: C.progress, onTap: () => act.panel('supplies') });
   const gb = run.guestbook;
   if (gb) rows.push({ id: 'office:guestbook', icon: 'ui_21', label: 'Guestbook', sub: `${plural(gb.guests.length, 'guest')} · ${plural(gb.regulars.length, 'Regular')} · ${plural(gb.stats.returns, 'return')}`, accent: C.progress, onTap: () => act.panel('guestbook') });
   const next = nextStep(run);
@@ -57,6 +66,7 @@ function officeSheet(run, arg, { act, accent }) {
 }
 // One plain next step (the series hint line).
 export function nextStep(run) {
+  if (run.partners?.offers.length) return 'Priya has a Partner offer for you (Partners).';
   const ch = run.events?.pendingChoice;
   if (ch) return `Rocco needs your call at the ${eventById(ch.ev).name} (Events).`;
   if (run.events?.enquiries.length) return 'answer an event enquiry (Events).';
@@ -210,9 +220,60 @@ function themesSheet(run, arg, { act, accent }) {
   return { key: 'panel:themes', title: 'Themes & Combos', subtitle: 'What your resort is known for.', art: 'theme_th01', accent, sections };
 }
 
-export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet };
+// (Milestone 22) the Partner Board (Priya Lark): contracts running, offers, every partner and how they unlock.
+function partnersSheet(run, arg, { act, accent }) {
+  const pb = run.partners;
+  const sections = [{ lines: [{ text: 'Partners give a bonus while their contract runs (336 days) and a reward — Credits and Staff Items — when you meet their goal. Miss it and the reward is lost; what you earned is kept.', color: C.textMuted }, { text: 'Board slots at your Rank', right: String(pb.slotsNow) }] }];
+  const act0 = pb.active.filter(Boolean);
+  sections.push({ title: 'On the board', std: 'pb:active', lines: act0.length ? act0.map((a) => ({ text: `${a.def.name}: ${a.def.goalWords} — ${a.met ? 'goal met ✓' : `${a.count} of ${a.def.goal.min}`}`, right: `${a.daysLeft} days`, color: a.met ? C.good : C.text })).concat(act0.map((a) => ({ text: `${a.def.name}: ${a.def.benefitWords}`, color: C.textMuted }))) : [{ text: 'No contracts yet.', color: C.textMuted }] });
+  if (pb.offers.length) {
+    sections.push({ title: `Offers from Priya (${pb.offers.length})`, std: 'pb:offers' });
+    for (const o of pb.offers) {
+      const d = partnerById(o.id);
+      sections.push({ columns: 1, buttons: [{ id: `pof:${o.id}`, icon: d.art, label: `${d.name}${o.renewal ? ' (renewal)' : ''}`, sub: `${d.benefitWords} · goal: ${d.goalWords} · reward ${credits(d.reward.credits)} + items`, accent: C.progress, onTap: () => {} }] });
+      sections.push({ columns: 2, buttons: [{ id: `psign:${o.id}`, label: 'Sign', accent: C.action, onTap: () => act.do('pSign', o.id) }, { id: `pdecline:${o.id}`, label: 'Not now', accent: C.textMuted, onTap: () => act.do('pDecline', o.id) }] });
+    }
+  }
+  sections.push({ title: 'All partners', std: 'pb:all', lines: PARTNERS.map((d) => (d.secret ? { text: '??? (a secret partner)', color: C.textMuted } : { text: `${d.name}: ${d.benefitWords}`, right: pb.whyNotOffer(d.id) ?? 'can offer', color: pb.whyNotOffer(d.id) ? C.textMuted : C.good })) });
+  sections.push(back(act));
+  return { key: 'panel:partners', title: 'Partner Board', subtitle: `${PRIYA.name}, your partner liaison.`, art: PRIYA.art, accent, sections };
+}
+// (Milestone 22) Suppliers: each group's tier — its cost multiplier and the score cap it allows.
+function suppliesSheet(run, arg, { act, accent }) {
+  const sp = run.supplies;
+  const sections = [{ lines: [{ text: 'Better supplies cost more but let scores go higher: Basic food caps Food at 78, Luxury at 100.', color: C.textMuted }] }];
+  for (const g of SUPPLY_GROUPS) {
+    const cur = sp.tier(g.id);
+    const per = SUPPLIES[g.id] != null ? ` · ${Math.round(SUPPLIES[g.id] * supplyMult(g.id) * 100) / 100} Cr a room-night now` : '';
+    sections.push({
+      title: `${g.name}${per}`,
+      std: `sup:${g.id}`,
+      columns: 3,
+      buttons: TIER_IDS.map((t) => {
+        const x = SUPPLY_TIERS[g.id][t];
+        return { id: `sup:${g.id}:${t}`, label: `${cur === t ? '✓ ' : ''}${TIER_NAMES[t]}`, sub: `×${x.mult}${x.cap ? ` · cap ${x.cap}` : x.failure ? ` · −${Math.round(x.failure * 100)}% breakdowns` : ''}`, accent: cur === t ? C.good : C.action, onTap: () => act.do('supTier', g.id, t) };
+      }),
+    });
+  }
+  sections.push(back(act));
+  return { key: 'panel:supplies', title: 'Suppliers', subtitle: 'Food, linen, amenities and parts.', art: 'ui_13', accent, sections };
+}
+
+export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet };
 
 export const LATE_OPS = {
+  pSign(run, id) {
+    const r = run.partners?.sign(id);
+    return r?.ok ? { say: `${partnerById(id).name} signed: ${partnerById(id).benefitWords}.` } : { why: r?.why };
+  },
+  pDecline(run, id) {
+    run.partners?.decline(id);
+    return null;
+  },
+  supTier(run, g, t) {
+    if (!run.supplies?.setTier(g, t)) return null;
+    return { say: `${SUPPLY_GROUPS.find((x) => x.id === g).name}: ${TIER_NAMES[t]} from now on.` };
+  },
   thSignature(run, id) {
     const r = run.themes?.setSignature(id);
     return r?.ok ? { say: `${themeById(id).name} is your Signature.` } : { why: r?.why };

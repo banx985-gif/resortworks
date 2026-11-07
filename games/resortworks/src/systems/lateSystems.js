@@ -5,13 +5,19 @@
 //     Adds run.packages (M18) …
 //   saveLate(run, data) — writes each one's serialize() into the save
 import { createPackages } from './packages.js';
+import { createDemand } from './guests.js';
 import { createEvents } from './events.js';
 import { createGuestbook } from './guestbook.js';
 import { createThemes } from './themes.js';
+import { createSupplies } from './supplies.js';
+import { createPartners } from './partners.js';
 
 export function attachLate(run, data = {}, { bus = null } = {}) {
+  // (Milestone 18) this resort's demand book (every source adds to it, held within ±20%)
+  run.demand = createDemand();
+  run.bookings.attachDemand(run.demand);
   // (Milestone 18) packages: offers pick them, accepting reserves their places, each day gives the inclusions
-  run.packages = createPackages({ saved: data.packages ?? null, bus, team: run.team, maintenance: run.maintenance, complaints: run.complaints });
+  run.packages = createPackages({ demand: run.demand, saved: data.packages ?? null, bus, team: run.team, maintenance: run.maintenance, complaints: run.complaints });
   run.bookings.attachPackages(run.packages);
   run.bookings.attachProgress(run.progress); // who can book follows this resort's stage
   run.finance.attachPackages(run.packages);
@@ -21,18 +27,26 @@ export function attachLate(run, data = {}, { bus = null } = {}) {
     run.packages.onEdge(day, band, run.bookings);
     run.events.onEdge(day, band);
     run.themes?.onEdge(day, band, run.bookings); // (Milestone 21)
+    run.partners?.onEdge(day, band); // (Milestone 22)
   });
   run.staffing.setExtraLoad((day) => run.events.loadOn(day));
   // (Milestone 20) the Guestbook: every notable stay, memories, returning guests and Regulars
   run.guestbook = createGuestbook({ saved: data.guestbook ?? null, bus, seed: data.seed ?? run.seed ?? 'resortworks', items: run.items, team: run.team });
   run.bookings.attachRepeat((day, pricing) => run.guestbook.dueOffers(day, pricing));
   // (Milestone 21) themes from the last 84 days, the Signature, facility combos
-  run.themes = createThemes({ saved: data.themes ?? null, bus, layout: run.layout, finance: run.finance, progress: run.progress });
+  run.themes = createThemes({ demand: run.demand, saved: data.themes ?? null, bus, layout: run.layout, finance: run.finance, progress: run.progress });
   run.themes.setPrestige(() => run.reviews.headline?.(run.bookings.at.day)?.prestige ?? 0);
   run.reviews.attachExtraSat((b, raw) => run.guestbook.extraSat(b) + run.themes.extraSat(b, raw));
   run.events.setScoreMult((evt) => run.themes.eventMult(evt));
   run.finance.attachSpendMult((line) => run.themes.spendMult(line));
   bus?.on('review:new', ({ review }) => run.themes.onReview(review));
+  // (Milestone 22) suppliers (Basic / Quality / Luxury) and the Partner Board (core/SponsorSystem per slot)
+  run.supplies = createSupplies({ saved: data.supplies ?? null, bus });
+  run.partners = createPartners({ demand: run.demand, saved: data.partners ?? null, bus, finance: run.finance, items: run.items, reviews: run.reviews, bookings: run.bookings, seed: data.seed ?? run.seed ?? 'resortworks' });
+  run.supplies.setFoodCut(() => run.partners.total('foodCost'));
+  run.events.setDemand(() => run.partners.total('enquiries'));
+  bus?.on('review:new', ({ review }) => run.partners.signal('stay', { type: review.type, sat: review.sat, pkg: review.pkg }));
+  bus?.on('events:result', ({ event }) => run.partners.signal('event', { score: event.score }));
   bus?.on('events:result', ({ event }) => run.themes.onEvent(event));
   bus?.on('review:new', ({ review }) => run.guestbook.onReview(review));
   bus?.on('events:result', ({ event }) => run.guestbook.onEvent(event));
@@ -45,5 +59,7 @@ export function saveLate(run, data) {
   data.events = run.events?.serialize() ?? data.events; // (Milestone 19)
   data.guestbook = run.guestbook?.serialize() ?? data.guestbook; // (Milestone 20)
   data.themes = run.themes?.serialize() ?? data.themes; // (Milestone 21)
+  data.supplies = run.supplies?.serialize() ?? data.supplies; // (Milestone 22)
+  data.partners = run.partners?.serialize() ?? data.partners;
   return data;
 }

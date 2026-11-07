@@ -31,7 +31,9 @@ import { rankAtLeast as reached } from '../../../../core/CompanyRank.js';
 import { writeReview } from '../../../../core/ReviewText.js';
 import { FACILITIES, roomById } from '../../data/lot.js';
 import { teamBonus } from './staff.js';
-import { categoryAdd, has as built } from './facilities.js';
+import { categoryAdd, has as built, systemValue } from './facilities.js';
+import { supplyCap } from './supplies.js';
+const VIP_EXPECT = 0.1; // (M22) VIP / prestige guests expect more: −10% satisfaction (R17 takes 8 points off it)
 import { rx } from './research.js';
 import { POOL_IDS, PREMIUM_RANK } from '../../data/research.js';
 import { LUXURY_RANK } from '../../data/facilities.js';
@@ -77,8 +79,10 @@ export function stayCategories(b, { team = [], facilities = FACILITIES, roomType
   // (Milestone 17) research: Room Standards / Bathroom Upgrade (+Room score), Signature Suites (+5 in luxury rooms), the Clean cap
   const resRoom = rx('roomScore') + ((have?.rank ?? 0) >= LUXURY_RANK ? rx('luxRoom') : 0);
   const room = (I.room.base[got] + (have.id === want.id ? I.room.wanted : have.rank < want.rank ? I.room.worse : 0) + (place?.roomPlus ?? 0) + resRoom) * (1 + (place?.view ?? 0) / 100);
-  const clean = Math.min(I.clean.cap + rx('cleanCap'), I.clean.base + (b.shortLinen && !cancel.clean ? I.clean.short : 0));
-  const service = I.service.base - (cancel.service ? 0 : b.late?.serviceLoss ?? 0) + (roleStat(team, I.service.role, I.service.stat) - 50) / I.service.div;
+  const clean = Math.min((supplyCap('linen') ?? I.clean.cap) + rx('cleanCap'), I.clean.base + (b.shortLinen && !cancel.clean ? I.clean.short : 0)); // (M22) the linen tier's cap
+  // (Milestone 22) VIP and luxury guests: the VIP Lounge's +18 Service (× level) and R15 Concierge +8
+  const vip = (GUEST_TYPES[b.type]?.tags ?? []).some((t) => t === 'vip' || t === 'luxury');
+  const service = I.service.base - (cancel.service ? 0 : b.late?.serviceLoss ?? 0) + (roleStat(team, I.service.role, I.service.stat) - 50) / I.service.div + (vip ? systemValue('vipService') + rx('vipService') : 0);
   const share = (id, key) => (cancel[key] ? 1 : b.cond?.[id] ?? 1);
   // (Milestone 16) every facility built adds its category points × its level × its worst working share in the stay ×
   // each guest's share of its places (the café +6 Food and the pool +8 Activity as before)
@@ -89,14 +93,15 @@ export function stayCategories(b, { team = [], facilities = FACILITIES, roomType
   const resFood = rx('food') + (facilities.some((f) => f.id === 'F25') ? rx('premiumFood') : 0);
   const resAct = facilities.some((f) => POOL_IDS.includes(f.id)) ? rx('poolActivity') : 0;
   const resComfort = rx('bedComfort') + ((have?.rank ?? 0) >= PREMIUM_RANK ? rx('amenity') : 0);
-  const food = Math.min(I.food.cap, I.food.base + fac('food', 'food') + resFood + (roleStat(team, I.food.role, I.food.stat) - 50) / I.food.div);
+  const food = Math.min(supplyCap('food') ?? I.food.cap, I.food.base + fac('food', 'food') + resFood + (roleStat(team, I.food.role, I.food.stat) - 50) / I.food.div);
   const activities = I.activities.base + fac('activities', 'activities') + resAct + (roleStat(team, I.activities.role, I.activities.stat) - 50) / I.activities.div;
   const comfort = I.comfort.base[got] * share('room', 'comfort') - (place?.convenience ?? 0) - (cancel.comfort ? 0 : b.noise?.loss ?? 0) + fac('comfort', 'comfort') + resComfort;
   const value = cancel.value ? Math.max(I.value.base, I.value.base + (I.value.span * (budget - b.rate)) / budget) : I.value.base + (I.value.span * (budget - b.rate)) / budget;
   // (Milestone 13) the team's traits and specialisations: each category × (1 + its keys' total %); Quiet Worker cuts the noise lost
   const tb = (k) => teamBonus(team, k);
   const comfortT = comfort + (cancel.comfort ? 0 : (b.noise?.loss ?? 0) * -tb('disturbance'));
-  const raw = { room: room * (1 + tb('presentation')), clean: clean * (1 + tb('cleanliness')), service: service * (1 + tb('deskService') + tb('serviceSpeed')), food: food * (1 + tb('food')), activities: activities * (1 + tb('activity') + tb('utilisation')), comfort: comfortT, value };
+  const roomCap = supplyCap('amenities') ?? 100; // (M22) the amenities tier's cap on Room
+  const raw = { room: Math.min(roomCap, room * (1 + tb('presentation'))), clean: clean * (1 + tb('cleanliness')), service: service * (1 + tb('deskService') + tb('serviceSpeed')), food: food * (1 + tb('food')), activities: activities * (1 + tb('activity') + tb('utilisation')), comfort: comfortT, value };
   return Object.fromEntries(CATEGORY_IDS.map((k) => [k, Math.round(clamp(raw[k]))]));
 }
 
@@ -176,7 +181,9 @@ export function createReviews({ saved = null, bus = null, team = [], seed = 'res
     const fx = cp?.closeStay(b, day) ?? null; // (Milestone 7) the stay's complaints, settled
     const place = placeOf(b.room); // (Milestone 9) the room's view and walks; (M15) its level and Loved bonus
     const cats = stayCategories(b, { team, facilities, roomType: roomTypeOf(b), cancel: fx?.cancel ?? {}, place, guests: guestsNow() });
-    const raw = finalSatisfaction(cats, b.type) + (GUEST_TYPES[b.type]?.family ? rx('familySat') : 0); // (M17) Family Activities
+    // (M17) Family Activities; (M22) VIP / prestige guests' high expectations (−10%, R17 VIP Protocol −8 points of it)
+    const vipX = (GUEST_TYPES[b.type]?.tags ?? []).some((t) => t === 'vip' || t === 'prestige') ? Math.max(0, VIP_EXPECT - rx('vipExpect')) : 0;
+    const raw = (finalSatisfaction(cats, b.type) + (GUEST_TYPES[b.type]?.family ? rx('familySat') : 0)) * (1 - vipX);
     const base = r2(raw + (extraSat?.(b, raw) ?? 0)); // (M20) a Regular's +5; (M21) combos +10%, the Signature +2
     const sat = fx ? r2(clamp(base + fx.bonus + fx.penalty)) : base;
     const stars = reviewStars(sat);
