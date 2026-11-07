@@ -27,6 +27,8 @@ import { FACILITY_INFO } from '../../data/facilities.js';
 
 import { STAFF, LEGENDS } from '../../data/roster.js';
 import { ACHIEVEMENTS } from '../../data/achievements.js';
+import { NG_LEVELS } from '../../data/ngplus.js';
+import { ngOptions, ngWhy } from '../systems/ending.js';
 const STAFF_NAMES = Object.fromEntries([...STAFF, ...LEGENDS].map((x) => [x.id, x.name]));
 const C = THEME.color;
 const pct = (x) => `${x > 0 ? '+' : ''}${Math.round(x * 100)}%`;
@@ -64,6 +66,7 @@ function officeSheet(run, arg, { act, accent }) {
     if (aw.expo && !aw.expo.done) rows.push({ id: 'office:expo', icon: 'ui_28', label: EXPO.name, sub: 'This month: enter for a ranked result against the rivals (or skip)', accent: C.action, onTap: () => act.panel('expo') });
     rows.push({ id: 'office:awards', icon: 'ui_29', label: 'Awards & Rivals', sub: `${plural(aw.wins.length, 'award')} won · Prestige ${Math.round(aw.prestige)}`, accent: C.progress, onTap: () => act.panel('awards') });
   }
+  if (run.ending?.reached) rows.push({ id: 'office:ending', icon: 'ui_30', label: `Year 20: Grade ${run.ending.result.grade}`, sub: run.ngPlus >= 3 ? 'Your twenty years, graded.' : `${run.ending.result.total} / 100 · New Game+${Math.min(3, run.ngPlus + 1)} is ready`, accent: C.gold, onTap: () => act.panel('ending') });
   if (run.secrets) rows.push({ id: 'office:secrets', icon: 'sec_found', label: 'Secret Archive', sub: `${run.secrets.count} of 50 found${run.secrets.invites.length ? ` · ${plural(run.secrets.invites.length, 'secret applicant')} waiting` : ''}`, accent: run.secrets.invites.length ? C.action : C.progress, onTap: () => act.panel('secrets') });
   if (run.achievements) rows.push({ id: 'office:achievements', icon: 'ach_medal', label: 'Achievements', sub: `${run.achievements.count} of ${ACHIEVEMENTS.length} unlocked`, accent: C.progress, onTap: () => act.panel('achievements') });
   if (run.weather) rows.push({ id: 'office:weather', icon: 'ui_23', label: 'Weather', sub: `${WEATHER[run.weather.now].name} this month · ${WEATHER[run.weather.now].line.split(': ')[1] ?? 'nothing changes.'}`, accent: C.progress, onTap: () => act.panel('weather') });
@@ -413,9 +416,83 @@ function secretSheet(run, id, { act, accent }) {
   };
 }
 
-export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet, awards: awardsSheet, expo: expoSheet, weather: weatherSheet, achievements: achievementsSheet, secrets: secretsSheet, secret: secretSheet };
+// (Milestone 28) the Year-20 ending: the grade, its nine categories, the True ending (NG+3 with SEC50), then New Game+.
+function endingSheet(run, arg, { act, accent }) {
+  const r = run.ending?.result;
+  if (!r) return officeSheet(run, null, { act, accent });
+  const next = Math.min(3, (run.ngPlus ?? 0) + 1);
+  return {
+    key: 'panel:ending',
+    title: r.trueEnding ? 'The True RESORTWORKS ending' : 'Twenty years open',
+    subtitle: `Grade ${r.grade} · ${r.total} / ${r.max}${r.bonus ? ` (+${r.bonus} Twenty Years Open)` : ''}${run.ngPlus ? ` · New Game+${run.ngPlus}` : ''}`,
+    art: 'ui_30',
+    accent,
+    sections: [
+      ...(r.trueEnding ? [{ title: 'Paradise Complete', std: 'end:true', columns: 1, lines: [{ text: 'Every secret found, the Circle won and the Paradise Guest welcomed: the true ending.', color: C.gold }] }] : []),
+      { title: 'Your grade', std: 'end:grade', columns: 1, lines: r.categories.map((c) => ({ text: c.name, right: `${c.score} / ${c.max}` })) },
+      { title: 'What next', std: 'end:next', columns: 1, lines: [{ text: 'The resort stays open: keep playing as long as you like.', color: C.textMuted }], buttons: [
+        ...((run.ngPlus ?? 0) < 3 || true ? [{ id: 'end:ng', label: `Start New Game+${next}`, sub: NG_LEVELS[next].words, accent: C.action, onTap: () => act.panel('ngSetup') }] : []),
+        { id: 'end:keep', label: 'Keep playing', sub: 'Postgame: nothing is reset.', accent: C.progress, onTap: () => act.panel('office') },
+      ] },
+      back(act),
+    ],
+  };
+}
+// (Milestone 28) New Game+ setup: the Legacy Staff member, the Signature legacy (NG+2+), and where the new run goes —
+// never the slot this resort is in (it is kept as it is); a full slot asks for a second tap.
+function ngSetupSheet(run, arg, { act, accent }) {
+  const parent = run.parentSave?.() ?? null;
+  if (!parent?.ending) return endingSheet(run, null, { act, accent });
+  const o = ngOptions(parent);
+  const pick = run.ending.setup;
+  const slots = run.ngSlots?.() ?? [];
+  const why = ngWhy(parent, pick) ?? (pick.slot == null ? 'Pick where the new run goes.' : null);
+  return {
+    key: 'panel:ngSetup',
+    title: `New Game+${o.level}`,
+    subtitle: `${NG_LEVELS[o.level].words} Your achievements, secrets and tokens come too.`,
+    art: 'ui_30',
+    accent,
+    sections: [
+      { title: `Legacy Staff (pick ${o.picks})`, std: 'ng:legacy', columns: 1, lines: [{ text: 'They keep their level, stats and specialisations.', color: C.textMuted }], buttons: o.legacy.map((m) => ({ id: `ng:legacy:${m.id}`, label: `${pick.legacy.includes(m.id) ? '✓ ' : ''}${m.name}`, sub: `Level ${m.level} · ${m.tier}`, accent: pick.legacy.includes(m.id) ? C.good : C.progress, onTap: () => act.do('ngPick', 'legacy', m.id) })) },
+      ...(o.theme ? [{ title: 'Signature legacy (NG+2 and later)', std: 'ng:theme', columns: 1, buttons: [{ id: `ng:theme:${o.theme}`, label: `${pick.theme ? '✓ ' : ''}${themeById(o.theme).name}`, sub: 'Its guests book +3% and enjoy it +2.', accent: pick.theme ? C.good : C.progress, onTap: () => act.do('ngPick', 'theme', o.theme) }] }] : []),
+      { title: 'Where the new run goes', std: 'ng:slot', columns: 1, lines: [{ text: `This resort stays in Slot ${run.n ?? '?'} as it is.`, color: C.textMuted }], buttons: slots.filter((c) => c.n !== run.n).map((c) => ({ id: `ng:slot:${c.n}`, label: `${pick.slot === c.n ? '✓ ' : ''}Slot ${c.n}${c.empty ? ' (empty)' : `: replace "${c.summary?.resort ?? 'a save'}"`}`, sub: c.empty ? 'A fresh slot.' : pick.confirm === c.n ? 'Tap again to replace it for good.' : 'Its resort would be gone for good.', accent: c.empty ? C.progress : C.bad, onTap: () => act.do('ngPick', 'slot', c.n) })) },
+      { columns: 1, buttons: [{ id: 'ng:start', label: `Start New Game+${o.level}`, sub: why ?? 'This resort is saved first and never changed.', accent: why ? C.textMuted : C.action, disabled: !!why, onTap: () => act.do('ngStart') }] },
+      { columns: 1, buttons: [{ id: 'panel:back', label: '‹ Year 20', accent: C.textMuted, onTap: () => act.panel('ending') }] },
+    ],
+  };
+}
+
+export const LATE_SHEETS = { office: officeSheet, packages: packagesSheet, events: eventsSheet, eventChoice: eventChoiceSheet, guestbook: guestbookSheet, guest: guestSheet, hallOfFame: hallOfFameSheet, themes: themesSheet, partners: partnersSheet, supplies: suppliesSheet, awards: awardsSheet, expo: expoSheet, weather: weatherSheet, achievements: achievementsSheet, secrets: secretsSheet, secret: secretSheet, ending: endingSheet, ngSetup: ngSetupSheet };
 
 export const LATE_OPS = {
+  // (Milestone 28) the NG+ setup's picks, and Start (the app writes the new slot: 'ng:start' on the bus)
+  ngPick(run, kind, id) {
+    const p = run.ending?.setup;
+    if (!p) return null;
+    if (kind === 'legacy') p.legacy = p.legacy.includes(id) ? [] : [id];
+    if (kind === 'theme') p.theme = p.theme ? null : id;
+    if (kind === 'slot') {
+      const c = (run.ngSlots?.() ?? []).find((x) => x.n === id);
+      if (!c || c.n === run.n) return { why: 'Not that slot.' };
+      if (!c.empty && p.confirm !== id) {
+        p.confirm = id;
+        p.slot = null;
+        return { panel: ['ngSetup'] };
+      }
+      p.slot = id;
+      p.confirm = null;
+    }
+    return { panel: ['ngSetup'] };
+  },
+  ngStart(run) {
+    const p = run.ending?.setup;
+    const parent = run.parentSave?.() ?? null;
+    const why = ngWhy(parent, p ?? {}) ?? (p?.slot == null || p.slot === run.n ? 'Pick where the new run goes.' : null);
+    if (why) return { why };
+    run.startNgPlus?.({ legacy: [...p.legacy], theme: p.theme, slot: p.slot });
+    return { say: 'Starting New Game+…' };
+  },
   expoEnter(run) {
     const r = run.awards?.enterExpo();
     return r?.ok ? { say: `${EXPO.name}: you came #${r.result.place}!`, panel: ['expo'] } : { why: r?.why };

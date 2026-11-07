@@ -97,6 +97,8 @@ import { ASSETS, STUDIO_LOGO } from '../data/assets.js';
 import { SAVE } from '../data/save.js';
 import { validateSetup } from '../data/setup.js';
 import { createCampaigns } from './app/campaigns.js';
+import { slotSummary } from './systems/resort.js';
+import { newGamePlus } from './systems/ending.js'; // (Milestone 28)
 import { createMenuScreen } from './screens/MenuScreen.js';
 import { createSlotsScreen } from './screens/SlotsScreen.js';
 import { createSetupScreen } from './screens/SetupScreen.js';
@@ -456,6 +458,10 @@ function openRun(n, data) {
   run.items = createItems({ saved: data.items ?? null, bus, team: run.team, seed: data.seed, now: () => run.calendar.minute, progress: run.progress, finance: run.finance });
   run.bookings.attachItems(run.items);
   attachLate(run, data, { bus, now: () => run.calendar.minute, account }); // (Milestone 18 on) packages … (M26: achievements in the account store)
+  // (Milestone 28) New Game+: the parent's save as it stands (read only), the slots to pick from, and the start
+  run.parentSave = () => (open === run ? snapshotRun(run) : run.data);
+  run.ngSlots = () => campaigns?.cards ?? [];
+  run.startNgPlus = (choices) => startNgPlus(run, choices);
   open = run;
   run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;
@@ -472,9 +478,33 @@ function welcomeIfDue(run) {
 bus.on('achievement:unlocked', () => campaigns?.slots.saveAccount(account));
 // (Milestone 27) a secret found: the account store too (what was found is kept across every run)
 bus.on('secrets:change', () => campaigns?.slots.saveAccount(account));
+bus.on('ending:reached', () => campaigns?.slots.saveAccount(account)); // (Milestone 28) the highest NG+, the ending
 // Every band edge moves the open resort's bookings on (check-ins, check-outs, nights, offers), in order.
 bus.on('band:change', () => open && open.bookings.sync(open.calendar.today, open.calendar.bandIndex));
 // The campaign save: the calendar as it stands, the date the slot card shows, then the slot (save + summary record).
+// (Milestone 28) the open run's save, written into a copy (for NG+: read, never changed)
+function snapshotRun(run) {
+  const d = JSON.parse(JSON.stringify(run.data));
+  d.staff = saveTeam(run.team);
+  saveLate(run, d);
+  return d;
+}
+// (Milestone 28) New Game+: save the parent where it is, make the new run from a copy, write it into the picked slot
+// (never the parent's), open it. The parent slot is only ever written by its own autosave.
+async function startNgPlus(run, { legacy, theme, slot }) {
+  if (slot == null || slot === run.n) return;
+  await saveRun();
+  const parent = await campaigns.slots.load(run.n);
+  const child = newGamePlus(parent, { legacy, theme });
+  await campaigns.slots.create(slot, { data: child, summary: slotSummary(child) });
+  await campaigns.refresh();
+  account.highestNg = Math.max(account.highestNg ?? 0, child.ngPlus);
+  await campaigns.slots.saveAccount(account);
+  openRun(slot, child);
+  rememberResort(slot);
+  router.go('resort');
+  debug.log(`New Game+${child.ngPlus} in slot ${slot} (parent slot ${run.n} kept)`);
+}
 async function saveRun() {
   if (!open) return;
   const { n, data, calendar, bookings, team, housekeeping, reviews, finance, complaints, maintenance } = open;
@@ -499,7 +529,7 @@ async function saveRun() {
 }
 const autosave = new Autosave({
   bus,
-  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage', 'research:change', 'items:change', 'packages:change', 'packages:sold', 'events:change', 'guestbook:change', 'themes:change', 'supplies:change', 'partners:change', 'awards:change', 'weather:change', 'achievements:change', 'secrets:change', 'secrets:arrival', 'secrets:poached'],
+  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage', 'research:change', 'items:change', 'packages:change', 'packages:sold', 'events:change', 'guestbook:change', 'themes:change', 'supplies:change', 'partners:change', 'awards:change', 'weather:change', 'achievements:change', 'secrets:change', 'secrets:arrival', 'secrets:poached', 'ending:change'],
   save: () => saveRun(),
   stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize(), open.maintenance.serialize(), open.staffing.serialize(), open.site.serialize(), open.progress.serialize(), open.research.serialize(), open.items.serialize()]) : null),
   enabled: () => !!open,

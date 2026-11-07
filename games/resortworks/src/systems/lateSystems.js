@@ -15,6 +15,10 @@ import { createAwards } from './awards.js';
 import { createWeather } from './weather.js';
 import { createAchievements } from './achievements.js';
 import { createSecrets } from './secrets.js';
+import { createEnding } from './ending.js';
+import { SIGNATURE_LEGACY } from '../../data/ngplus.js';
+import { themeById } from '../../data/themes.js';
+import { GUEST_TYPES } from '../../data/bookings.js';
 
 // account: the account store (achievements live there, across every slot); {} in tests.
 export function attachLate(run, data = {}, { bus = null, account = {} } = {}) {
@@ -39,6 +43,7 @@ export function attachLate(run, data = {}, { bus = null, account = {} } = {}) {
     run.partners?.onEdge(day, band); // (Milestone 22)
     run.awards?.onEdge(day, band); // (Milestone 23)
     run.secrets?.onEdge(day, band); // (Milestone 27)
+    run.ending?.onEdge(day, band); // (Milestone 28) the Year-20 ending, once
     run.achievements?.onEdge(day, band); // (Milestone 26) last: everything else has moved
   });
   run.staffing.setExtraLoad((day) => run.events.loadOn(day));
@@ -48,7 +53,7 @@ export function attachLate(run, data = {}, { bus = null, account = {} } = {}) {
   // (Milestone 21) themes from the last 84 days, the Signature, facility combos
   run.themes = createThemes({ demand: run.demand, saved: data.themes ?? null, bus, layout: run.layout, finance: run.finance, progress: run.progress });
   run.themes.setPrestige(() => run.reviews.headline?.(run.bookings.at.day)?.prestige ?? 0);
-  run.reviews.attachExtraSat((b, raw) => run.guestbook.extraSat(b) + run.themes.extraSat(b, raw) + (run.secrets?.extraSat(b) ?? 0)); // (M27: secrets)
+  run.reviews.attachExtraSat((b, raw) => run.guestbook.extraSat(b) + run.themes.extraSat(b, raw) + (run.secrets?.extraSat(b) ?? 0) + (run.legacySat?.(b) ?? 0)); // (M27: secrets; M28: the Signature legacy)
   run.events.setScoreMult((evt) => run.themes.eventMult(evt));
   run.finance.attachSpendMult((line) => run.themes.spendMult(line));
   bus?.on('review:new', ({ review }) => run.themes.onReview(review));
@@ -77,6 +82,14 @@ export function attachLate(run, data = {}, { bus = null, account = {} } = {}) {
   run.maintenance.setGuard?.((id, minute, why) => run.secrets.breakdownGuard(id, minute, why));
   run.events.setScoreAdd((evt) => run.secrets.eventBonus(evt));
   run.demand.set('Secrets', (typeId) => (typeId ? null : run.secrets.demand()));
+  // (Milestone 28) the Year-20 ending (graded once, then postgame), the NG+ level (stronger rivals) and the Signature legacy
+  run.ngPlus = data.ngPlus ?? 0;
+  run.awards.setNgPlus(() => data.ngPlus ?? 0);
+  run.ending = createEnding({ saved: data.ending ?? null, bus, run: { ...run, get resortName() { return data.resort?.name ?? null; } }, account, ngPlus: () => data.ngPlus ?? 0 });
+  const legacyTheme = data.legacy?.theme ? themeById(data.legacy.theme) : null;
+  const legacyFor = (typeId) => !!legacyTheme && legacyTheme.tags.some((t) => GUEST_TYPES[typeId]?.tags?.includes(t));
+  if (legacyTheme) run.demand.set('Legacy', (typeId) => (typeId && legacyFor(typeId) ? { type: SIGNATURE_LEGACY.demand, words: `Legacy: ${legacyTheme.name}` } : null));
+  run.legacySat = (b) => (legacyFor(b.type) ? SIGNATURE_LEGACY.sat : 0);
   run.reviews.attachPrestige(() => run.awards.prestige);
   run.themes.setPrestige(() => run.awards.prestige);
   bus?.on('review:new', ({ review }) => run.awards.onReview(review));
@@ -99,5 +112,7 @@ export function saveLate(run, data) {
   data.weather = run.weather?.serialize() ?? data.weather; // (Milestone 24)
   data.achv = run.achievements?.serialize() ?? data.achv; // (Milestone 26) this run's achievement counters
   data.secrets = run.secrets?.serialize() ?? data.secrets; // (Milestone 27) the secrets' run half
+  data.ending = run.ending?.serialize() ?? data.ending ?? null; // (Milestone 28) the Year-20 ending, once reached
+  if (data.ending) data.grade = data.ending.grade; // (the slot card's grade)
   return data;
 }

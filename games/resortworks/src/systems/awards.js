@@ -23,6 +23,7 @@ import { memoryById } from '../../data/guestbook.js';
 import { has } from './facilities.js';
 import { rx } from './research.js';
 import { activeCombos } from './themes.js';
+import { RIVAL_NG } from '../../data/ngplus.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const r2 = (x) => Math.round(x * 100) / 100;
@@ -140,9 +141,10 @@ export function createAwards({ saved = null, bus = null, seed = 'resortworks', r
     s.year = year;
   }
   let secretOpen = () => false; // (Milestone 27) AWR11 / AWR12 found (src/systems/secrets.js)
+  let ngPlus = () => 0; // (Milestone 28)
   function rivalScore(rid, id, year = yearOf(today), strong = null) {
     const r = rivalById(rid);
-    let v = r.base + r.growth * (year - 1) + (s.variance[id]?.[rid] ?? 0);
+    let v = r.base + r.growth * (year - 1) + (s.variance[id]?.[rid] ?? 0) + RIVAL_NG * (ngPlus() ?? 0); // (Milestone 28) stronger rivals in NG+
     if (r.spec.includes(id)) v += r.bonus;
     if (r.adaptive && strong === id) v += r.bonus;
     return r2(v);
@@ -283,6 +285,9 @@ export function createAwards({ saved = null, bus = null, seed = 'resortworks', r
     enterExpo,
     skipExpo,
     strongest: () => strongest(),
+    setNgPlus(fn) {
+      ngPlus = fn ?? (() => 0);
+    },
     setSecretOpen(fn) {
       secretOpen = fn ?? (() => false);
     },

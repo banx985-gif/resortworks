@@ -76,6 +76,9 @@ export function newCampaign(setup, now = Date.now()) {
     weather: freshWeather(), // (Milestone 24) rolled at the first band edge
     achv: freshAchvRun(), // (Milestone 26) this run's achievement counters
     secrets: null, // (Milestone 27) made at the first open (its first staff are the run's)
+    ending: null, // (Milestone 28) the Year-20 ending, once reached
+    legacy: null, // (Milestone 28) an NG+ run's Legacy Staff and Signature legacy
+    parent: null, // (Milestone 28) an NG+ run's parent (its name, level and grade; never its slot)
     opal: { welcomed: false }, // (M6b) Dame Opal's welcome card is due (a save from before M6b has none: no welcome)
     playSec: 0,
     ngPlus: 0,
@@ -218,4 +221,6 @@ export const SAVE_MIGRATIONS = {
   // 24 → 25 (Milestone 27): no secrets found in this run yet; its counters start now (what the resort already has — its
   // awards, Prestige, facilities, Guestbook — is read at the next tick).
   24: (record) => ({ ...record, data: { ...record.data, secrets: record.data.secrets ?? null } }),
+  // 25 → 26 (Milestone 28): no ending yet (an older resort past Year 20 gets it at the next night), no NG+ legacy.
+  25: (record) => ({ ...record, data: { ...record.data, ending: record.data.ending ?? null, legacy: record.data.legacy ?? null, parent: record.data.parent ?? null } }),
 };

@@ -372,6 +372,8 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   // (Milestone 26) an achievement: a one-tap toast (it opens the list)
   bus.on('achievement:unlocked', ({ def }) => toast(`Achievement: ${def.name}`, `${def.text}${def.big ? ' A Staff Item too!' : ''}`, 'ach_medal', { panel: ['achievements'] }));
   // (Milestone 27) secrets: found (a big beat), a new clue stage (a quiet line), a secret applicant, a rival's poach
+  // (Milestone 28) the Year-20 ending
+  bus.on('ending:reached', ({ result }) => toast(`Twenty years open: Grade ${result.grade}!`, `${result.total} / 100. Tap to see your grade and New Game+.`, 'ui_30', { panel: ['ending'] }));
   bus.on('secrets:found', ({ name, words }) => toast(`Secret found: ${name}!`, `${words}.`, 'sec_found', { panel: ['secrets'] }));
   bus.on('secret:clue', ({ rule, stage }) => toast(stage >= 2 ? 'A secret is close…' : 'A rumour…', (rule.clueStages[stage - 1]?.text ?? '').includes('{missing}') ? rule.clueStages[0].text : rule.clueStages[stage - 1]?.text ?? rule.clueStages[0].text, 'sec_hidden', { panel: ['secrets'] }));
   bus.on('secrets:arrival', ({ id, name, until, back, line }) => toast(back ? `${name} wants to come back` : line ? `${name} drops by!` : `${name} is looking for work!`, `${line ? `${line} ` : ''}Hire them at the Motel Service Block before Day ${until + 1}.`, staffDef(id)?.art ?? 'sec_found', { panel: ['secrets'] }));
