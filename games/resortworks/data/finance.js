@@ -45,6 +45,10 @@ export const CREDIT = { floor: 20000, share: 0.25, cap: 250000, interestPct: 1.5
 export const LINES = {
   rooms: { kind: 'income', name: 'Room nights' },
   cafe: { kind: 'income', name: 'Snack Café' },
+  packages: { kind: 'income', name: 'Packages' }, // (Milestone 18) a package's price over the room's rate
+  dining: { kind: 'income', name: 'Dining' }, // (Milestone 18) Restaurant, BBQ Terrace, Premium Restaurant
+  retail: { kind: 'income', name: 'Gift Shop' },
+  evening: { kind: 'income', name: 'Evening spend' }, // (Milestone 18) Rooftop Lounge
   wages: { kind: 'cost', name: 'Wages' },
   facilityUpkeep: { kind: 'cost', name: 'Facility upkeep' },
   roomUpkeep: { kind: 'cost', name: 'Room upkeep' },

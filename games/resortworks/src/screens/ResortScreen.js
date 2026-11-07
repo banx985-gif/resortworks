@@ -88,6 +88,7 @@ import { GRID, BUILD_LOOK, SCAFFOLD, DOUGIE, ROOM_BUILD, FACILITY_BUILD, landByI
 import { FACILITY_INFO } from '../../data/facilities.js';
 import { siteVersion, tileOwned } from '../systems/site.js';
 import { buildListSheet, buildItemSheet } from './buildSheets.js';
+import { LATE_SHEETS, LATE_OPS } from './lateSheets.js';
 import { researchSheet } from './researchSheet.js';
 import { itemsSheet, itemSheet } from './itemSheets.js';
 import { itemType } from '../../data/items.js';
@@ -408,6 +409,11 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     const bar = topBarRect(layout);
     return { x: sr.x + 24, y: bar.y + bar.h + 12, w: sr.w - 48, h: 96 };
   };
+  // (Milestone 18) the Resort Office button: the right end of the name plate (the series Menu button)
+  const officeRect = () => {
+    const p = plateRect();
+    return { x: p.x + p.w - 230 - 10, y: p.y + 10, w: 230, h: p.h - 20 };
+  };
   const toastRect = () => {
     const t = notes.toasts[0];
     if (!t) return null;
@@ -613,6 +619,18 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       if (!r?.ok) return say(r?.why);
       openItems();
     },
+    // --- (Milestone 18 on) the Resort Office's sheets (src/screens/lateSheets.js) --------------------------------------
+    panel: (key, arg) => openPanel(key, arg),
+    do(op, ...args) {
+      const o = run();
+      const r = o ? LATE_OPS[op]?.(o, ...args) : null;
+      if (r?.why) say(r.why);
+      else if (r?.say) say(r.say);
+      if (r?.panel) openPanel(...r.panel);
+      bus.emit('late:action', { op });
+      debug?.log(`late: ${op} ${args.join(' ')}`);
+      return r;
+    },
     // --- (Milestone 17) research --------------------------------------------------------------------------------
     researchSheet: () => openResearch(),
     researchLine() {
@@ -766,6 +784,14 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     if (!o?.items) return;
     sheet.open(() => itemSheet(o.items, o.team, uid, { act, accent: palette.hex }) ?? itemsSheet(o.items, o.team, { act, accent: palette.hex }));
     opened = { id: `item:${uid}`, via: 'sheet' };
+  }
+  // (Milestone 18 on) a Resort Office sheet (lateSheets.js)
+  function openPanel(key, arg = null, via = 'sheet') {
+    const o = run();
+    if (!o || !LATE_SHEETS[key]) return;
+    sheet.open(() => LATE_SHEETS[key](run() ?? o, arg, { act, accent: palette.hex, today: today(), dateOf: dateWords, minute: minuteNow() }));
+    opened = { id: `panel:${key}`, via };
+    debug?.log(`sheet: ${key} (${via})`);
   }
   function openResearch(via = 'sheet') {
     const o = run();
@@ -1084,6 +1110,10 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
         openBuildList('button');
         return log('build');
       }
+      if (hitRect(p, officeRect())) {
+        openPanel('office', null, 'button'); // (Milestone 18) the Resort Office
+        return log('office');
+      }
       if (hitRect(p, plateRect()) || !inView(p.x, p.y)) return log(null);
       const wr = wrenchRects().find((b) => hitRect(p, b.rect)); // (M8) a wrench badge opens its sheet
       if (wr) {
@@ -1231,7 +1261,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       const skip = Object.fromEntries(SKIPS.map((s, i) => [s.id, debugSkips() ? skipRect(i) : null]));
       if (id?.startsWith?.('badge:')) return badgeRects().find((b) => b.id === id.slice(6))?.rect ?? null;
       if (id?.startsWith?.('wrench:')) return wrenchRects().find((b) => b.id === id.slice(7))?.rect ?? null;
-      return { build: buildMode ? null : buildRect(), place: buildMode ? placeRect() : null, cancelPlace: buildMode && place ? cancelPlaceRect() : null, menu: menuRect(), shortcut: shortcutRect(), layout: layoutRect(), legend: overlay ? legendRect() : null, done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), note: note ? noteRect() : null, toast: toastRect(), stats: scoresRect(), credits: creditsRect(), skipMoment: feedback?.current?.skipRect?.() ?? null, ...bar, ...skip }[id] ?? null;
+      return { build: buildMode ? null : buildRect(), place: buildMode ? placeRect() : null, cancelPlace: buildMode && place ? cancelPlaceRect() : null, menu: menuRect(), shortcut: shortcutRect(), layout: layoutRect(), legend: overlay ? legendRect() : null, done: buildMode ? doneRect() : null, banner: buildMode ? bannerRect() : null, plate: plateRect(), office: buildMode ? null : officeRect(), note: note ? noteRect() : null, toast: toastRect(), stats: scoresRect(), credits: creditsRect(), skipMoment: feedback?.current?.skipRect?.() ?? null, ...bar, ...skip }[id] ?? null;
     },
     // (Milestone 9) the overlay now ('off' / 'noise' / 'views'), and set it (tests).
     get overlay() {
@@ -1695,7 +1725,9 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     const mid = r.y + r.h / 2;
     const half = (r.w - 60) * 0.56;
     text(ctx, o.data.resort.name, r.x + 40, mid, { size: S.heading, bold: true, color: palette.dark, baseline: 'middle', maxWidth: half });
-    text(ctx, managerLine(o.data.resort.manager), r.x + r.w - 24, mid, { size: S.small, color: C.textMuted, align: 'right', baseline: 'middle', maxWidth: r.w - 60 - half - 20 });
+    const off = officeRect(); // (Milestone 18) the Resort Office button at the right end
+    text(ctx, managerLine(o.data.resort.manager), off.x - 16, mid, { size: S.small, color: C.textMuted, align: 'right', baseline: 'middle', maxWidth: Math.max(0, off.x - 16 - (r.x + 40 + half) - 12) });
+    drawButton(ctx, off, 'Office', { accent: C.progress });
   }
   // Why a locked speed was refused: one plain line under the plate for a few seconds.
   function drawNote(ctx) {

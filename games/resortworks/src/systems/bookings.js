@@ -56,9 +56,11 @@ import { minuteOf, bandAtMinute } from './calendar.js';
 import { ROOMS, roomById } from '../../data/lot.js';
 import { ROOM_TYPES, PRICE_BAND, GUEST_TYPES, OFFERS, ROOM_STATES, FIT, FIRST_GUEST, CAPACITY } from '../../data/bookings.js';
 import { AUTO_ACCEPT, AUTO_MOVE } from '../../data/staffing.js';
+import { packageById } from '../../data/packages.js';
 import { teamBonus } from './staff.js';
 import { systemValue } from './facilities.js';
 import { rx, researched, researchOn } from './research.js';
+import { typesNow, wantsOf, demandFor, rawBaseDemand, DEMAND_CAP } from './guests.js';
 
 const BAND = Object.fromEntries(BANDS.map((b, i) => [b.id, i])); // night 0 · morning 1 · midday 2 · afternoon 3 · evening 4
 export const BAND_INDEX = BAND;
@@ -98,17 +100,37 @@ function weighted(rng, entries) {
 // One day's offers: 2–4, each its own guest type, party, nights, arrival day and the room type they want.
 // (Milestone 6) pricing: { rateOf(roomType), chance(offer) → 0–1 } — the offer's rate in its pricing band, and how likely
 // it is to come in at that rate (one that doesn't is counted as priced out). Without it: Standard, and all come in.
-export function makeOffers(seed, day, stats = null, pricing = null) {
+// (Milestone 18) only the guest types that can come now (their stage, what draws them, a room they fit — the three
+// Roadside types at the start, so a Roadside resort's offers are exactly as before), each weighted × (1 + its stacked
+// demand, ±20%); base demand (R31 Local Ads, a partner …, ±20%) is the chance of one more offer (or, below 0, one fewer).
+// pk: the package system — an offer from a package's guest types may pick one (its own seeded roll per offer).
+export function makeOffers(seed, day, stats = null, pricing = null, pk = null, stage = undefined) {
   const rng = new Rng(`${seed}:offers:${day}`);
   // (Milestone 17) Local Ads: booking demand +6% — that chance of one more offer each morning (its own seeded roll)
-  const n = rng.int(OFFERS.perMorning[0], OFFERS.perMorning[1]) + (rx('demand') > 0 && new Rng(`${seed}:ads:${day}`).next() < (rx('demand') * (OFFERS.perMorning[0] + OFFERS.perMorning[1])) / 2 ? 1 : 0);
+  const base = Math.max(-DEMAND_CAP, Math.min(DEMAND_CAP, rx('demand') + rawBaseDemand()));
+  const avgN = (OFFERS.perMorning[0] + OFFERS.perMorning[1]) / 2;
+  let n = rng.int(OFFERS.perMorning[0], OFFERS.perMorning[1]);
+  if (base !== 0) {
+    const roll = new Rng(`${seed}:ads:${day}`).next();
+    if (base > 0 && roll < base * avgN) n++;
+    if (base < 0 && roll < -base * avgN) n = Math.max(1, n - 1);
+  }
   const out = [];
+  const types = typesNow(stage);
+  if (!types.length) types.push(GUEST_TYPES.GT01, GUEST_TYPES.GT03, GUEST_TYPES.GT04); // (a lot with no rooms: nobody fits — keep the old draw)
   for (let k = 1; k <= n; k++) {
-    const t = GUEST_TYPES[weighted(rng, Object.values(GUEST_TYPES).map((g) => [g.id, g.weight]))];
-    const nights = rng.int(t.nights[0], t.nights[1]);
+    const t = GUEST_TYPES[weighted(rng, types.map((g) => [g.id, g.weight * (1 + demandFor(g.id))]))];
+    let nights = rng.int(t.nights[0], t.nights[1]);
     const arrival = day + rng.int(OFFERS.arriveWithin[0], OFFERS.arriveWithin[1]);
-    const roomType = weighted(rng, Object.entries(t.wants));
-    out.push({ id: `O${day}-${k}`, day, type: t.id, party: t.party, nights, arrival, roomType, rate: pricing ? pricing.rateOf(roomType) : rateOf(roomType) });
+    const wants = Object.entries(wantsOf(t));
+    const roomType = wants.length ? weighted(rng, wants) : (rng.next(), Object.keys(t.wants ?? { RM01: 1 })[0]);
+    const o = { id: `O${day}-${k}`, day, type: t.id, party: t.party, nights, arrival, roomType, rate: pricing ? pricing.rateOf(roomType) : rateOf(roomType) };
+    const pick = pk?.pick(o, new Rng(`${seed}:pkg:${day}:${k}`));
+    if (pick) {
+      o.pkg = pick.id;
+      o.nights = pick.nights;
+    }
+    out.push(o);
   }
   let kept = out;
   if (pricing) {
@@ -153,6 +175,8 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   let site = null; // (Milestone 12) Build Mode, once attached
   let rs = null; // (Milestone 17) research, once attached
   let items = null; // (Milestone 14) Staff Items, once attached
+  let pk = null; // (Milestone 18) packages, once attached
+  let pg = null; // (Milestone 18) the stage (who can book), once attached
   const fit = (x, r) => fitOf(x, r, ly?.fitParts(r.id) ?? null);
   const pricing = (day) => (fin ? { rateOf: fin.rateOf, chance: (o) => fin.offerChance(o, rv?.headline(day).service ?? null) } : null);
   const changed = () => {
@@ -179,13 +203,14 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     if (st === 'occupied') return x.arrival > s.at.day; // (its guest leaves first: the room is cleaned in between)
     if (st !== 'dirty' && st !== 'cleaning') return false;
     if (x.arrival > s.at.day) return !!hk?.hasJob(id);
-    return x.arrival === s.at.day && s.at.band < BAND.midday && !!hk?.hasJob(id); // (M12 same-day turnaround)
+    // (M12 same-day turnaround; M18: not a room whose leaver had a package's late checkout today)
+    return x.arrival === s.at.day && s.at.band < BAND.midday && !!hk?.hasJob(id) && !s.bookings.some((b) => b.room === id && b.status === 'left' && b.outDay === s.at.day && b.lateOut);
   }
   const upcomingIn = (id) => s.bookings.some((b) => b.room === id && b.status === 'upcoming');
   // (Milestone 15) capacity: the whole party in one room (no splitting before World-Class); a family needs 4+ beds
   const fitsParty = (r, x) => ROOM_TYPES[r.typeId].cap >= x.party && (!GUEST_TYPES[x.type]?.family || ROOM_TYPES[r.typeId].cap >= CAPACITY.familyMin);
   function freeRoomsFor(x) {
-    return ROOMS.filter((r) => fitsParty(r, x) && freeBy(r.id, x));
+    return ROOMS.filter((r) => fitsParty(r, x) && freeBy(r.id, x) && (!pk || pk.roomOk(x, r))); // (M18) a package's room needs
   }
   // A booking takes its room: a Ready room turns Reserved (a Dirty / Cleaning one stays so until it is clean).
   const hold = (id) => roomState(id) === 'ready' && setRoom(id, 'reserved');
@@ -207,6 +232,8 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     // (Milestone 16) the Parking Area takes 20 arrivals a day (× its level)
     const cap = systemValue('arrivals');
     if (cap > 0 && s.bookings.filter((b) => b.arrival === x.arrival && b !== x && HOLDS.has(b.status)).length >= cap) return 'Parking is full on their arrival day.';
+    // (Milestone 18) a package's places must be free on their dates
+    if (x.pkg && !x.status && !pk?.plan(x.pkg, x)) return pk ? 'The package’s places are full on their dates.' : 'Packages aren’t open.';
     if (freeRoomsFor(x).length) return null;
     const dirty = ROOMS.filter((r) => roomState(r.id) === 'dirty').length;
     return dirty ? `No free room: ${dirty} ${dirty === 1 ? 'room is' : 'rooms are'} Dirty and the rest are taken.` : 'No free room: every room is taken.';
@@ -271,7 +298,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
         }
       s.at = { day, band };
       if (outs.length) hk?.enqueue(outs.map((b) => b.room));
-      fresh = makeOffers(seed, day, s.stats, pricing(day));
+      fresh = makeOffers(seed, day, s.stats, pricing(day), pk, pg?.stage);
       s.offers.push(...fresh);
     }
     const late = [];
@@ -301,6 +328,17 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     s.offers = s.offers.filter((x) => x !== o);
     const b = { id: `B${s.nextId++}`, type: o.type, party: o.party, nights: o.nights, arrival: o.arrival, roomType: o.roomType, rate: Math.round(o.rate * (site?.rateMult(r.id) ?? 1)), room: r.id, pinned, status: 'upcoming', nightsLeft: o.nights, inDay: null, inBand: null, outDay: null };
     if (auto) b.auto = true;
+    // (Milestone 18) a package: its price is the room's nightly rate × the multiplier, its places reserved now
+    if (o.pkg && pk) {
+      const pl = pk.plan(o.pkg, o);
+      if (pl) {
+        b.pkg = o.pkg;
+        b.baseRate = b.rate;
+        b.rate = Math.round(b.rate * packageById(o.pkg).mult);
+        if (packageById(o.pkg).incl.some((i) => i.id === 'late')) b.lateOut = true;
+        pk.reserve(b, pl);
+      }
+    }
     s.bookings.push(b);
     hold(r.id);
     s.stats.accepted++;
@@ -324,6 +362,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     if (f.types && !f.types.includes(o.type)) return { why: `${t.name}s aren’t on your list.` };
     const min = AUTO_ACCEPT.minRates.find((m) => m.id === f.minRate) ?? AUTO_ACCEPT.minRates[0];
     if (ROOM_TYPES[o.roomType].rank < min.rank) return { why: `Asks for a ${ROOM_TYPES[o.roomType].name}: under ${min.name}.` };
+    if (o.pkg && pk && !pk.plan(o.pkg, o)) return { why: 'The package’s places are full on their dates.' }; // (M18)
     const r = bestRoomFor(o);
     if (!r) return { why: whyNot(o) ?? 'No free room.' };
     const type = r.typeId;
@@ -344,7 +383,8 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
   function autoAccept() {
     if (!s.autoAccept.on) return 0;
     let n = 0;
-    for (const o of [...s.offers]) {
+    const list = s.autoAccept.preferPackage ? [...s.offers].sort((a, b) => (b.pkg ? 1 : 0) - (a.pkg ? 1 : 0)) : [...s.offers]; // (M18) package guests first
+    for (const o of list) {
       const c = autoCheck(o);
       if (c.why) continue;
       take(o, c.room, false, true);
@@ -397,6 +437,7 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
         st?.onEdge(next.day, next.band); // (Milestone 10) fatigue for the band just ended; the day change's Auto Schedule
         hk?.onEdge(next.day, next.band);
         edge(next.day, next.band);
+        pk?.onEdge(next.day, next.band, api); // (Milestone 18) at-risk packages, today's inclusions given
         mt?.onEdge(next.day, next.band, api); // (Milestone 8) the day change: wear, breakdowns
         ly?.onEdge(next.day, next.band, api); // (Milestone 9) each party staying hears its room's noise this band
         cp?.onEdge(next.day, next.band, api); // (Milestone 7) the café band
@@ -480,6 +521,15 @@ export function createBookingSystem({ seed, saved = null, bus = null, day = 0, b
     },
     attachItems(x) {
       items = x;
+    },
+    attachPackages(x) {
+      pk = x;
+    },
+    attachProgress(x) {
+      pg = x;
+    },
+    get packages() {
+      return pk;
     },
     hasBooking: (id) => s.bookings.some((b) => b.room === id && HOLDS.has(b.status)),
     // (Milestone 5) the reviews system: every check-out is scored, every band edge passed on.

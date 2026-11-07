@@ -80,6 +80,8 @@ import { createSite } from './systems/site.js';
 import { createProgress } from './systems/progress.js';
 import { createResearch } from './systems/research.js';
 import { createItems } from './systems/items.js';
+import { attachLate, saveLate } from './systems/lateSystems.js';
+import { setStage as setLiveStage } from './systems/guests.js';
 import { RESEARCH, BRANCHES, ART_REDO } from '../data/research.js';
 import { ITEM_TYPES, ITEM_GROUPS, ITEM_RARITIES, ITEMS_ICON } from '../data/items.js';
 import { MajorFeedback } from '../../../core/MajorFeedback.js';
@@ -364,6 +366,7 @@ function openRun(n, data) {
   run.calendar = createCalendar({ bus, saved: data.calendar ?? null, run: () => ({ ...run.data, reviews: run.reviews?.live ?? run.data.reviews }) });
   const c = run.calendar;
   run.site = createSite({ saved: data.site ?? null, bus, now: () => run.calendar.minute }); // (Milestone 12) the land first
+  setLiveStage(data.progress?.stage ?? 'roadside'); // (Milestone 18) the stage too: who can book (before the bookings catch up)
   run.bookings = createBookingSystem({ seed: data.seed, saved: data.bookings ?? null, bus, day: c.today, band: c.band.id });
   run.team = loadTeam(data.staff ?? null, data.seed, data.resort.founder.id); // (Milestone 4)
   run.housekeeping = createHousekeeping({ saved: data.housekeeping ?? null, team: run.team, bookings: run.bookings, bus });
@@ -409,6 +412,7 @@ function openRun(n, data) {
   // (Milestone 14) Staff Items
   run.items = createItems({ saved: data.items ?? null, bus, team: run.team, seed: data.seed, now: () => run.calendar.minute, progress: run.progress, finance: run.finance });
   run.bookings.attachItems(run.items);
+  attachLate(run, data, { bus, now: () => run.calendar.minute }); // (Milestone 18 on) packages …
   open = run;
   run.bookings.sync(c.today, c.bandIndex); // (a save is always in step; this only catches up a damaged one)
   return run;
@@ -441,13 +445,14 @@ async function saveRun() {
   data.progress = open.progress.serialize();
   data.research = open.research.serialize(); // (Milestone 17)
   data.items = open.items.serialize(); // (Milestone 14)
+  saveLate(open, data); // (Milestone 18 on)
   const c = calendar.clock;
   data.date = { year: c.year, month: c.month, day: c.day };
   await campaigns.save(n, data);
 }
 const autosave = new Autosave({
   bus,
-  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage', 'research:change', 'items:change'],
+  triggers: ['clock:month', 'booking:action', 'review:month', 'finance:band', 'complaint:result', 'mt:breakdown', 'mt:service', 'staff:priority', 'site:change', 'progress:stage', 'research:change', 'items:change', 'packages:change', 'packages:sold'],
   save: () => saveRun(),
   stamp: () => (open ? JSON.stringify([open.calendar.serialize(), open.bookings.serialize(), open.housekeeping.serialize(), open.reviews.serialize(), open.finance.serialize(), open.complaints.serialize(), open.maintenance.serialize(), open.staffing.serialize(), open.site.serialize(), open.progress.serialize(), open.research.serialize(), open.items.serialize()]) : null),
   enabled: () => !!open,

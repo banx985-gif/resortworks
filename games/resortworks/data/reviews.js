@@ -42,6 +42,28 @@ export const GUEST_WEIGHTS = {
   GT01: [20, 15, 15, 10, 5, 10, 25], // Road Trip Couple
   GT03: [22, 16, 17, 8, 5, 15, 17], // Solo Traveller
   GT04: [20, 18, 18, 12, 8, 16, 8], // Retired Couple
+  // (Milestone 18) the other 21 (bible §27F)
+  GT02: [18, 15, 14, 12, 15, 10, 16], // Budget Family
+  GT05: [18, 14, 16, 14, 14, 14, 10], // Young Couple
+  GT06: [16, 15, 14, 14, 18, 12, 11], // Family Holiday
+  GT07: [24, 16, 22, 8, 2, 18, 10], // Business Traveller
+  GT08: [15, 14, 15, 18, 10, 10, 18], // Tour Group
+  GT09: [14, 12, 13, 20, 16, 12, 13], // Sports Team
+  GT10: [14, 14, 18, 20, 18, 10, 6], // Wedding Party
+  GT11: [22, 15, 22, 12, 8, 18, 3], // Honeymoon Couple
+  GT12: [16, 16, 18, 18, 12, 18, 2], // Wellness Guest
+  GT13: [14, 12, 14, 12, 26, 12, 10], // Adventure Guest
+  GT14: [14, 12, 16, 30, 8, 12, 8], // Foodie Couple
+  GT15: [16, 14, 22, 18, 10, 12, 8], // Conference Group
+  GT16: [24, 16, 22, 14, 6, 16, 2], // Luxury Couple
+  GT17: [20, 15, 18, 14, 14, 15, 4], // Luxury Family
+  GT18: [22, 14, 24, 14, 8, 16, 2], // Celebrity Guest
+  GT19: [16, 14, 20, 18, 12, 18, 2], // Famous Athlete
+  GT20: [15, 15, 15, 15, 15, 15, 10], // Mystery Critic
+  GT21: [22, 16, 24, 14, 6, 16, 2], // Royal-Style VIP
+  GT22: [18, 12, 20, 18, 14, 14, 4], // Billionaire Eccentric
+  GT23: [15, 15, 15, 15, 15, 15, 10], // Legendary Travel Writer
+  GT24: [18, 16, 20, 14, 10, 20, 2], // Paradise Guest
 };
 
 // Review stars from the final satisfaction (M5 card): 90+ = 5, 78+ = 4, 64+ = 3, 50+ = 2, else 1.

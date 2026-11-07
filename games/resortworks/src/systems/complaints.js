@@ -28,7 +28,8 @@ import { GUEST_TYPES, ROOM_TYPES } from '../../data/bookings.js';
 import { FACILITIES, roomById } from '../../data/lot.js';
 import { BANDS } from '../../data/calendar.js';
 import { teamBonus } from './staff.js';
-import { mult } from './facilities.js';
+import { mult, diningCovers } from './facilities.js';
+import { DINING_IDS, packageById } from '../../data/packages.js';
 import { rx } from './research.js';
 import { COMPLAINT_TYPES, TRIGGERS, DESK, ACTIONS, ACTION_IDS, RECOVERY, HISTORY_MAX } from '../../data/complaints.js';
 import { FELT, CONDITION } from '../../data/maintenance.js';
@@ -252,19 +253,20 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
       b.deskWait = wait;
       if (wait >= TRIGGERS.queueMinutes) trigger(b, 'queue', minute + TRIGGERS.queueMinutes, { minutes: wait });
       if (b.shortLinen) trigger(b, 'clean', minute);
-      const budget = GUEST_TYPES[b.type]?.budget;
+      const budget = GUEST_TYPES[b.type]?.budget * (b.pkg ? packageById(b.pkg)?.mult ?? 1 : 1); // (M18) a package's price is expected
       if (budget && b.rate > budget * (1 + TRIGGERS.valueOver)) trigger(b, 'value', minute, { rate: b.rate, budget });
     },
     // A band begins: in the café's band, more guests than its covers → each party staying has a food trigger. (Milestone 8)
     // A worn café serves covers × its working share; an offline one serves nobody (its breakdown is its own trigger).
     onEdge(day, band, bk) {
+      // (Milestone 18) every food place's covers together (diningCovers: the café's 20 on the Roadside lot)
       const f = TRIGGERS.food;
-      if (band !== BAND[f.band] || !facilities.some((x) => x.id === f.facility)) return;
-      const share = mt ? mt.eff(f.facility) : 1;
-      if (share <= 0) return;
+      if (band !== BAND[f.band] || !facilities.some((x) => DINING_IDS.includes(x.id))) return;
+      const covers = Math.floor(diningCovers((id) => (mt ? mt.eff(id) : 1), team) + 1e-9);
+      if (covers <= 0) return;
       const stay = bk?.staying ?? [];
       const guests = stay.reduce((t, b) => t + (b.party ?? 1), 0);
-      if (guests > Math.floor(f.covers * share)) for (const b of stay) trigger(b, 'food', minuteOf(day, band), { guests });
+      if (guests > covers) for (const b of stay) trigger(b, 'food', minuteOf(day, band), { guests, covers });
     },
     // (Milestone 8) a room breaks with this party in it: a breakdown complaint, no roll (they need a room change).
     onRoomBreakdown(b, minute, roomId) {
@@ -282,6 +284,11 @@ export function createComplaints({ saved = null, bus = null, team = [], seed = '
       const category = FELT[id];
       if (!category) return;
       for (const b of bookings?.staying ?? []) trigger(b, 'breakdown', minute, { target: id, category }, `breakdown:${id}`);
+    },
+    // (Milestone 18) a package inclusion that couldn't be given today (its facility gone or offline): a rolled trigger.
+    onPackageFail(b, minute, fac) {
+      if (minute > s.at) s.at = minute;
+      return trigger(b, 'package', minute, { target: fac, category: COMPLAINT_TYPES.package.category });
     },
     // (Milestone 9) noise in their room over their tolerance this band (a rolled trigger, once a stay).
     onNoise(b, minute, noise) {

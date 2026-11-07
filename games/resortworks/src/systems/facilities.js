@@ -7,7 +7,7 @@
 //   effectWords(id, level) → the effect in plain words at that level (and "works from M18" for later systems)
 import { FACILITIES } from '../../data/lot.js';
 import { FACILITY_FX, LEVEL_MULT, FACILITY_INFO } from '../../data/facilities.js';
-import { GROWTH } from './staff.js';
+import { GROWTH, teamBonus as teamBonusOf } from './staff.js';
 import { rx } from './research.js';
 import { EVENING_IDS } from '../../data/research.js';
 
@@ -30,7 +30,8 @@ export function systemValue(key, effOf = () => 1) {
 }
 // Each guest's share of a facility that serves `users` a band when `guests` are staying (1 when it isn't full).
 export const usersShare = (users, guests) => (!users || !guests || guests <= users ? 1 : users / guests);
-export function categoryAdd(cat, { shareOf = () => 1, guests = 0, family = false, luxury = false, list = FACILITIES } = {}) {
+// (Milestone 18) reserved: the facilities a package guest has places at — they get its points in full (no sharing).
+export function categoryAdd(cat, { shareOf = () => 1, guests = 0, family = false, luxury = false, list = FACILITIES, reserved = null } = {}) {
   let t = 0;
   for (const f of list) {
     const fx = FACILITY_FX[f.id];
@@ -38,7 +39,7 @@ export function categoryAdd(cat, { shareOf = () => 1, guests = 0, family = false
       if (e.cat !== cat || (e.who === 'family' && !family) || (e.who === 'luxury' && !luxury)) continue;
       // (Milestone 17) Kitchen Basics: food places serve 10% more; Night Entertainment: evening places 15% more
       const users = fx.users ? fx.users * (1 + (e.cat === 'food' ? rx('foodThroughput') : 0) + (EVENING_IDS.includes(f.id) ? rx('eveningThroughput') : 0)) : 0;
-      t += e.add * mult(f.id) * shareOf(f.id) * usersShare(users, guests);
+      t += e.add * mult(f.id) * shareOf(f.id) * (reserved?.includes(f.id) ? 1 : usersShare(users, guests));
     }
   }
   return t;
@@ -60,6 +61,22 @@ export function effectWords(id, level = 1) {
   if (s.arrivals) bits.push(`${Math.round(s.arrivals * m)} arrivals a day`);
   if (s.hkTravel) bits.push(`housekeeping walks −${Math.round(s.hkTravel * m * 100)}%`);
   if (s.walkPenalty) bits.push(`long-walk penalty −${Math.min(100, Math.round(s.walkPenalty * m * 100))}%`);
+  if (s.vipService) bits.push(`+${r1(s.vipService * m)} Service for VIP and luxury guests`);
+  if (s.tours) bits.push(`${Math.round(s.tours * m)} tour places a day`); // (Milestone 18)
+  if (s.retail) bits.push(`guests spend ${Math.round(s.retail)} Cr a day here`);
+  if (s.evening) bits.push(`+${s.evening} Cr evening spend a guest`);
   if (s.appeal) bits.push(`+${r1(s.appeal * m)} Appeal${s.radius ? ` (views within ${s.radius} tiles)` : ''}`);
   return bits.join(' · ') || FACILITY_INFO[id]?.line || '';
+}
+
+// (Milestone 18) dining covers in the evening band: every food place built × its level × its working share × (1 + R07
+// Kitchen Basics + the team's dining capacity), and R08 Service Flow's waits −12% (the queue counts that many fewer).
+export function diningCovers(effOf = () => 1, team = null) {
+  let t = 0;
+  for (const f of FACILITIES) {
+    const fx = FACILITY_FX[f.id];
+    if (!fx?.users || !(fx.cats ?? []).some((c) => c.cat === 'food')) continue;
+    t += fx.users * mult(f.id) * effOf(f.id);
+  }
+  return t * (1 + rx('foodThroughput') + teamBonusOf(team, 'diningCapacity')) * (1 + rx('diningWait'));
 }

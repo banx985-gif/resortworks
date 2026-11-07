@@ -386,7 +386,12 @@ export function createMaintenance({ saved = null, team = [], bookings = null, fi
     },
     starts,
     rules: R,
-    serialize: () => clone(s),
+    // (M18) per-thing maps in one key order (a room built before a facility saves in the same order a reload rebuilds)
+    serialize: () => {
+      const c = clone(s);
+      for (const k of Object.keys(c)) if (c[k] && typeof c[k] === 'object' && !Array.isArray(c[k]) && Object.keys(c[k]).some((x) => /^(F|R)[0-9]/.test(x))) c[k] = Object.fromEntries(Object.entries(c[k]).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+      return c;
+    },
   };
   return mt;
 }

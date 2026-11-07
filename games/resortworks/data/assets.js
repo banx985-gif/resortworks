@@ -46,6 +46,17 @@ export const ASSETS = {
   // the files land under these names — then they load with no code change)
   ...Object.fromEntries(ITEM_TYPES.map((t) => [t.art, `assets/images/items/${t.art}.png`])),
   [ITEMS_ICON]: `assets/images/ui/${ITEMS_ICON}.png`,
+  // Milestone 18 on: the UI icons (ui_01–ui_34), the guest types' pictures (all 24, above), packages, events, partners,
+  // rivals, awards and themes (all filed, assets/ART_STATUS.md), and the cast who host them.
+  ...Object.fromEntries(Array.from({ length: 34 }, (_, i) => `ui_${String(i + 1).padStart(2, '0')}`).map((k) => [k, `assets/images/ui/${k}.png`])),
+  ...Object.fromEntries(Array.from({ length: 10 }, (_, i) => `package_pk${String(i + 1).padStart(2, '0')}`).map((k) => [k, `assets/images/packages/${k}.png`])),
+  ...Object.fromEntries(Array.from({ length: 12 }, (_, i) => `event_ev${String(i + 1).padStart(2, '0')}`).map((k) => [k, `assets/images/events/${k}.png`])),
+  ...Object.fromEntries(Array.from({ length: 10 }, (_, i) => `partner_p${String(i + 1).padStart(2, '0')}`).map((k) => [k, `assets/images/partners/${k}.png`])),
+  ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => `rival_rv${String(i + 1).padStart(2, '0')}`).map((k) => [k, `assets/images/rivals/${k}.png`])),
+  ...Object.fromEntries(Array.from({ length: 12 }, (_, i) => `award_awr${String(i + 1).padStart(2, '0')}`).map((k) => [k, `assets/images/awards/${k}.png`])),
+  ...Object.fromEntries(Array.from({ length: 9 }, (_, i) => `theme_th${String(i + 1).padStart(2, '0')}`).map((k) => [k, `assets/images/themes/${k}.png`])),
+  ...Object.fromEntries(NAMED_CAST.filter((c) => ['M19', 'M22', 'M23'].includes(c.milestone)).map((c) => [c.art, c.portrait])),
+  ...Object.fromEntries(['world_guest_child', 'world_guest_vip', 'world_guest_group_proxy', 'world_event_crowd_proxy'].map((k) => [k, `assets/images/world/${k}.png`])),
   // Milestone 0 loader test (?screen=test): the placeholder PWA icon as a real image, and one deliberately missing file.
   m0Real: 'assets/branding/pwa/icon-192.png',
   m0Missing: 'assets/m0-missing-test.png',

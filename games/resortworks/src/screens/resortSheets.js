@@ -43,6 +43,8 @@
 //            setBand(roomType, bandId), service(id) } — the screen's actions
 //   pickRoomSheet(bookings, forId, { accent, today, act: { choose(forId, roomId), open(id) } })
 import { stationSheet } from '../../../../core/ui/StationSheet.js';
+import { typesNow, wantsOf, canCome } from '../systems/guests.js';
+import { packageWords, packageRate } from './lateSheets.js';
 import { THEME } from '../../../../core/Theme.js';
 import { GUEST, ROOMS, roomById } from '../../data/lot.js';
 import { ROOM_TYPES, GUEST_TYPES, ROOM_STATES, PRICE_BAND, ROOM_LEVEL, LOVED } from '../../data/bookings.js';
@@ -191,7 +193,7 @@ function receptionSpec(it, { bookings: bk, today, act, reviews = null, dateOf = 
     const why = bk.whyNot(o);
     body.push({
       columns: 1,
-      buttons: [{ id: `offer:${o.id}`, icon: t.art, label: t.name, sub: `${partyWords(o.party)} · ${plural(o.nights, 'night')} · arrives ${arrivalWords(o.arrival, today)} · wants ${ROOM_TYPES[o.roomType].name.replace(' Room', '')}`, cost: rateWords(o.rate), accent: C.progress, onTap: () => act.pick(o.id) }],
+      buttons: [{ id: `offer:${o.id}`, icon: t.art, label: o.pkg ? `${t.name} · ${packageWords(o)}` : t.name, sub: `${partyWords(o.party)} · ${plural(o.nights, 'night')} · arrives ${arrivalWords(o.arrival, today)} · wants ${ROOM_TYPES[o.roomType].name.replace(' Room', '')}`, cost: rateWords(packageRate(o)), accent: C.progress, onTap: () => act.pick(o.id) }], // (M18) a package offer: its name and price
     });
     const auto = !why && bk.autoAcceptSettings?.on ? bk.autoWhy(o.id) : null; // (Milestone 10) why Auto Accept left it
     body.push({
@@ -209,7 +211,7 @@ function receptionSpec(it, { bookings: bk, today, act, reviews = null, dateOf = 
       columns: 1,
       buttons: up.map((b) => {
         const t = GUEST_TYPES[b.type];
-        return { id: `booking:${b.id}`, icon: t.art, label: `${t.name} → ${roomById(b.room).name}`, sub: `Arrives ${arrivalWords(b.arrival, today)} · ${plural(b.nights, 'night')}${b.pinned ? ' · room picked by you' : ''}`, cost: 'Change room', accent: C.progress, onTap: () => act.pick(b.id) };
+        return { id: `booking:${b.id}`, icon: t.art, label: `${t.name} → ${roomById(b.room).name}`, sub: `Arrives ${arrivalWords(b.arrival, today)} · ${plural(b.nights, 'night')}${b.pkg ? ` · ${packageWords(b)}${b.pkgRisk ? ' AT RISK' : ''}` : ''}${b.pinned ? ' · room picked by you' : ''}`, cost: 'Change room', accent: C.progress, onTap: () => act.pick(b.id) };
       }),
     });
   body.push({ title: `Staying (${stay.length})`, lines: stay.length ? [] : ['Nobody is staying right now.'], std: 'staying' });
@@ -523,13 +525,15 @@ export function resortScoresSheet(rv, { today = 0, accent = C.progress, act = NO
 const ratesSub = (fin) => Object.keys(ROOM_TYPES).map((rt) => `${ROOM_TYPES[rt].name.replace(' Room', '')}: ${bandById(fin.bandOf(rt)).name}`).join(' · ');
 function financeButtons(fin, act) {
   return [
+    ...(act.panel ? [{ id: 'packages', label: 'Packages', sub: 'Room + extras at one price', accent: C.progress, onTap: () => act.panel('packages') }] : []), // (Milestone 18)
     { id: 'rates', label: 'Rates', sub: ratesSub(fin), accent: C.progress, onTap: () => act.rates() },
     { id: 'finance', label: `Finance · ${credits(fin.cash)}`, sub: fin.debt > 0 ? `Emergency Credit ${credits(fin.debt)}` : 'Income, costs and profit', accent: fin.debt > 0 ? C.bad : C.progress, onTap: () => act.finance() },
   ];
 }
 const pct = (k) => `${Math.round(k * 100)}%`;
 // The guest types that ask for this room type (data/bookings.js wants), most likely first.
-const askers = (rt) => Object.values(GUEST_TYPES).filter((g) => (g.wants[rt] ?? 0) > 0).sort((a, b) => b.wants[rt] - a.wants[rt]);
+// (Milestone 18) only the guest types that can come now, with the rooms built (src/systems/guests.js)
+const askers = (rt) => typesNow().filter((g) => (wantsOf(g)[rt] ?? 0) > 0).sort((a, b) => wantsOf(b)[rt] - wantsOf(a)[rt]);
 // service: the rolling 28-day Service (null before any review) — Premium under 70 loses more guests.
 export function ratesSheet(fin, { accent = C.progress, act = NO_ACT, service = null } = {}) {
   const body = [];
@@ -761,7 +765,7 @@ export function autoAcceptSheet(bk, { accent = C.progress, act = NO_ACT } = {}) 
       title: 'Guests',
       std: 'aa:types',
       columns: 1,
-      buttons: Object.values(GUEST_TYPES).map((g) => {
+      buttons: Object.values(GUEST_TYPES).filter((g) => canCome(g) || !types.includes(g.id)).map((g) => { // (M18) the types that can come now
         const on = types.includes(g.id);
         const next = on ? types.filter((x) => x !== g.id) : [...types, g.id];
         return { id: `aa:type:${g.id}`, icon: g.art, label: `${on ? '✓ ' : ''}${g.name}`, sub: on ? 'Accepted' : 'Left for you', accent: on ? C.action : C.textMuted, disabled: on && types.length === 1, onTap: set({ types: next }) };

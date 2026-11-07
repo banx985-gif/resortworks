@@ -27,6 +27,9 @@ import { EconomySystem } from '../../../../core/EconomySystem.js';
 import { ROOMS, FACILITIES } from '../../data/lot.js';
 import { teamBonus } from './staff.js';
 import { rx } from './research.js';
+import { SPEND, SPEND_LINE } from '../../data/packages.js';
+import { FACILITY_FX } from '../../data/facilities.js';
+import { mult } from './facilities.js';
 import { ROOM_TYPES, GUEST_TYPES } from '../../data/bookings.js';
 import { BANDS } from '../../data/calendar.js';
 import { WINDOW_DAYS } from '../../data/reviews.js';
@@ -87,6 +90,7 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
   econ.load(s.econ);
   let version = 0;
   let mt = null; // (Milestone 8) the maintenance system, once attached
+  let pk = null; // (Milestone 18) packages
 
   const cash = () => econ.balance('credits');
   const ceiling = () => creditCeiling(s.lifetimeRevenue);
@@ -176,7 +180,13 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
 
   const fin = {
     // A stay ends (the booking system calls it at each check-out): the room's revenue, rate × nights.
+    // (Milestone 18) a package stay: the room's own rate on Room nights, the package's extra on its own line
     checkout(b, day) {
+      if (b.pkg && b.baseRate != null) {
+        const extra = (b.rate - b.baseRate) * (b.nights ?? 0);
+        pk?.addUplift(extra);
+        return move('rooms', b.baseRate * (b.nights ?? 0), day, b.room) + move('packages', extra, day, b.room);
+      }
       return move('rooms', (b.rate ?? 0) * (b.nights ?? 0), day, b.room);
     },
     // A band begins (after the booking system's own edge): the Snack Café at Evening, the bills at the day change.
@@ -184,6 +194,12 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
       if (band === BAND.evening) {
         const guests = (bk?.staying ?? []).reduce((t, b) => t + (b.party ?? 1), 0);
         if (guests && FACILITIES.some((f) => f.id === CAFE.facility) && !mt?.isOffline(CAFE.facility)) move('cafe', guests * CAFE.perGuestDay * (1 + teamBonus(team, 'leisureSpend')), day, CAFE.facility); // (M13) Bar Flair …
+        // (Milestone 18) the other places guests spend in: each guest staying, up to the place's covers / users
+        for (const id of Object.keys(SPEND)) {
+          if (id === CAFE.facility || !guests || !FACILITIES.some((f) => f.id === id) || mt?.isOffline(id)) continue;
+          const users = FACILITY_FX[id]?.users ? Math.floor(FACILITY_FX[id].users * mult(id)) : guests;
+          move(SPEND_LINE[id], Math.min(guests, users) * SPEND[id] * (1 + teamBonus(team, 'leisureSpend')), day, id);
+        }
       }
       if (band === BAND.night) dayChange(day, bk);
       bookDay = day;
@@ -204,6 +220,9 @@ export function createFinance({ saved = null, bus = null, team = [], day = 0 } =
     },
     attachMaintenance(m) {
       mt = m;
+    },
+    attachPackages(x) {
+      pk = x;
     },
     bandOf: (rt) => s.bands[rt] ?? DEFAULT_BAND,
     setBand(rt, id) {

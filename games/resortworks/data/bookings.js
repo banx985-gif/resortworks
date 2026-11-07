@@ -41,8 +41,45 @@ export const PRICE_BAND = { id: 'standard', name: 'Standard', mult: 1.0 }; // bi
 export const GUEST_TYPES = {
   GT01: { id: 'GT01', name: 'Road Trip Couple', budget: 95, patience: 55, noise: 60, nights: [1, 2], party: 2, weight: 40, wants: { RM01: 0.55, RM02: 0.45 }, sprite: 'world_guest_adult_a', art: 'guest_gt01' },
   GT03: { id: 'GT03', name: 'Solo Traveller', budget: 100, patience: 60, noise: 50, nights: [1, 3], party: 1, weight: 35, wants: { RM01: 0.6, RM02: 0.4 }, sprite: 'world_guest_adult_b', art: 'guest_gt03' },
-  GT04: { id: 'GT04', name: 'Retired Couple', budget: 165, patience: 70, noise: 30, nights: [3, 6], party: 2, weight: 25, wants: { RM01: 0.15, RM02: 0.85 }, sprite: 'world_guest_elder', art: 'guest_gt04' },
+  GT04: { id: 'GT04', name: 'Retired Couple', budget: 165, patience: 70, noise: 30, nights: [3, 6], party: 2, weight: 25, wants: { RM01: 0.15, RM02: 0.85 }, sprite: 'world_guest_elder', art: 'guest_gt04', tags: ['couple', 'quiet'] },
 };
+GUEST_TYPES.GT01.tags = ['couple', 'roadtrip'];
+GUEST_TYPES.GT03.tags = ['solo'];
+// (Milestone 18) the other 21 guest types (bible §9 / §27F: budget, patience, noise tolerance, nights). They come once the
+// resort has reached their stage (data/build.js STAGES) and has what draws them (needs: one of these facilities built), and
+// only when a room they fit is built (src/systems/guests.js). wants: null = worked out from the rooms built — each room type
+// they fit, weighted by how close its rate is to their budget. Claude Code's picks (DECISIONS M18): party (a family or a
+// group booking is 4 people in one room; groups bigger than a room are M19 events), weight, stage, needs, tags (what
+// packages, themes, partners and awards read) and the walking picture.
+const gt = (id, name, budget, patience, noise, nights, party, weight, stage, tags, extra = {}) => ({ id, name, budget, patience, noise, nights, party, weight, stage, tags, wants: null, sprite: extra.sprite ?? 'world_guest_adult_a', art: `guest_${id.toLowerCase()}`, ...extra });
+Object.assign(GUEST_TYPES, {
+  GT02: gt('GT02', 'Budget Family', 130, 50, 65, [2, 4], 4, 25, 'holiday', ['family'], { family: true, sprite: 'world_guest_child' }),
+  GT05: gt('GT05', 'Young Couple', 190, 60, 55, [2, 4], 2, 22, 'holiday', ['couple', 'romance']),
+  GT06: gt('GT06', 'Family Holiday', 220, 55, 65, [4, 7], 4, 18, 'holiday', ['family'], { family: true, sprite: 'world_guest_child' }),
+  GT07: gt('GT07', 'Business Traveller', 210, 45, 25, [1, 3], 1, 15, 'holiday', ['business', 'solo'], { sprite: 'world_guest_adult_b' }),
+  GT08: gt('GT08', 'Tour Group', 145, 50, 70, [2, 4], 4, 10, 'holiday', ['group', 'adventure'], { sprite: 'world_guest_group_proxy' }),
+  GT09: gt('GT09', 'Sports Team', 170, 55, 75, [2, 5], 4, 8, 'destination', ['group', 'sport', 'adventure'], { needs: ['F16'], sprite: 'world_guest_group_proxy' }),
+  GT10: gt('GT10', 'Wedding Party', 260, 45, 70, [2, 4], 4, 8, 'destination', ['group', 'wedding', 'romance', 'event', 'night'], { needs: ['F19', 'F20'], sprite: 'world_guest_group_proxy' }),
+  GT11: gt('GT11', 'Honeymoon Couple', 420, 70, 20, [3, 7], 2, 8, 'destination', ['couple', 'romance', 'honeymoon', 'quiet']),
+  GT12: gt('GT12', 'Wellness Guest', 360, 75, 20, [3, 7], 1, 10, 'destination', ['wellness', 'solo', 'quiet'], { needs: ['F16', 'F17', 'F18'], sprite: 'world_guest_adult_b' }),
+  GT13: gt('GT13', 'Adventure Guest', 280, 60, 60, [2, 5], 2, 10, 'destination', ['adventure'], { needs: ['F13', 'F14'] }),
+  GT14: gt('GT14', 'Foodie Couple', 340, 65, 45, [2, 4], 2, 10, 'destination', ['couple', 'foodie'], { needs: ['F09', 'F22', 'F25'] }),
+  GT15: gt('GT15', 'Conference Group', 300, 40, 55, [2, 5], 2, 8, 'destination', ['business', 'event', 'group'], { needs: ['F19'], sprite: 'world_guest_adult_b' }),
+  GT16: gt('GT16', 'Luxury Couple', 650, 75, 20, [3, 6], 2, 10, 'luxury', ['couple', 'luxury', 'quiet'], { sprite: 'world_guest_vip' }),
+  GT17: gt('GT17', 'Luxury Family', 780, 65, 35, [4, 7], 4, 8, 'luxury', ['family', 'luxury'], { family: true, sprite: 'world_guest_vip' }),
+  GT18: gt('GT18', 'Celebrity Guest', 1000, 50, 15, [2, 5], 2, 3, 'luxury', ['luxury', 'prestige', 'vip', 'celebrity', 'night'], { sprite: 'world_guest_vip' }),
+  GT19: gt('GT19', 'Famous Athlete', 850, 55, 25, [2, 4], 1, 3, 'luxury', ['luxury', 'prestige', 'vip', 'sport', 'celebrity'], { needs: ['F16'], sprite: 'world_guest_vip' }),
+  GT20: gt('GT20', 'Mystery Critic', 500, 70, 35, [1, 3], 1, 3, 'destination', ['critic', 'solo'], { sprite: 'world_guest_adult_b' }),
+  GT21: gt('GT21', 'Royal-Style VIP', 1300, 65, 10, [2, 5], 2, 2, 'worldclass', ['luxury', 'prestige', 'vip'], { sprite: 'world_guest_vip' }),
+  GT22: gt('GT22', 'Billionaire Eccentric', 1600, 45, 40, [3, 7], 2, 2, 'worldclass', ['luxury', 'prestige', 'vip'], { sprite: 'world_guest_vip' }),
+  GT23: gt('GT23', 'Legendary Travel Writer', 700, 80, 30, [3, 5], 1, 2, 'luxury', ['critic', 'prestige'], { sprite: 'world_guest_adult_b' }),
+  GT24: gt('GT24', 'Paradise Guest', 2000, 85, 10, [7, 7], 2, 2, 'prestige', ['luxury', 'prestige', 'vip', 'quiet'], { needs: ['F34'], sprite: 'world_guest_vip' }),
+});
+for (const t of Object.values(GUEST_TYPES)) {
+  t.stage ??= 'roadside';
+  t.tags ??= [];
+}
+export const GUEST_IDS = Object.keys(GUEST_TYPES).sort();
 
 // Offers (Cowork's starting pick): 2–4 new offers each Morning, arriving today to +3 days. Unanswered offers expire at
 // the end of the day.

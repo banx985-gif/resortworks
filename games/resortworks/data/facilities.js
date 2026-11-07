@@ -68,7 +68,7 @@ export const FACILITY_FX = {
   F11: { cats: [{ cat: 'activities', add: 14, who: 'family' }], users: 35 },
   F12: { cats: [{ cat: 'activities', add: 9 }], users: 24 },
   F13: { cats: [{ cat: 'activities', add: 12 }], users: 20 },
-  F14: { later: 'M18', what: '16 tour places a day' },
+  F14: { system: { tours: 16 } }, // (Milestone 18) tour places a day: a package's tours (src/systems/packages.js)
   F15: { system: { hkTravel: 0.2 } },
   F16: { cats: [{ cat: 'comfort', add: 10 }, { cat: 'activities', add: 10 }], users: 25 },
   F17: { cats: [{ cat: 'comfort', add: 16 }], users: 18 },
@@ -78,12 +78,12 @@ export const FACILITY_FX = {
   F21: { cats: [{ cat: 'activities', add: 12 }], users: 60 },
   F22: { cats: [{ cat: 'food', add: 10 }, { cat: 'activities', add: 10 }], users: 40 },
   F23: { system: { walkPenalty: 0.35 } },
-  F24: { later: 'M18', what: 'retail spend +8%' },
+  F24: { system: { retail: 8 } }, // (Milestone 18) 8 Cr a guest each day (data/packages.js SPEND)
   F25: { cats: [{ cat: 'food', add: 18 }], users: 60 },
-  F26: { later: 'M18', what: '+15 evening spend' },
+  F26: { users: 50, system: { evening: 15 } }, // (Milestone 18) +15 Cr evening spend a guest, up to 50 a part of the day
   F27: { cats: [{ cat: 'comfort', add: 14, who: 'luxury' }], users: 20 },
   F28: { cats: [{ cat: 'activities', add: 20 }], users: 60, system: { appeal: 20 } },
-  F29: { later: 'M22', what: '+18 Service for VIPs' },
+  F29: { users: 30, system: { vipService: 18 } }, // (Milestone 18) 30 places a part of the day (packages); its +18 VIP Service: M22
   F30: { cats: [{ cat: 'comfort', add: 22 }], users: 30 },
   F31: { later: 'M19', what: 'rare events +20%' },
   F32: { later: 'M19', what: 'events for 220' },

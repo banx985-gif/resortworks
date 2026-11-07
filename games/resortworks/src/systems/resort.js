@@ -15,6 +15,8 @@ import { freshSite } from './site.js';
 import { freshProgress } from './progress.js';
 import { freshResearch } from './research.js';
 import { freshItems } from './items.js';
+import { setStage as setLiveStage } from './guests.js';
+import { freshPackages } from './packages.js';
 
 // A saved calendar (core/Clock's serialize() + band) for a date at the start of Morning — a new resort, or a save made
 // before the calendar existed (Milestone 2).
@@ -30,6 +32,7 @@ export const managerLine = (name) => `General Manager ${name || '…'}`;
 export function newCampaign(setup, now = Date.now()) {
   const seed = `resortworks-${now}`; // the run's seed, fixed at creation (a reload never rerolls it)
   const founder = founderById(setup.founder);
+  setLiveStage('roadside'); // (Milestone 18) a new resort's first offers: the Roadside guest types
   if (!founder) throw new Error(`Unknown founder ${setup.founder}`);
   if (!setup.resort?.trim() || !setup.manager?.trim()) throw new Error('A resort needs a name and a General Manager');
   return {
@@ -55,6 +58,7 @@ export function newCampaign(setup, now = Date.now()) {
     progress: freshProgress(), // (Milestone 12) the Roadside Motel stage
     research: freshResearch(), // (Milestone 17) nothing researched yet
     items: freshItems(), // (Milestone 14) an empty Staff Items store
+    packages: freshPackages(), // (Milestone 18) no package on sale yet
     opal: { welcomed: false }, // (M6b) Dame Opal's welcome card is due (a save from before M6b has none: no welcome)
     playSec: 0,
     ngPlus: 0,
@@ -168,4 +172,6 @@ export const SAVE_MIGRATIONS = {
   13: (record) => ({ ...record, data: { ...record.data, research: record.data.research ?? freshResearch() } }),
   // 14 → 15 (Milestone 14): an empty Staff Items store; everyone's likes are drawn when the resort opens (from their id).
   14: (record) => ({ ...record, data: { ...record.data, items: record.data.items ?? freshItems() } }),
+  // 15 → 16 (Milestone 18): no package on sale, no places reserved (every booking already made is a plain room booking).
+  15: (record) => ({ ...record, data: { ...record.data, packages: record.data.packages ?? freshPackages() } }),
 };

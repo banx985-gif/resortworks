@@ -41,6 +41,8 @@ import { BANDS } from '../../data/calendar.js';
 import { REP_UNRESOLVED, COMPLAINT_TEXT, SAVED_MEMORY } from '../../data/complaints.js';
 import { PLACE_REVIEW } from '../../data/layout.js';
 import { Rng } from '../../../../core/Rng.js';
+import { packageById } from '../../data/packages.js';
+import { reservedFacs } from './packages.js';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const r2 = (x) => Math.round(x * 100) / 100;
@@ -69,7 +71,7 @@ export function stayCategories(b, { team = [], facilities = FACILITIES, roomType
   const got = roomType ?? b.roomType;
   const want = ROOM_TYPES[b.roomType];
   const have = ROOM_TYPES[got];
-  const budget = (GUEST_TYPES[b.type]?.budget ?? b.rate) * (place?.rateMult ?? 1);
+  const budget = (GUEST_TYPES[b.type]?.budget ?? b.rate) * (place?.rateMult ?? 1) * (b.pkg ? packageById(b.pkg)?.mult ?? 1 : 1); // (M18) a package guest expects its price
   // (Milestone 15) place.roomPlus: the room's level and Loved bonus; place.rateMult: its rate ceiling (guests think a higher
   // level is worth more)
   // (Milestone 17) research: Room Standards / Bathroom Upgrade (+Room score), Signature Suites (+5 in luxury rooms), the Clean cap
@@ -80,7 +82,7 @@ export function stayCategories(b, { team = [], facilities = FACILITIES, roomType
   const share = (id, key) => (cancel[key] ? 1 : b.cond?.[id] ?? 1);
   // (Milestone 16) every facility built adds its category points × its level × its worst working share in the stay ×
   // each guest's share of its places (the café +6 Food and the pool +8 Activity as before)
-  const who = { family: !!GUEST_TYPES[b.type]?.family, luxury: (have?.rank ?? 0) >= LUXURY_RANK, guests, list: facilities };
+  const who = { family: !!GUEST_TYPES[b.type]?.family, luxury: (have?.rank ?? 0) >= LUXURY_RANK, guests, list: facilities, reserved: b.pkg ? reservedFacs(b) : null }; // (M18) a package's places in full
   const fac = (cat, key) => categoryAdd(cat, { ...who, shareOf: (id) => share(id, key) });
   // (Milestone 17) Menu Variety +5 Food, Fine Dining +8 with a Premium Restaurant, Pool Programming +5 with a pool, Better
   // Bedding +6 Comfort, Luxury Amenities +8 in Premium rooms and better

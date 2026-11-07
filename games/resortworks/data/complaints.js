@@ -17,7 +17,7 @@ export const COMPLAINT_TYPES = {
   food: { id: 'food', on: true, severity: 0.25, category: 'food', best: ['comp'], name: 'Slow café', line: 'The café was too busy to serve them.' },
   noise: { id: 'noise', on: true, severity: 0.4, category: 'comfort', best: ['roomChange'], name: 'Too noisy', line: 'It was too noisy to sleep.' },
   breakdown: { id: 'breakdown', on: true, severity: 0.5, category: 'comfort', best: ['maintenance'], name: 'Something broke', line: 'Something in their room broke. They need a room change.' },
-  package: { id: 'package', on: false, from: 'M18', severity: 0.35, category: 'activities', best: ['refund', 'vip'], name: 'Package let them down', line: 'Their package wasn’t what they paid for.' },
+  package: { id: 'package', on: true, from: 'M18', severity: 0.35, category: 'activities', best: ['refund', 'vip'], name: 'Package let them down', line: 'Their package wasn’t what they paid for.' },
 };
 export const COMPLAINT_IDS = Object.keys(COMPLAINT_TYPES);
 

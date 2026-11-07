@@ -7,11 +7,13 @@
 //     pg.setStage(id) (debug) · serialize()
 import { STAGES, STAGE_GATES, stageById, stageIndex, rankAtLeast } from '../../data/build.js';
 import { MINUTES_PER_DAY } from './calendar.js';
+import { setStage as setLiveStage } from './guests.js';
 
 export const freshProgress = () => ({ stage: 'roadside', reached: { roadside: 0 } });
 
 export function createProgress({ saved = null, bus = null, reviews = null, bookings = null, now = () => 0 } = {}) {
   const s = saved && STAGES.some((x) => x.id === saved.stage) ? { stage: saved.stage, reached: { ...(saved.reached ?? {}) } } : freshProgress();
+  setLiveStage(s.stage); // (Milestone 18) who can book follows the stage
   const stays = () => bookings?.stats?.checkOuts ?? 0;
   const facts = () => ({ rank: reviews?.rank?.id ?? 'E', stars: reviews?.stars ?? 0, stays: stays() });
   // Each gate condition: [met, words].
@@ -52,6 +54,7 @@ export function createProgress({ saved = null, bus = null, reviews = null, booki
     setStage(id) {
       if (!STAGES.some((x) => x.id === id) || id === s.stage) return false;
       s.stage = id;
+      setLiveStage(id);
       s.reached[id] ??= Math.floor(now() / MINUTES_PER_DAY);
       bus?.emit('progress:stage', { stage: id, name: stageById(id).name });
       return true;
