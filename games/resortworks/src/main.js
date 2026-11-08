@@ -105,6 +105,10 @@ import { AudioManager } from '../../../core/AudioManager.js'; // (Milestone 31)
 import { SOUNDS, MUSIC, AUDIO_BASE, AUDIO_MANIFEST, EVENT_SOUNDS, AMBIENCE_BY_BAND, HAPTICS } from '../data/audio.js';
 import { SERVICES, PRODUCTS, FAKE_PRICES } from '../data/monetisation.js';
 import { FakeStoreProvider } from '../../../core/FakeStoreProvider.js';
+import { NativeBridge } from '../../../core/NativeBridge.js'; // (BIG_RUN_5 Job 3: the Android app)
+import { AdConsent } from '../../../core/AdConsent.js';
+import { nativeProviders, setupNativeApp } from './app/NativeApp.js';
+import { APP_TEXT, PRIVACY_URL, AD_CONSENT_KEY } from '../data/app.js';
 import { createMenuScreen } from './screens/MenuScreen.js';
 import { createSlotsScreen } from './screens/SlotsScreen.js';
 import { createSetupScreen } from './screens/SetupScreen.js';
@@ -323,10 +327,13 @@ bus.on('loop:pause', () => input.reset());
 // Haptics → core/Haptics. The rest (sound, flashes, shake, Menu button, hints) are saved now and read by the
 // milestones that bring what they control.
 const settings = new Settings({ key: SETTINGS_KEY, defaults: SETTINGS_DEFAULTS });
+// (BIG_RUN_5 Job 3) the Android app: isNative only inside it; the first-launch ads & privacy answer (this device)
+const bridge = new NativeBridge();
+const adConsent = new AdConsent({ key: AD_CONSENT_KEY });
 const govMode = () => settings.get('fpsMode') ?? 'auto';
 const governor = new FrameGovernor({ mode: govMode(), bus, capFps: true });
 loop.governor = governor;
-const haptics = new Haptics({ enabled: () => settings.get('haptics') !== false });
+const haptics = new Haptics({ enabled: () => settings.get('haptics') !== false, vibrate: bridge.isNative ? (ms) => bridge.vibrate(ms) : null }); // (BIG_RUN_5: the app's own vibration)
 // (Milestone 31) code-made sound (no files, no licensed music): effects, the day's tune and the ambience by the part of the day
 const audio = new AudioManager({ bus, sounds: SOUNDS, music: MUSIC, basePath: AUDIO_BASE, fileList: () => fetch(AUDIO_MANIFEST, { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : [])).catch(() => []) });
 audio.installUnlock();
@@ -418,6 +425,34 @@ function back() {
   return router.back();
 }
 const systemBack = new SystemBack({ onBack: back });
+// (BIG_RUN_5 Job 3) the Android app (null on the web): made with the store (prepareSaves); the ads & privacy question
+// waits for the Main Menu with no other dialog up (no ad can show before it is answered).
+let nativeApp = null;
+function askConsentWhenFree(force = false) {
+  if (!nativeApp) return;
+  const tryNow = () => {
+    if (dialog.active || router.currentName !== 'menu') return setTimeout(tryNow, 500);
+    nativeApp.askConsent(force);
+  };
+  tryNow();
+}
+let consentAsked = false;
+bus.on('screen:change', ({ to } = {}) => {
+  if (consentAsked || !nativeApp || to !== 'menu') return;
+  consentAsked = true;
+  askConsentWhenFree();
+});
+// Settings → Privacy & legal: the short summary and the privacy page (in the app: the phone's browser, plus the ad choice).
+function showPrivacy() {
+  const page = { id: 'privacyPage', label: APP_TEXT.privacyPage, accent: COL.progress, onTap: () => bridge.openUrl(PRIVACY_URL) };
+  const ok = { id: 'ok', label: 'OK', accent: COL.progress };
+  if (!nativeApp) return dialog.show({ title: SETTINGS_TEXT.legal, body: SETTINGS_TEXT.legalBody, buttons: [page, ok] });
+  dialog.show({
+    title: SETTINGS_TEXT.legal,
+    body: `${APP_TEXT.privacyBody} ${APP_TEXT.privacyAdsNow(adConsent.value.personalised, adConsent.value.source)}.`,
+    buttons: [{ id: 'privacyAds', label: APP_TEXT.privacyAds, accent: COL.progress, onTap: () => askConsentWhenFree(true) }, page, ok],
+  });
+}
 bus.on('input:up', () => systemBack.rearm()); // re-arm after any tap, in case a Back at the menu let it go
 
 // ---------------------------------------------------------------------------
@@ -622,7 +657,21 @@ async function prepareSaves() {
   // (Milestone 29) the store and ads on the account (no real store yet: ?debug=1 uses the pretend one; ?services=0 off)
   {
     const fake = debug.enabled ? new FakeStoreProvider({ products: Object.fromEntries(Object.entries(PRODUCTS).map(([k, p]) => [k, { price: FAKE_PRICES[k], title: p.name, kind: p.kind }])) }) : null;
-    money = createMonetisation({ bus, account, run: () => open, provider: fake, adProvider: fake, enabled: SERVICES.enabled && PARAMS.get('services') !== '0' });
+    const nat = nativeProviders({ bridge, consent: adConsent }); // (BIG_RUN_5: in the app, AdMob test ads and Google Play)
+    money = createMonetisation({ bus, account, run: () => open, provider: nat?.store ?? fake, adProvider: nat?.ads ?? fake, enabled: SERVICES.enabled && PARAMS.get('services') !== '0' });
+    nativeApp = setupNativeApp({
+      bridge,
+      providers: nat,
+      money,
+      consent: adConsent,
+      dialog,
+      art: 'studioLogo',
+      accent: COL.progress,
+      onBack: () => back(),
+      onBackground: () => autosave.background(), // (the loop pauses itself while hidden: core/FixedStepLoop)
+      isRunning: () => !!open && router.currentName === 'resort' && !loop.paused && (open.calendar?.speed ?? 0) > 0,
+      onQuit: () => (open ? autosave.flush().catch(() => {}) : Promise.resolve()),
+    });
     money.say = (text) => text && bus.emit('money:say', { text });
     window.__rw && (window.__rw.money = money);
     if (fake) window.__rw && (window.__rw.fakeStore = fake);
@@ -774,7 +823,7 @@ function openSettings() {
       list: SETTINGS,
       text: SETTINGS_TEXT,
       onHelp: () => dialog.show({ title: SETTINGS_TEXT.help, body: SETTINGS_TEXT.helpBody, buttons: ok }),
-      onLegal: () => dialog.show({ title: SETTINGS_TEXT.legal, body: SETTINGS_TEXT.legalBody, buttons: ok }),
+      onLegal: () => showPrivacy(), // (BIG_RUN_5: + the privacy page; in the app the ad choice too)
       onCredits: () => dialog.show({ title: SETTINGS_TEXT.credits, body: SETTINGS_TEXT.creditsBody, buttons: ok }),
       after: [{ id: 'test', label: SETTINGS_TEXT.display, sub: SETTINGS_TEXT.displayLine, accent: COL.progress, onTap: () => router.go('test') }],
     }),
@@ -837,7 +886,7 @@ const testSheet = () => ({
 
 // ?debug=1: a test hook for automated checks.
 if (debug.enabled) {
-  window.__rw = { audio, bus, renderer, layout, input, loop, router, assets, sheet, dialog, systemBack, textPrompt, settings, governor, haptics, splashScreen, menuScreen, slotsScreen, setupScreen, resortScreen, feedback, addRep, playSlot, startResort, deleteSlot, newGame, openSettings, booting, autosave, clearMoments, saveRun, skipDays, taps: [], get booted() { return booted; }, get account() { return account; }, get campaigns() { return campaigns; }, get open() { return open; } };
+  window.__rw = { debug, bridge, adConsent, get nativeApp() { return nativeApp; }, showPrivacy, audio, bus, renderer, layout, input, loop, router, assets, sheet, dialog, systemBack, textPrompt, settings, governor, haptics, splashScreen, menuScreen, slotsScreen, setupScreen, resortScreen, feedback, addRep, playSlot, startResort, deleteSlot, newGame, openSettings, booting, autosave, clearMoments, saveRun, skipDays, taps: [], get booted() { return booted; }, get account() { return account; }, get campaigns() { return campaigns; }, get open() { return open; } };
 }
 
 router.go('boot');

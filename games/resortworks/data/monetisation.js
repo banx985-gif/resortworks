@@ -7,12 +7,14 @@ export const SERVICES = { enabled: true };
 
 // Store products (prices come from the store; no real store is wired yet — the store says it's unavailable, and
 // ?debug=1 uses core/FakeStoreProvider). kind: core CommerceService's.
+// (BIG_RUN_5 Job 4) the keys are the Google Play product ids (lowercase, letters / digits / _), the same as the other
+// series games; what the player owns is kept by its entitlement and transaction ids, not the key.
 export const PRODUCTS = {
-  removeAds: { kind: 'nonConsumable', entitlement: 'removeAds', name: 'Remove Ads', line: 'No more break-time ads, for good. Rewarded ads stay optional.' },
-  tokens50: { kind: 'consumable', tokens: 50, name: '50 Resort Tokens', line: 'For refreshes and cosmetics.' },
-  tokens150: { kind: 'consumable', tokens: 150, name: '150 Resort Tokens', line: 'For refreshes and cosmetics.' },
+  resortworks_remove_ads: { kind: 'nonConsumable', entitlement: 'removeAds', name: 'Remove Ads', line: 'No more break-time ads, for good. Rewarded ads stay optional.' },
+  resortworks_tokens_50: { kind: 'consumable', tokens: 50, name: '50 Resort Tokens', line: 'For refreshes and cosmetics.' },
+  resortworks_tokens_150: { kind: 'consumable', tokens: 150, name: '150 Resort Tokens', line: 'For refreshes and cosmetics.' },
 };
-export const FAKE_PRICES = { removeAds: '£2.99', tokens50: '£0.99', tokens150: '£2.49' };
+export const FAKE_PRICES = { resortworks_remove_ads: '£2.99', resortworks_tokens_50: '£0.99', resortworks_tokens_150: '£2.49' };
 
 // What Resort Tokens can buy — the only things (a whitelist). Each is an ordinary refresh or a cosmetic.
 export const TOKEN_SINKS = {

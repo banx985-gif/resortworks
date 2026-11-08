@@ -87,7 +87,8 @@ export function attachLate(run, data = {}, { bus = null, account = {} } = {}) {
   run.maintenance.setGuard?.((id, minute, why) => run.secrets.breakdownGuard(id, minute, why));
   run.complaints.setGuard?.((b, kind, minute) => run.secrets.complaintGuard(b, kind, minute)); // (M28b: Jinx)
   run.demand.set('Luck', (typeId) => (typeId ? run.secrets.luckDemand(typeId) : null)); // (M28b: Jinx's lucky arrivals)
-  run.events.setScoreAdd((evt) => run.secrets.eventBonus(evt));
+  run.events.setScoreAdd((evt) => run.secrets.eventBonus(evt) + (run.site?.eventScoreAdd?.(evt) ?? 0)); // (BIG_RUN_5: + the Event Quarter's)
+  run.site?.setLandSecret?.((id) => run.secrets.stageOpen(id)); // (BIG_RUN_5: the Prestige Grounds land through SEC19)
   run.demand.set('Secrets', (typeId) => (typeId ? null : run.secrets.demand()));
   // (Milestone 28) the Year-20 ending (graded once, then postgame), the NG+ level (stronger rivals) and the Signature legacy
   run.ngPlus = data.ngPlus ?? 0;

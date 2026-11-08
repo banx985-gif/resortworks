@@ -50,7 +50,7 @@ export function buildListSheet(site, { finance = null, progress = null, act, acc
     title: 'Land',
     std: 'build:land',
     columns: 1,
-    buttons: LAND.filter((l) => !l.secret).map((l) => {
+    buttons: LAND.filter((l) => (site.landShown ? site.landShown(l.id) : !l.secret)).map((l) => { // (BIG_RUN_5: a secret strip once found)
       const owned = site.owns(l.id);
       const why = owned ? null : site.whyNoLand(l.id);
       return { id: `land:${l.id}`, icon: l.art, label: owned ? `✓ ${l.name}` : l.name, sub: owned ? 'Yours' : why ?? l.line, cost: owned || l.price == null ? '' : credits(l.price), disabled: owned || !!why, accent: owned ? C.good : C.action, onTap: () => act.buyLand(l.id) };

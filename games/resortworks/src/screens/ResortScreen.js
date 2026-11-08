@@ -84,7 +84,7 @@ import { VfxSystem } from '../../../../core/VfxSystem.js';
 import { FloatFeed } from '../../../../core/FloatFeed.js';
 import { reviewMoment, guideMoment, starWords, opalLineMoment } from './reviewMoments.js';
 import { managerLine } from '../systems/resort.js';
-import { GRID, BUILD_LOOK, SCAFFOLD, DOUGIE, ROOM_BUILD, FACILITY_BUILD, landById } from '../../data/build.js';
+import { GRID, LAND, BUILD_LOOK, SCAFFOLD, DOUGIE, ROOM_BUILD, FACILITY_BUILD, landById } from '../../data/build.js';
 import { FACILITY_INFO } from '../../data/facilities.js';
 import { siteVersion, tileOwned } from '../systems/site.js';
 import { buildListSheet, buildItemSheet } from './buildSheets.js';
@@ -121,13 +121,91 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   let coachOn = false;
   const W = renderer.width;
   const iso = new IsoProjection({ tileSize: CELL, halfW: HW, halfH: HH, originX: LOT.margin + ROWS_DRAWN * HW, originY: LOT.margin + LOT.topOverhang });
-  const worldW = (GRID.cols + ROWS_DRAWN) * HW + LOT.margin * 2; // (M12: the land beyond the lot too)
-  const worldH = (GRID.cols + ROWS_DRAWN) * HH + LOT.topOverhang + LOT.margin * 2;
+  // (M12: the land beyond the lot too) (BIG_RUN_5 Job 1: the world is the land you own plus the next strip for sale, so the
+  // camera's bounds grow as land is bought)
+  const worldWOf = (cols) => (cols + ROWS_DRAWN) * HW + LOT.margin * 2;
+  const worldHOf = (cols) => (cols + ROWS_DRAWN) * HH + LOT.topOverhang + LOT.margin * 2;
+  let drawn = drawnCols();
+  let worldW = worldWOf(drawn);
+  let worldH = worldHOf(drawn);
   const camera = new Camera({ viewW: W, viewH: renderer.height, worldW, worldH });
   camera.maxZoom = LOT.zoom.max;
   camera.minZoom = LOT.zoom.min;
-  const groundLayer = new CachedLayer({ width: worldW, height: worldH, draw: drawGround });
-  const groundScale = () => Math.min(renderer.pixelScale * detailFor(camera.zoom), Math.sqrt(LOT.floorMaxPixels / (worldW * worldH)));
+  // (BIG_RUN_5 Job 1) The ground: one cached layer per strip of land (each clipped to its own columns), so a long resort
+  // keeps a sharp ground; a strip out of sight gives its picture back. Each is capped at floorMaxPixels, and all of them at
+  // about twice that over the camera's view (zoomed far out, a coarser picture).
+  let ground = [];
+  const zStep = (z) => Math.pow(2, Math.floor(Math.log2(z) * 2) / 2); // (half-octave steps: no redraw while pinching)
+  const groundScale = (ch) => Math.min(renderer.pixelScale * detailFor(camera.zoom), Math.sqrt(LOT.floorMaxPixels / (ch.layer.width * ch.layer.height)), Math.sqrt((2 * LOT.floorMaxPixels * zStep(camera.zoom) ** 2) / (camera.viewW * camera.viewH)));
+  const groundLayer = {
+    invalidate: () => ground.forEach((ch) => ch.layer.invalidate()),
+    setPixelScale: () => ground.forEach((ch) => ch.layer.setPixelScale(groundScale(ch))),
+    get chunks() {
+      return ground;
+    },
+  };
+  function makeGround() {
+    const R = LOT.rows;
+    const strips = LAND.filter((l) => l.cols && l.cols[0] < drawn);
+    ground = strips.map((l, i) => {
+      const c0 = l.cols[0] - (i === 0 ? 1 : 0.02);
+      const c1 = Math.min(drawn, l.cols[1] + 1) + (i === strips.length - 1 ? 1 : 0.02);
+      const pts = [iso.corner(c0, -1), iso.corner(c1, -1), iso.corner(c1, R + LOT.road.to), iso.corner(c0, R + LOT.road.to)];
+      const x0 = Math.floor(Math.min(...pts.map((p) => p.x)));
+      const y0 = Math.floor(Math.min(...pts.map((p) => p.y)));
+      const x1 = Math.ceil(Math.max(...pts.map((p) => p.x)));
+      const y1 = Math.ceil(Math.max(...pts.map((p) => p.y)));
+      const draw = (g) => {
+        g.translate(-x0, -y0);
+        isoPath(g, pts);
+        g.clip();
+        drawGround(g);
+      };
+      return { id: l.id, x: x0, y: y0, layer: new CachedLayer({ width: x1 - x0, height: y1 - y0, draw }) };
+    });
+  }
+  function renderGround(ctx) {
+    const v = { x: camera.x, y: camera.y, w: camera.visibleW, h: camera.visibleH };
+    for (const ch of ground) {
+      const L = ch.layer;
+      const inX = ch.x < v.x + v.w && v.x < ch.x + L.width;
+      const inY = ch.y < v.y + v.h && v.y < ch.y + L.height;
+      if (!inX || !inY) {
+        const near = ch.x < v.x + 2 * v.w && v.x - v.w < ch.x + L.width && ch.y < v.y + 2 * v.h && v.y - v.h < ch.y + L.height;
+        if (!near && L.canvas) L.release();
+        continue;
+      }
+      L.setPixelScale(groundScale(ch));
+      ctx.save();
+      ctx.translate(ch.x, ch.y);
+      L.renderView(ctx, { x: v.x - ch.x, y: v.y - ch.y, w: v.w, h: v.h });
+      ctx.restore();
+    }
+  }
+  // The columns drawn: the land you own and the next strip for sale (a secret strip only once it is shown).
+  function drawnCols() {
+    let c = 0;
+    while (c < GRID.cols && tileOwned(c, 0)) c++;
+    const next = LAND.find((l) => l.cols && l.cols[0] === c);
+    const sv = run()?.site ?? null;
+    return next && (!next.secret || sv?.landShown?.(next.id)) ? next.cols[1] + 1 : Math.max(c, LOT.cols);
+  }
+  // The land changed (or another resort opened): the world's size, the camera's bounds and zoom-out, the ground strips.
+  function fitLand() {
+    const d = drawnCols();
+    if (d === drawn && ground.length) return;
+    drawn = d;
+    worldW = worldWOf(drawn);
+    worldH = worldHOf(drawn);
+    camera.setWorld(worldW, worldH);
+    let own = 0;
+    while (own < GRID.cols && tileOwned(own, 0)) own++;
+    camera.minZoom = Math.max(LOT.zoom.floor, Math.min(LOT.zoom.min, camera.viewW / worldWOf(Math.max(own, LOT.cols))));
+    for (const ch of ground) ch.layer.release();
+    makeGround();
+    camera.zoom = Math.max(camera.minZoom, camera.zoom);
+    camera.clamp();
+  }
 
   let world = null;
   let worldOf = null; // the run's booking system the world was made for
@@ -497,7 +575,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     const w = (sr.w - 48 - (SKIPS.length - 1) * 16) / SKIPS.length;
     return { x: sr.x + 24 + i * (w + 16), y: s.y - 16 - 100, w, h: 100 };
   };
-  const debugSkips = () => !!debug?.enabled;
+  const debugSkips = () => !!debug?.enabled && !debug.hidden; // (BIG_RUN_5: hidden with the overlay for clean store screenshots)
   // The temporary bottom-row shortcut (the five-button bar and the Menu button come later).
   const shortcutRect = () => {
     const sr = layout.safeRect;
@@ -557,7 +635,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   }
   function resize() {
     camera.pixelScale = renderer.pixelScale;
-    groundLayer.setPixelScale(groundScale());
+    groundLayer.setPixelScale();
     const cx = camera.x + camera.visibleW / 2;
     const cy = camera.y + camera.visibleH / 2;
     fitView();
@@ -959,6 +1037,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       syncSelection();
       peopleVersion = world.version;
     }
+    fitLand(); // (BIG_RUN_5: the land may have grown)
     groundLayer.invalidate(); // (the accent colour may differ)
     tint.cur = tintOf(o.calendar?.band.id); // the light starts right for the time of day (no fade on opening)
     tint.from = tint.cur;
@@ -1071,6 +1150,10 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     },
     get camera() {
       return camera;
+    },
+    // (BIG_RUN_5, tests) the world's size, the columns drawn and the ground strips ({ id, x, y, w, h, built })
+    get land() {
+      return { worldW, worldH, drawn, minZoom: camera.minZoom, chunks: ground.map((ch) => ({ id: ch.id, x: ch.x, y: ch.y, w: ch.layer.width, h: ch.layer.height, built: !!ch.layer.canvas, px: ch.layer.canvas ? ch.layer.canvas.width * ch.layer.canvas.height : 0 })) };
     },
     get buildMode() {
       return buildMode;
@@ -1314,8 +1397,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       }
       camera.apply(ctx);
       drawRoad(ctx); // live, so it runs off both sides of the screen at any zoom
-      groundLayer.setPixelScale(groundScale());
-      groundLayer.renderView(ctx, { x: camera.x, y: camera.y, w: camera.visibleW, h: camera.visibleH });
+      renderGround(ctx); // (BIG_RUN_5: a cached layer per strip of land)
       if (buildMode) drawBuildGrid(ctx);
       else drawOverlay(ctx);
       assets.detail = detailFor(camera.zoom);
@@ -1412,8 +1494,9 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
       const P = pathCells();
       const mid = camera.worldToScreen(camera.x + camera.visibleW / 2, camera.y + camera.visibleH / 2);
       let best = null;
+      const OC = ownedCols(); // (BIG_RUN_5: all the land you own)
       for (let r = 0; r < LOT.rows; r++)
-        for (let c = 0; c < LOT.cols; c++) {
+        for (let c = 0; c < OC; c++) {
           if (world.grid.isBlocked(c, r) || P.has(`${c},${r}`)) continue;
           const w = iso.cellCenter(c, r);
           const s = camera.worldToScreen(w.x, w.y);
@@ -1517,17 +1600,18 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     const R = LOT.rows;
     const far = 40;
     g.lineJoin = 'round';
-    band(g, R, R + LOT.road.from, -far, LOT.cols + far, LOOK.kerb);
-    band(g, R + LOT.road.from, R + LOT.road.to, -far, LOT.cols + far, LOOK.road);
+    const end = Math.max(LOT.cols, drawn) + far; // (BIG_RUN_5: past the end of the land)
+    band(g, R, R + LOT.road.from, -far, end, LOOK.kerb);
+    band(g, R + LOT.road.from, R + LOT.road.to, -far, end, LOOK.road);
     g.strokeStyle = LOOK.roadEdge;
     g.lineWidth = 6;
-    line(g, iso.corner(-far, R + LOT.road.from), iso.corner(LOT.cols + far, R + LOT.road.from));
-    line(g, iso.corner(-far, R + LOT.road.to), iso.corner(LOT.cols + far, R + LOT.road.to));
+    line(g, iso.corner(-far, R + LOT.road.from), iso.corner(end, R + LOT.road.from));
+    line(g, iso.corner(-far, R + LOT.road.to), iso.corner(end, R + LOT.road.to));
     g.strokeStyle = LOOK.roadLine;
     g.lineWidth = 8;
     const mid = R + (LOT.road.from + LOT.road.to) / 2;
     g.setLineDash([0.45 * Math.hypot(HW, HH), 0.55 * Math.hypot(HW, HH)]);
-    line(g, iso.corner(-far, mid), iso.corner(LOT.cols + far, mid));
+    line(g, iso.corner(-far, mid), iso.corner(end, mid));
     g.setLineDash([]);
   }
   // The lot's grass, the sandy lanes, the accent kerb round the lot and a soft shade under each building — drawn once
@@ -1539,7 +1623,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     // The lot: grass in soft two-tone tiles.
     const OC = ownedCols(); // (M12) the land you own; the rest of the grid is fenced, darker ground for sale
     for (let r = 0; r < R; r++) for (let c = 0; c < OC; c++) patch(g, iso.outline(c, r), (c + r) % 2 ? LOOK.grassA : LOOK.grassB);
-    if (OC < GRID.cols) patch(g, iso.outline(OC, 0, GRID.cols - OC, R), BUILD_LOOK.land, BUILD_LOOK.landEdge, 6);
+    if (OC < drawn) patch(g, iso.outline(OC, 0, drawn - OC, R), BUILD_LOOK.land, BUILD_LOOK.landEdge, 6); // (the next strip for sale)
     g.strokeStyle = LOOK.grassLine;
     g.lineWidth = 1.2;
     for (let c = 0; c <= OC; c += 1) line(g, iso.corner(c, 0), iso.corner(c, R));
@@ -1850,8 +1934,12 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   }
   function drawOverlay(ctx) {
     if (!overlay || !run()?.layout) return;
+    const OC = ownedCols(); // (BIG_RUN_5: noise and views over all the land you own, across the joins)
+    const pad = 2 * HW;
     for (let r = 0; r < LOT.rows; r++)
-      for (let c = 0; c < LOT.cols; c++) {
+      for (let c = 0; c < OC; c++) {
+        const m = iso.cellCenter(c, r);
+        if (m.x < camera.x - pad || m.x > camera.x + camera.visibleW + pad || m.y < camera.y - pad || m.y > camera.y + camera.visibleH + pad) continue;
         const t = overlayTint(c, r);
         if (!t || t[3] <= 0.004) continue;
         patch(ctx, iso.outline(c + 0.04, r + 0.04, 0.92, 0.92), `rgba(${t[0]},${t[1]},${t[2]},${t[3].toFixed(3)})`);

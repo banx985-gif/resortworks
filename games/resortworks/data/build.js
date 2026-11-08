@@ -25,20 +25,28 @@ export const STAGE_GATES = {
 export const RANK_ORDER = ['E', 'D', 'C', 'B', 'A', 'S'];
 export const rankAtLeast = (have, want) => RANK_ORDER.indexOf(have) >= RANK_ORDER.indexOf(want);
 
-// The whole grid (plan tiles): the Roadside Lot is cols 0–14; the land beyond is bought (Garden Grounds: cols 15–21, the
-// same 13 rows, joined to the lot by the lane down its right edge — Claude Code's pick). Unowned land is blocked.
-export const GRID = { cols: 22, rows: 13 };
-// Land expansions (bible §21). price: Garden Grounds 15,000 Credits (Cowork's pick — the bible gives none). cols = the
-// strip it adds. Later ones are listed, locked (no land yet).
+// Land expansions (bible §21). Each strip is the same 13 rows along the road, beside the last one, joined to it by the
+// lanes and the front row (walkability as M12: every door reaches the road). Bought in order. price: Garden Grounds
+// 15,000 Credits (Cowork's pick, M12); the other four Cowork's picks of BIG_RUN_5. cols = the strip it adds (widths Claude
+// Code's, BIG_RUN_5 Job 1: enough that a resort can reach the §27A room cap of the stage that land belongs to, with
+// every facility of that stage built — checked by tests/resortworks/land.test.mjs). secret: shown and sold only once its
+// secret is found (the Prestige Grounds: SEC19, the same secret as the Prestige Grounds stage), with no Rank gate.
+//   purpose (bible §21, small, within the M9 caps; Claude Code's numbers, logged in DECISIONS):
+//     eventScore — an event held at a venue standing on this land scores this many points more
+//     view       — rooms of these types standing on this land get this many view % more (still capped ±12, M9)
 export const LAND = [
   { id: 'roadside', name: 'Roadside Lot', rank: 'E', price: 0, cols: [0, 14], art: 'expansion_01', line: 'The starter motel.' },
   { id: 'garden', name: 'Garden Grounds', rank: 'D', price: 15000, cols: [15, 21], art: 'expansion_02', line: 'A strip of open land beside the lot for family and garden rooms.' },
-  { id: 'event', name: 'Event Quarter', rank: 'C', price: null, art: 'expansion_03', line: 'Events and entertainment.', later: true },
-  { id: 'villa', name: 'Villa District', rank: 'B', price: null, art: 'expansion_04', line: 'Villas and luxury.', later: true },
-  { id: 'ridge', name: 'Luxury Ridge', rank: 'A', price: null, art: 'expansion_05', line: 'World-class.', later: true },
-  { id: 'prestigeLand', name: 'Prestige Grounds', rank: 'S', price: null, art: 'expansion_06', line: 'Secret.', secret: true, later: true },
+  { id: 'event', name: 'Event Quarter', rank: 'C', price: 60000, cols: [22, 37], art: 'expansion_03', line: 'Land for events and entertainment: events held at a venue here score +3.', purpose: { eventScore: 3 } },
+  { id: 'villa', name: 'Villa District', rank: 'B', price: 150000, cols: [38, 53], art: 'expansion_04', line: 'Quiet land for villas: villas here get +4% view.', purpose: { view: { add: 4, rooms: ['RM10', 'RM11'] } } },
+  { id: 'ridge', name: 'Luxury Ridge', rank: 'A', price: 400000, cols: [54, 65], art: 'expansion_05', line: 'The high ground: luxury rooms here get +6% view.', purpose: { view: { add: 6, rooms: ['RM09', 'RM10', 'RM11', 'RM12'] } } },
+  { id: 'prestigeLand', name: 'Prestige Grounds', rank: 'S', price: 1000000, cols: [66, 75], art: 'expansion_06', line: 'The secret grounds for the Paradise Pavilion and the Sky Retreat: every room here gets +3% view.', secret: 'SEC19', purpose: { view: { add: 3, rooms: null } } },
 ];
 export const landById = (id) => LAND.find((l) => l.id === id) ?? null;
+// The land a column belongs to (or null).
+export const landOfCol = (c) => LAND.find((l) => l.cols && c >= l.cols[0] && c <= l.cols[1]) ?? null;
+// The whole grid (plan tiles): every strip side by side; unowned land is blocked.
+export const GRID = { cols: Math.max(...LAND.map((l) => l.cols[1])) + 1, rows: 13 };
 
 // Rooms (bible §27E: capacity, build cost, base rate, daily upkeep, base clean minutes, stage). days = build days (Claude
 // Code's pick — the bible gives none for rooms: about one day per 2,500 Credits of build cost, 2 at least, 12 at most).
@@ -127,6 +135,11 @@ export const DOUGIE = {
     upgrade: ['The {name} upgrade is under way.'],
     upgraded: ['The {name} is now Level {level}.'],
     land: ['The Garden Grounds are ours. Plenty of room to build!'],
+    // (BIG_RUN_5 Job 1) each new strip of land (Dougie's line when it opens)
+    'land:event': ['The Event Quarter is ours! Put a hall or a lawn out here and the events will sing.', 'Event Quarter’s fenced off and ready. Venues out here score better.'],
+    'land:villa': ['Villa District’s ours. Nice and quiet: villas belong out here.', 'The Villa District is ready for building. Think private villas.'],
+    'land:ridge': ['We’ve got the Ridge! The luxury rooms will have the best view in the business.', 'Luxury Ridge is ours. Build your finest rooms up here.'],
+    'land:prestigeLand': ['The Prestige Grounds… I never thought I’d see them. Let’s build something legendary.', 'The Prestige Grounds are open. Paradise, here we come.'],
   },
 };
 

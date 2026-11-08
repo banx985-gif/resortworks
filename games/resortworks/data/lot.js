@@ -14,7 +14,8 @@ export const LOT = {
   margin: 200, // verge round the lot (the camera stops at the lot plus this)
   road: { from: 0.35, to: 2.35 }, // the road beyond the front edge, in tiles past the last row (kerb strip before it)
   topOverhang: 420, // room above the lot's back corner for the tallest art (roofs, palms)
-  zoom: { min: 0.22, max: 1.4, start: 0.5 }, // min: pinch out until the whole lot just fits across
+  zoom: { min: 0.22, max: 1.4, start: 0.5, floor: 0.1 }, // min: pinch out until the whole lot just fits across; (BIG_RUN_5)
+  // with more land, pinch out further — until all the land you own fits across, but never under floor
   floorMaxPixels: 7e6, // the cached ground picture is capped at this many device pixels
 };
 

@@ -20,6 +20,8 @@
 //   showInbox / showHelp  false leaves that button out (inboxRect() / helpRect() → null) and gives the date its room —
 //                for a game whose Inbox / Help arrive in a later milestone
 //   dateLabel(date, { home }) → the date text instead of the built-in one (date: { year, month, day })
+//   showControls() → false leaves Pause and the speeds out (the stats chip takes their room) — e.g. on a race or match
+//                screen where the calendar waits (RACEWORKS M44; a game that passes none sees no change)
 import { THEME, font } from '../Theme.js';
 import { drawButton, hitRect } from './Button.js';
 import { text } from './Kit.js';
@@ -38,9 +40,9 @@ export function topBarRect(layout) {
 }
 
 // The stats chip: row 2, left of Pause and the speed buttons.
-export function statsRect(layout, speeds = [1, 2, 4], locked = () => false) {
+export function statsRect(layout, speeds = [1, 2, 4], locked = () => false, pause = SPEED_W.pause + 10) {
   const r = topBarRect(layout);
-  const sw = SPEED_W.pause + speeds.reduce((t, s) => t + (locked(s) ? SPEED_W.locked : SPEED_W.speed) + 10, 0) + 10;
+  const sw = pause + speeds.reduce((t, s) => t + (locked(s) ? SPEED_W.locked : SPEED_W.speed) + 10, 0);
   return { x: r.x + 16, y: r.y + ROW2.y, w: r.w - 32 - sw, h: ROW2.h };
 }
 
@@ -67,9 +69,10 @@ export function createTopBar({
   showInbox = true,
   showHelp = true,
   dateLabel = null,
+  showControls = () => true,
 }) {
   const rect = () => topBarRect(layout);
-  const chipRect = () => statsRect(layout, clock.speeds, (s) => !clock.canUseSpeed(s));
+  const chipRect = () => (showControls() ? statsRect(layout, clock.speeds, (s) => !clock.canUseSpeed(s)) : statsRect(layout, [], () => false, 0));
 
   const helpRect = () => {
     if (!showHelp) return null;
@@ -94,9 +97,10 @@ export function createTopBar({
     const r = rect();
     const m = chipRect();
     const y = r.y + ROW2.y;
-    const list = [{ id: 'pause', label: clock.paused ? 'Paused' : 'Pause', x: m.x + m.w + 10, w: SPEED_W.pause, active: clock.paused }];
+    const controls = showControls();
+    const list = controls ? [{ id: 'pause', label: clock.paused ? 'Paused' : 'Pause', x: m.x + m.w + 10, w: SPEED_W.pause, active: clock.paused }] : [];
     let x = m.x + m.w + 10 + SPEED_W.pause + 10;
-    for (const s of clock.speeds) {
+    for (const s of controls ? clock.speeds : []) {
       const locked = !clock.canUseSpeed(s);
       const w = locked ? SPEED_W.locked : SPEED_W.speed;
       list.push({ id: `speed${s}`, label: `${s}×`, x, w, active: !clock.paused && clock.speed === s, speed: s, locked });

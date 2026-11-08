@@ -82,7 +82,7 @@ export const TEST_LAYOUTS = {
 };
 
 // Short names in the sheets' lines and review comments.
-export const SHORT_NAMES = { F01: 'Reception', F03: 'pool', F04: 'laundry', F05: 'maintenance shed', F06: 'café', F07: 'car park', F08: 'garden', road: 'road', F09: 'restaurant', F10: 'kids club', F11: 'family pool', F12: 'games room', F19: 'event hall', F21: 'cinema', F22: 'BBQ terrace', F26: 'rooftop lounge', F28: 'infinity pool', F33: 'signature garden' };
+export const SHORT_NAMES = { F01: 'Reception', F03: 'pool', F04: 'laundry', F05: 'maintenance shed', F06: 'café', F07: 'car park', F08: 'garden', road: 'road', F09: 'restaurant', F10: 'kids club', F11: 'family pool', F12: 'games room', F19: 'event hall', F21: 'cinema', F22: 'BBQ terrace', F26: 'rooftop lounge', F28: 'infinity pool', F33: 'signature garden', villa: 'Villa District', ridge: 'Ridge', prestigeLand: 'Prestige Grounds' };
 
 // The review comment (core ReviewText picks the best and worst category): a view of goodView % or more is the Room's
 // strong line, badView % or less its weak line; a stay that lost noisy Comfort points or more to noise has a noise line

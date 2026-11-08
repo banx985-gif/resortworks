@@ -13,11 +13,12 @@
 //   createSite({ saved, bus, now, finance, reviews, bookings, maintenance, progress }) → site
 //     site.check(kind, def, col, row, { moving }) → { ok, why, fp, door } · build(kind, def, col, row) · move(id, col, row)
 //     sell(id) · sellValue(id) · cancel(jobId) · cancelValue(jobId) · upgrade(id) · upgradeCost(id) · whyNoUpgrade(id)
-//     buyLand(id) · whyNoLand(id) · catalogue() (the build list) · items · jobs · itemById(id) · jobFor(id)
+//     buyLand(id) · whyNoLand(id) · landShown(id) · landOf(id) · landViewAt(room) · eventScoreAdd(evt) (BIG_RUN_5: the land's
+//     purposes) · catalogue() (the build list) · items · jobs · itemById(id) · jobFor(id)
 //     isClosed(id) · progressOf(job) (0–1) · onEdge(day, band) · onChange(fn) · serialize()
 import { Grid } from '../../../../core/Grid.js';
 import { LOT, FACILITIES, ROOMS, START_FACILITIES, START_ROOMS, makeRoom } from '../../data/lot.js';
-import { GRID, LAND, landById, ROOM_BUILD, FACILITY_BUILD, CONSTRUCTION, UPGRADE, LEVEL_RANKS, stageById, stageIndex, rankAtLeast, DOUGIE } from '../../data/build.js';
+import { GRID, LAND, landById, landOfCol, ROOM_BUILD, FACILITY_BUILD, CONSTRUCTION, UPGRADE, LEVEL_RANKS, stageById, stageIndex, rankAtLeast, DOUGIE } from '../../data/build.js';
 import { FACILITY_INFO } from '../../data/facilities.js';
 import { ROOM_TYPES, ROOM_LEVEL, LOVED } from '../../data/bookings.js';
 import { MINUTES_PER_DAY } from './calendar.js';
@@ -35,6 +36,11 @@ const colOwned = (c, land = LIVE.land) => land.some((id) => {
   const l = landById(id);
   return !!l?.cols && c >= l.cols[0] && c <= l.cols[1];
 });
+// (BIG_RUN_5 Job 1) a room's view % from the land it stands on (the layout reads it; data/build.js LAND purpose)
+export function landView(room) {
+  const v = landOfCol(room.fp.col)?.purpose?.view;
+  return v && (!v.rooms || v.rooms.includes(room.typeId)) ? v.add : 0;
+}
 export const tileOwned = (col, row) => row >= 0 && row < GRID.rows && colOwned(col);
 // The bare land: the whole grid, unowned columns blocked.
 function landGrid(land = LIVE.land) {
@@ -165,7 +171,7 @@ export function createSite({ saved = null, bus = null, now = () => 0, finance = 
     for (let r = row; r < row + fp.h; r++)
       for (let c = col; c < col + fp.w; c++) {
         if (c < 0 || r < 0 || c >= GRID.cols || r >= GRID.rows) return { ok: false, why: 'That goes off the edge of your land.', fp };
-        if (!colOwned(c)) return { ok: false, why: landById('garden') && c >= landById('garden').cols[0] && !LIVE.land.includes('garden') ? 'That land isn’t yours yet: buy the Garden Grounds first.' : 'That land isn’t yours.', fp };
+        if (!colOwned(c)) return { ok: false, why: landOfCol(c) && landShown(landOfCol(c).id) ? `That land isn’t yours yet: buy the ${landOfCol(c).name} first.` : 'That land isn’t yours.', fp };
       }
     const others = s.items.filter((it) => it.id !== moving);
     const hit = others.find((it) => fp.col < it.fp.col + it.fp.w && it.fp.col < fp.col + fp.w && fp.row < it.fp.row + it.fp.h && it.fp.row < fp.row + fp.h);
@@ -376,15 +382,32 @@ export function createSite({ saved = null, bus = null, now = () => 0, finance = 
   }
 
   // --- land --------------------------------------------------------------------------------------------------------
+  // (BIG_RUN_5 Job 1) the strips are bought in order (each joins the last one along the road); a secret strip is shown and
+  // sold only once its secret is found, with no Rank gate.
+  let landSecret = () => false;
+  function landShown(id) {
+    const l = landById(id);
+    return !!l && (!l.secret || s.land.includes(id) || !!landSecret(l.secret));
+  }
   function whyNoLand(id) {
     const l = landById(id);
-    if (!l || l.secret) return 'Not for sale.';
+    if (!l || !landShown(id)) return 'Not for sale.';
     if (s.land.includes(id)) return 'It’s yours.';
     if (l.later || l.price == null) return `Opens later (needs Rank ${l.rank}).`;
-    if (!rankAtLeast(rank(), l.rank)) return `Needs Rank ${l.rank}.`;
+    const before = LAND[LAND.indexOf(l) - 1];
+    if (before && !s.land.includes(before.id)) return `Buy the ${before.name} first.`;
+    if (!l.secret && !rankAtLeast(rank(), l.rank)) return `Needs Rank ${l.rank}.`;
     if (cash() < l.price) return `Not enough Credits: it costs ${fmt(l.price)}.`;
     return null;
   }
+  // The land an item (or a footprint) stands on: the strip holding its back corner.
+  const landOf = (id) => {
+    const fp = typeof id === 'string' ? itemById(id)?.fp : id;
+    return fp ? landOfCol(fp.col)?.id ?? null : null;
+  };
+  const landViewAt = landView; // (a room's view % from its land)
+  // An event's extra score from its venue's land.
+  const eventScoreAdd = (evt) => (evt?.venue ? landById(landOf(evt.venue))?.purpose?.eventScore ?? 0 : 0);
   function buyLand(id) {
     const why = whyNoLand(id);
     if (why) return { ok: false, why };
@@ -392,7 +415,7 @@ export function createSite({ saved = null, bus = null, now = () => 0, finance = 
     s.land.push(id);
     pay(l.price, id);
     s.stats.land++;
-    say('land', null);
+    say(DOUGIE.lines[`land:${id}`] ? `land:${id}` : 'land', null);
     changed('land', { id });
     return { ok: true };
   }
@@ -428,6 +451,14 @@ export function createSite({ saved = null, bus = null, now = () => 0, finance = 
     whyNoUpgrade,
     buyLand,
     whyNoLand,
+    landShown,
+    landOf,
+    landViewAt,
+    eventScoreAdd,
+    // (BIG_RUN_5) a secret strip's secret found (src/systems/secrets.js stageOpen)
+    setLandSecret(fn) {
+      landSecret = fn ?? (() => false);
+    },
     catalogue,
     onEdge,
     progressOf,

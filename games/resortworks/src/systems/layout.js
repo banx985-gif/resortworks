@@ -18,7 +18,8 @@
 //     ly.appeal() · ly.place(roomId) (the review's inputs) · ly.lines(roomId) (the room sheet's three lines)
 //     ly.tileNoise(col, row) · ly.tileView(col, row) (the map overlay) · ly.onEdge(day, band, bookings)
 //     ly.attachMaintenance(mt) · ly.attachComplaints(cp) · ly.items · ly.facts
-import { gridFor } from './site.js';
+import { gridFor, landView } from './site.js';
+import { landOfCol } from '../../data/build.js';
 import { teamBonus } from './staff.js';
 import { systemValue, mult } from './facilities.js';
 import { rx } from './research.js';
@@ -114,6 +115,8 @@ export function measureLayout(items = layoutItems()) {
     const trips = Object.values(walk);
     const avgWalk = trips.length ? r2(trips.reduce((t, x) => t + x, 0) / trips.length) : 0;
     const src = sourcesAt(r.fp, items.facilities);
+    const lv = landView(r); // (BIG_RUN_5 Job 1) the land it stands on (Villa District, Luxury Ridge, Prestige Grounds)
+    if (lv) src.views.push({ id: landOfCol(r.fp.col).id, d: 0, value: lv, condition: false });
     const byBand = BANDS.map((_, i) => noiseIn(src.noise, i, shedBand(i)));
     rooms[r.id] = {
       walk,
