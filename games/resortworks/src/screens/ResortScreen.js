@@ -230,14 +230,22 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
 
   // --- where things are drawn (projected world) ------------------------------------------------------------------
   const lookOf = (it) => ({ ...ART_LOOK, ...(ART_TWEAK[it.id] ?? (it.kind === 'room' ? ART_TWEAK.R1 : {})) }); // (M12: built rooms look like the shipped ones)
+  // (M35 release pass) kept per thing until its picture's shape changes (it loads): a 90-room resort asks for it many
+  // times a frame (taps, badges, depth)
+  const artMemo = new WeakMap();
   function artRect(it) {
+    const asp = assets.aspect(it.def.art) || 1;
+    const m = artMemo.get(it);
+    if (m && m.asp === asp && m.fp === it.fp) return m.r;
     const look = lookOf(it);
     const fp = it.fp;
     const w = (fp.w + fp.h) * HW * look.width;
-    const h = w / (assets.aspect(it.def.art) || 1);
+    const h = w / asp;
     const cx = iso.corner(fp.col + fp.w / 2, fp.row + fp.h / 2).x;
     const front = iso.corner(fp.col + fp.w, fp.row + fp.h).y;
-    return { x: cx - w / 2, y: front - h * look.foot, w, h };
+    const r = { x: cx - w / 2, y: front - h * look.foot, w, h };
+    artMemo.set(it, { asp, fp: it.fp, r });
+    return r;
   }
   const feetOf = (p) => iso.toWorld(p.agent.x, p.agent.y);
   function personRect(p) {
@@ -923,14 +931,23 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   }
   // (Milestone 18 on) a Resort Office sheet (lateSheets.js)
   // (Milestone 33) the guide's targets on screen, and whether a tip may show
+  // (M35 release pass) a facility's point is looked for at most every quarter second, or when the view moves: the
+  // search samples its picture and asked every frame it held a 90-room resort to 15 fps.
+  let guideMemo = null;
   function guideTarget(name) {
     if (!name) return null;
     if (/^F\d\d$/.test(name)) {
+      const key = `${name}|${camKey()}|${world?.version}`;
+      const t = performance.now();
+      if (guideMemo?.key === key && t - guideMemo.t < 250) return guideMemo.r;
       const q = world?.byId(name) ? (screen.visiblePointOf?.(name) ?? screen.pointOf?.(name)) : null;
-      return q ? { x: q.x - 60, y: q.y - 60, w: 120, h: 120 } : null;
+      const r = q ? { x: q.x - 60, y: q.y - 60, w: 120, h: 120 } : null;
+      guideMemo = { key, t, r };
+      return r;
     }
     return screen.rectOf?.(name) ?? null;
   }
+  const camKey = () => `${camera.x.toFixed(1)},${camera.y.toFixed(1)},${camera.zoom.toFixed(4)},${camera.viewY},${camera.viewH}`;
   function guideOk() {
     return !!world && !buildMode && !sheet.active && !feedback?.active;
   }
@@ -1389,6 +1406,7 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
     },
 
     render(ctx) {
+      frameNo++;
       ctx.fillStyle = LOOK.verge;
       ctx.fillRect(0, 0, W, renderer.height);
       if (!world) {
@@ -1785,12 +1803,28 @@ export function createResortScreen({ renderer, layout, assets, bus, sheet, feedb
   // opens that room's sheet.
   const badgeScale = () => Math.max(0.62, Math.min(1, camera.zoom / 0.5));
   let measure = null;
+  const widths = new Map(); // (M35 release pass) each word's width at each size, measured once
   function textW(words, size) {
+    const key = `${words}|${size}|${font(size, true)}`;
+    if (widths.has(key)) return widths.get(key);
     measure ??= (typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(4, 4) : document.createElement('canvas')).getContext('2d');
     measure.font = font(size, true);
-    return measure.measureText(words).width;
+    const w = measure.measureText(words).width;
+    if (widths.size > 500) widths.clear();
+    widths.set(key, w);
+    return w;
   }
+  // (M35 release pass) worked out once a frame (taps and the guide ask many times)
+  let badgeMemo = null;
+  let frameNo = 0;
   function badgeRects() {
+    const key = `${frameNo}|${Math.floor(performance.now() / 100)}|${camKey()}|${world?.version}`; // (a tenth of a second at most, drawn or not)
+    if (badgeMemo?.key === key && badgeMemo.world === world) return badgeMemo.out;
+    const out = badgeRectsNow();
+    badgeMemo = { key, world, out };
+    return out;
+  }
+  function badgeRectsNow() {
     const bk = bookings();
     if (!world || !bk) return [];
     const k = badgeScale();

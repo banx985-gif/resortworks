@@ -181,7 +181,7 @@ export function createResortWorld({ founder, band = 'morning', bandFrac = 0, day
       p.agent.setState('working');
       return;
     }
-    const tiles = findPath(grid, here, it.door);
+    const tiles = here ? findPath(grid, here, it.door) : null; // (M35 release pass: off the lot, e.g. walking off along the road when the plan changed — core Agent then places them at the door)
     const dist = ((tiles?.length ?? 0) + 1) * grid.tileSize;
     p.agent.speed = timeLeft != null ? Math.max(p.baseSpeed, dist / (Math.max(0.05, timeLeft) * ARRIVE_SHARE)) : p.baseSpeed;
     if (pace === 2) p.agent.speed = Math.min(p.agent.speed, Math.max(p.baseSpeed, PERSON.maxRealSpeed / pace)); // (M11) readable at 2×
