@@ -1,0 +1,2720 @@
+{
+ "award_awr01": {
+  "folder": "awards",
+  "recipe": "842c24b72fdcaed594a19c11c5f9e90001c3a020|181x192|q0.88|lanczos3",
+  "w": 181,
+  "h": 192,
+  "webp": 18860,
+  "png": 61305,
+  "original": 336018
+ },
+ "award_awr02": {
+  "folder": "awards",
+  "recipe": "f74e32095302a8ede06d4d416c5f3199652c45b6|179x192|q0.88|lanczos3",
+  "w": 179,
+  "h": 192,
+  "webp": 12906,
+  "png": 48276,
+  "original": 241611
+ },
+ "award_awr03": {
+  "folder": "awards",
+  "recipe": "4c295b80d6ef919b352bea08d8d73e8670bf3092|192x192|q0.88|lanczos3",
+  "w": 192,
+  "h": 192,
+  "webp": 21486,
+  "png": 72105,
+  "original": 348131
+ },
+ "award_awr04": {
+  "folder": "awards",
+  "recipe": "3a76c7910c02847a8567afc2a9377b03566d29cc|182x192|q0.88|lanczos3",
+  "w": 182,
+  "h": 192,
+  "webp": 15954,
+  "png": 55707,
+  "original": 302514
+ },
+ "award_awr05": {
+  "folder": "awards",
+  "recipe": "a27e91157ba8cc57c45a18106cbe335accf5db76|179x192|q0.88|lanczos3",
+  "w": 179,
+  "h": 192,
+  "webp": 19650,
+  "png": 65054,
+  "original": 336129
+ },
+ "award_awr06": {
+  "folder": "awards",
+  "recipe": "6c654ba708ef231fca6e8afeaae4413d544c4ee9|159x192|q0.88|lanczos3",
+  "w": 159,
+  "h": 192,
+  "webp": 17038,
+  "png": 57378,
+  "original": 342583
+ },
+ "award_awr07": {
+  "folder": "awards",
+  "recipe": "f327e586511758331edb76e47cc59703f3150a6f|165x192|q0.88|lanczos3",
+  "w": 165,
+  "h": 192,
+  "webp": 13486,
+  "png": 48814,
+  "original": 290181
+ },
+ "award_awr08": {
+  "folder": "awards",
+  "recipe": "149c36c2d99bba712e70b2c1ca8e1612e6356954|164x192|q0.88|lanczos3",
+  "w": 164,
+  "h": 192,
+  "webp": 16270,
+  "png": 58174,
+  "original": 309654
+ },
+ "award_awr09": {
+  "folder": "awards",
+  "recipe": "208b5d3432e0b87ccd0e6a4641c880739ff51b17|171x192|q0.88|lanczos3",
+  "w": 171,
+  "h": 192,
+  "webp": 16650,
+  "png": 51680,
+  "original": 307466
+ },
+ "award_awr10": {
+  "folder": "awards",
+  "recipe": "552a4309155c2b0e9425bba8862acba9e8e5e2dc|175x192|q0.88|lanczos3",
+  "w": 175,
+  "h": 192,
+  "webp": 19122,
+  "png": 60756,
+  "original": 357693
+ },
+ "award_awr11": {
+  "folder": "awards",
+  "recipe": "2846a9ffc3d535e452c8dba5f2de429dd0e74ad1|459x527|q0.88|lanczos3",
+  "w": 459,
+  "h": 527,
+  "webp": 69504,
+  "png": 328185,
+  "original": 328185
+ },
+ "award_awr12": {
+  "folder": "awards",
+  "recipe": "b74ab3f6f277767bdea8c5219cf6712b4f510ecd|483x504|q0.88|lanczos3",
+  "w": 483,
+  "h": 504,
+  "webp": 61820,
+  "png": 326595,
+  "original": 326595
+ },
+ "cast_dougie": {
+  "folder": "cast",
+  "recipe": "91e4c31b6ec37a34ac1231892d626d0ed7780c7e|328x319|q0.88|lanczos3",
+  "w": 328,
+  "h": 319,
+  "webp": 25016,
+  "png": 101842,
+  "original": 293173
+ },
+ "cast_june": {
+  "folder": "cast",
+  "recipe": "f54e74e795c470c06c7c58ff8e1d22e6cc355a31|306x308|q0.88|lanczos3",
+  "w": 306,
+  "h": 308,
+  "webp": 25106,
+  "png": 101766,
+  "original": 327417
+ },
+ "cast_mabel": {
+  "folder": "cast",
+  "recipe": "f5c01a3829dcfeb04d77b4f7b5c49b9448721a76|310x308|q0.88|lanczos3",
+  "w": 310,
+  "h": 308,
+  "webp": 21642,
+  "png": 90475,
+  "original": 286172
+ },
+ "cast_opal": {
+  "folder": "cast",
+  "recipe": "31c85833b628cb776aedc775ea3184c628906983|627x595|q0.88|lanczos3",
+  "w": 627,
+  "h": 595,
+  "webp": 60964,
+  "png": 331049,
+  "original": 331049
+ },
+ "cast_otto": {
+  "folder": "cast",
+  "recipe": "884d7587c1efd441cde639af578fb5fa05abeedb|318x308|q0.88|lanczos3",
+  "w": 318,
+  "h": 308,
+  "webp": 23700,
+  "png": 98311,
+  "original": 302024
+ },
+ "cast_percy": {
+  "folder": "cast",
+  "recipe": "58dc3d72f6492d8e130360a76ab85cf613287214|293x308|q0.88|lanczos3",
+  "w": 293,
+  "h": 308,
+  "webp": 21818,
+  "png": 90676,
+  "original": 278246
+ },
+ "cast_priya": {
+  "folder": "cast",
+  "recipe": "6ef76254a43020871dd524db9059b1a542b51509|328x308|q0.88|lanczos3",
+  "w": 328,
+  "h": 308,
+  "webp": 22770,
+  "png": 98843,
+  "original": 310362
+ },
+ "cast_rocco": {
+  "folder": "cast",
+  "recipe": "2ff29f6add2ed3002eb6551860035ae2d797ea00|601x595|q0.88|lanczos3",
+  "w": 601,
+  "h": 595,
+  "webp": 60186,
+  "png": 306499,
+  "original": 306499
+ },
+ "cast_victor": {
+  "folder": "cast",
+  "recipe": "21e09eefd305e99115f75d8c1dcd33780edab2c8|615x595|q0.88|lanczos3",
+  "w": 615,
+  "h": 595,
+  "webp": 50384,
+  "png": 288548,
+  "original": 288548
+ },
+ "chibi_71_aaron_banx_games_founder_sheet": {
+  "folder": "cast",
+  "recipe": "0d530243dc31da277bf6e087fd6c20c6afcc384b|2048x2048|q0.88|lanczos3",
+  "w": 2048,
+  "h": 2048,
+  "webp": 370966,
+  "png": 1333209,
+  "original": 1333209
+ },
+ "event_ev01": {
+  "folder": "events",
+  "recipe": "d788683ffc93c8f84279d14cdbeab9119cb2d39c|482x492|q0.88|lanczos3",
+  "w": 482,
+  "h": 492,
+  "webp": 87930,
+  "png": 344059,
+  "original": 344059
+ },
+ "event_ev02": {
+  "folder": "events",
+  "recipe": "87f178e43397b6133d64992dbb2a439191206ff6|483x538|q0.88|lanczos3",
+  "w": 483,
+  "h": 538,
+  "webp": 99592,
+  "png": 411629,
+  "original": 411629
+ },
+ "event_ev03": {
+  "folder": "events",
+  "recipe": "c7de4ccd73cb6c001012305de06aaf2ebdb8c524|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 106034,
+  "png": 464372,
+  "original": 464372
+ },
+ "event_ev04": {
+  "folder": "events",
+  "recipe": "3148aaab2a0447c5d7e35fc6c5f2645e6c31ed25|482x479|q0.88|lanczos3",
+  "w": 482,
+  "h": 479,
+  "webp": 86730,
+  "png": 388361,
+  "original": 388361
+ },
+ "event_ev05": {
+  "folder": "events",
+  "recipe": "aba93eb8580b8be82fa86dfb32f32f54f72ff8e5|483x527|q0.88|lanczos3",
+  "w": 483,
+  "h": 527,
+  "webp": 111104,
+  "png": 453651,
+  "original": 453651
+ },
+ "event_ev06": {
+  "folder": "events",
+  "recipe": "8c1186575b78aebf54dc7ffa0fb165f173e70a77|483x472|q0.88|lanczos3",
+  "w": 483,
+  "h": 472,
+  "webp": 100106,
+  "png": 409964,
+  "original": 409964
+ },
+ "event_ev07": {
+  "folder": "events",
+  "recipe": "822d900d1367d2532a906822252f87788d75b6c4|482x510|q0.88|lanczos3",
+  "w": 482,
+  "h": 510,
+  "webp": 104822,
+  "png": 428629,
+  "original": 428629
+ },
+ "event_ev08": {
+  "folder": "events",
+  "recipe": "cfbc3f4f9cef4249eee86ca9ce1909f2cbab87e6|483x470|q0.88|lanczos3",
+  "w": 483,
+  "h": 470,
+  "webp": 99722,
+  "png": 419324,
+  "original": 419324
+ },
+ "event_ev09": {
+  "folder": "events",
+  "recipe": "0f1b9a2a9700360bd5cec7443709e333ef9ef4e6|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 85390,
+  "png": 379906,
+  "original": 379906
+ },
+ "event_ev10": {
+  "folder": "events",
+  "recipe": "553ea283ebf38c5b08ba3df8534862c648028d32|482x538|q0.88|lanczos3",
+  "w": 482,
+  "h": 538,
+  "webp": 91752,
+  "png": 398316,
+  "original": 398316
+ },
+ "event_ev11": {
+  "folder": "events",
+  "recipe": "0b142b2957e2b1555df6da1dda52b861d6cb03a7|483x500|q0.88|lanczos3",
+  "w": 483,
+  "h": 500,
+  "webp": 121650,
+  "png": 507895,
+  "original": 507895
+ },
+ "event_ev12": {
+  "folder": "events",
+  "recipe": "17567c4618bbd39e84f1d183da527a1258e7d699|483x499|q0.88|lanczos3",
+  "w": 483,
+  "h": 499,
+  "webp": 81568,
+  "png": 389549,
+  "original": 389549
+ },
+ "expansion_01": {
+  "folder": "expansions",
+  "recipe": "ae22cbd6b6c00ec0b65ebf1738efc3d453add328|177x192|q0.88|lanczos3",
+  "w": 177,
+  "h": 192,
+  "webp": 13080,
+  "png": 43180,
+  "original": 271576
+ },
+ "expansion_02": {
+  "folder": "expansions",
+  "recipe": "4d6d18a049df822b7e63e4d6aaef3f41cdc01f55|182x192|q0.88|lanczos3",
+  "w": 182,
+  "h": 192,
+  "webp": 19204,
+  "png": 64385,
+  "original": 388556
+ },
+ "expansion_03": {
+  "folder": "expansions",
+  "recipe": "3bad8c7d51ecd03821ded4d940281affa3d7fea1|171x192|q0.88|lanczos3",
+  "w": 171,
+  "h": 192,
+  "webp": 18528,
+  "png": 62802,
+  "original": 430679
+ },
+ "expansion_04": {
+  "folder": "expansions",
+  "recipe": "16214c7cdaa3c65c94c56a367f626a7f3183a8ec|175x192|q0.88|lanczos3",
+  "w": 175,
+  "h": 192,
+  "webp": 17446,
+  "png": 59960,
+  "original": 394578
+ },
+ "expansion_05": {
+  "folder": "expansions",
+  "recipe": "feb71871f6a27ae390ad21620e943485747c3b30|175x192|q0.88|lanczos3",
+  "w": 175,
+  "h": 192,
+  "webp": 19080,
+  "png": 63720,
+  "original": 401398
+ },
+ "expansion_06": {
+  "folder": "expansions",
+  "recipe": "318e8fba7a237c1f88bb0e0dfa733e12779d7875|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 110282,
+  "png": 463023,
+  "original": 463023
+ },
+ "facility_f01": {
+  "folder": "facilities",
+  "recipe": "400d0284329837558dbcc41987b77f13c01fe307|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 104074,
+  "png": 393960,
+  "original": 393960
+ },
+ "facility_f02": {
+  "folder": "facilities",
+  "recipe": "290062c06fc06c696de093991421ecd49c14aa69|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 98438,
+  "png": 390804,
+  "original": 390804
+ },
+ "facility_f03": {
+  "folder": "facilities",
+  "recipe": "ed92e01f70fad7e79ffec1d6f146ae41635fcd0f|482x523|q0.88|lanczos3",
+  "w": 482,
+  "h": 523,
+  "webp": 107984,
+  "png": 433490,
+  "original": 433490
+ },
+ "facility_f04": {
+  "folder": "facilities",
+  "recipe": "54a3cf4f954fe88d66883f8384d002c76f0469d3|483x525|q0.88|lanczos3",
+  "w": 483,
+  "h": 525,
+  "webp": 98772,
+  "png": 392915,
+  "original": 392915
+ },
+ "facility_f05": {
+  "folder": "facilities",
+  "recipe": "0697c65ed3dd50a2015be8bace0a0e529f963c1c|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 99084,
+  "png": 392977,
+  "original": 392977
+ },
+ "facility_f06": {
+  "folder": "facilities",
+  "recipe": "d839644363aebe25cca1e0daa35d1997a4f61ff8|482x543|q0.88|lanczos3",
+  "w": 482,
+  "h": 543,
+  "webp": 106552,
+  "png": 414499,
+  "original": 414499
+ },
+ "facility_f07": {
+  "folder": "facilities",
+  "recipe": "e98d29469a4c51dd2a6f68dc2836200363d64d99|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 98244,
+  "png": 379076,
+  "original": 379076
+ },
+ "facility_f08": {
+  "folder": "facilities",
+  "recipe": "493104ca390adda0f48561894c856a6b79a3df7e|483x523|q0.88|lanczos3",
+  "w": 483,
+  "h": 523,
+  "webp": 96270,
+  "png": 351381,
+  "original": 351381
+ },
+ "facility_f09": {
+  "folder": "facilities",
+  "recipe": "fde919d486113697c27ceeb7fe7561048955689d|482x531|q0.88|lanczos3",
+  "w": 482,
+  "h": 531,
+  "webp": 105562,
+  "png": 436254,
+  "original": 436254
+ },
+ "facility_f10": {
+  "folder": "facilities",
+  "recipe": "90e0afaf4fc816bc2635be4cf715db4d19ba7559|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 103198,
+  "png": 388875,
+  "original": 388875
+ },
+ "facility_f11": {
+  "folder": "facilities",
+  "recipe": "09fc61f84f8f66d5f5ce2ffaa811489b0dd4deb4|483x540|q0.88|lanczos3",
+  "w": 483,
+  "h": 540,
+  "webp": 106474,
+  "png": 448643,
+  "original": 448643
+ },
+ "facility_f12": {
+  "folder": "facilities",
+  "recipe": "e46b648524ab871640e89d62c1016fef80b69857|451x475|q0.88|lanczos3",
+  "w": 451,
+  "h": 475,
+  "webp": 100672,
+  "png": 426794,
+  "original": 426794
+ },
+ "facility_f13": {
+  "folder": "facilities",
+  "recipe": "9c2834565684067d3e05ec07e8417c614ed50d62|483x524|q0.88|lanczos3",
+  "w": 483,
+  "h": 524,
+  "webp": 111296,
+  "png": 419960,
+  "original": 419960
+ },
+ "facility_f14": {
+  "folder": "facilities",
+  "recipe": "15facd024c7e9db166189cbc090db970527d175b|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 97906,
+  "png": 400055,
+  "original": 400055
+ },
+ "facility_f15": {
+  "folder": "facilities",
+  "recipe": "25c6dd0fa1fb3450dbc7030ecc10d3598ee8efc6|482x529|q0.88|lanczos3",
+  "w": 482,
+  "h": 529,
+  "webp": 96162,
+  "png": 395238,
+  "original": 395238
+ },
+ "facility_f16": {
+  "folder": "facilities",
+  "recipe": "33aebf2bd89b1adf767179cd1d6c40a14cf55c84|483x529|q0.88|lanczos3",
+  "w": 483,
+  "h": 529,
+  "webp": 97642,
+  "png": 411595,
+  "original": 411595
+ },
+ "facility_f17": {
+  "folder": "facilities",
+  "recipe": "7898a82a9429db9f803e0ee7c000fd575aad9c03|483x534|q0.88|lanczos3",
+  "w": 483,
+  "h": 534,
+  "webp": 103006,
+  "png": 416372,
+  "original": 416372
+ },
+ "facility_f18": {
+  "folder": "facilities",
+  "recipe": "12f68c9f1ca31a50e41f3a1c89b58b070123b550|482x535|q0.88|lanczos3",
+  "w": 482,
+  "h": 535,
+  "webp": 95472,
+  "png": 380084,
+  "original": 380084
+ },
+ "facility_f19": {
+  "folder": "facilities",
+  "recipe": "4ba3fb737c313a481e18ebaa00314c4bb9f124fc|483x538|q0.88|lanczos3",
+  "w": 483,
+  "h": 538,
+  "webp": 112514,
+  "png": 436070,
+  "original": 436070
+ },
+ "facility_f20": {
+  "folder": "facilities",
+  "recipe": "c72d0746989e3c0349b046c1ec19a03e5e585537|483x533|q0.88|lanczos3",
+  "w": 483,
+  "h": 533,
+  "webp": 124284,
+  "png": 481013,
+  "original": 481013
+ },
+ "facility_f21": {
+  "folder": "facilities",
+  "recipe": "d2de2bd50401dd2ae06b51df0c1eaddeaa38bd0d|482x543|q0.88|lanczos3",
+  "w": 482,
+  "h": 543,
+  "webp": 95668,
+  "png": 399337,
+  "original": 399337
+ },
+ "facility_f22": {
+  "folder": "facilities",
+  "recipe": "4c7633c0f949ccfb7bf589122094fe64971edcc2|483x514|q0.88|lanczos3",
+  "w": 483,
+  "h": 514,
+  "webp": 121024,
+  "png": 482193,
+  "original": 482193
+ },
+ "facility_f23": {
+  "folder": "facilities",
+  "recipe": "2c12111f674ef9fd9a8709da56df9b73919b3212|483x508|q0.88|lanczos3",
+  "w": 483,
+  "h": 508,
+  "webp": 104022,
+  "png": 402233,
+  "original": 402233
+ },
+ "facility_f24": {
+  "folder": "facilities",
+  "recipe": "7710030354268a1ee727a768ec8565d5c7118a63|482x517|q0.88|lanczos3",
+  "w": 482,
+  "h": 517,
+  "webp": 112516,
+  "png": 418638,
+  "original": 418638
+ },
+ "facility_f25": {
+  "folder": "facilities",
+  "recipe": "131361280e35920a3026941e9dd4878cb3b8bbe8|483x540|q0.88|lanczos3",
+  "w": 483,
+  "h": 540,
+  "webp": 126292,
+  "png": 473480,
+  "original": 473480
+ },
+ "facility_f26": {
+  "folder": "facilities",
+  "recipe": "e7ac46954322ab6e1bdcba635ecf5fe1378b5b51|483x486|q0.88|lanczos3",
+  "w": 483,
+  "h": 486,
+  "webp": 121218,
+  "png": 483018,
+  "original": 483018
+ },
+ "facility_f27": {
+  "folder": "facilities",
+  "recipe": "e8f67a20113219ebb1f38400d0c069ff97a24ae2|482x531|q0.88|lanczos3",
+  "w": 482,
+  "h": 531,
+  "webp": 106594,
+  "png": 407072,
+  "original": 407072
+ },
+ "facility_f28": {
+  "folder": "facilities",
+  "recipe": "c78d7eafe1b6a27ffd07e75c3fc645ac122019c4|483x523|q0.88|lanczos3",
+  "w": 483,
+  "h": 523,
+  "webp": 114278,
+  "png": 448859,
+  "original": 448859
+ },
+ "facility_f29": {
+  "folder": "facilities",
+  "recipe": "c3028f64163fee3af4bf60ca81d7eaef0dc44e76|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 118432,
+  "png": 469873,
+  "original": 469873
+ },
+ "facility_f30": {
+  "folder": "facilities",
+  "recipe": "6c48bf53dc1f2dc511d597132ccb2ca5455d8669|482x522|q0.88|lanczos3",
+  "w": 482,
+  "h": 522,
+  "webp": 116340,
+  "png": 462011,
+  "original": 462011
+ },
+ "facility_f31": {
+  "folder": "facilities",
+  "recipe": "a378b9431483ad981615ce0b73f29ae65449b0b8|483x496|q0.88|lanczos3",
+  "w": 483,
+  "h": 496,
+  "webp": 115794,
+  "png": 457937,
+  "original": 457937
+ },
+ "facility_f32": {
+  "folder": "facilities",
+  "recipe": "d620b68c8e45ac552035e48a6cc20565393fca0f|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 113952,
+  "png": 460283,
+  "original": 460283
+ },
+ "facility_f33": {
+  "folder": "facilities",
+  "recipe": "59a8b8d284740f0fec38e7745d8e9caba045b059|482x504|q0.88|lanczos3",
+  "w": 482,
+  "h": 504,
+  "webp": 130208,
+  "png": 499141,
+  "original": 499141
+ },
+ "facility_f34": {
+  "folder": "facilities",
+  "recipe": "87ef012c6d7acecce4995fd8d4a7b9e0f270d90c|483x536|q0.88|lanczos3",
+  "w": 483,
+  "h": 536,
+  "webp": 108170,
+  "png": 425652,
+  "original": 425652
+ },
+ "facility_f35": {
+  "folder": "facilities",
+  "recipe": "35b974f0a00eb212b019c4b368284b43de0fac21|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 93490,
+  "png": 386487,
+  "original": 386487
+ },
+ "god_bolt_sheet": {
+  "folder": "gods",
+  "recipe": "8a8ffdf3845821a79340ed9f2efdae54fc5674ed|2048x2048|q0.88|lanczos3",
+  "w": 2048,
+  "h": 2048,
+  "webp": 323574,
+  "png": 1313517,
+  "original": 1313517
+ },
+ "god_havoc_sheet": {
+  "folder": "gods",
+  "recipe": "0e8769682c163e3b9bd0f42e34ff1c1d35c313db|2048x2048|q0.88|lanczos3",
+  "w": 2048,
+  "h": 2048,
+  "webp": 493706,
+  "png": 1732505,
+  "original": 1732505
+ },
+ "god_jinx_sheet": {
+  "folder": "gods",
+  "recipe": "b15bd9f519c7f735667342af38db2e0bafb5d779|2048x2048|q0.88|lanczos3",
+  "w": 2048,
+  "h": 2048,
+  "webp": 420866,
+  "png": 1704908,
+  "original": 1704908
+ },
+ "god_kaching_sheet": {
+  "folder": "gods",
+  "recipe": "5030beaa09ff66a321b39efa4c864a0a9a30bd8d|2048x2048|q0.88|lanczos3",
+  "w": 2048,
+  "h": 2048,
+  "webp": 362672,
+  "png": 1428859,
+  "original": 1428859
+ },
+ "god_zip_sheet": {
+  "folder": "gods",
+  "recipe": "346fbd73a4ecd7cc348fa47e8aba5adefec22051|2048x2048|q0.88|lanczos3",
+  "w": 2048,
+  "h": 2048,
+  "webp": 397286,
+  "png": 1444883,
+  "original": 1444883
+ },
+ "staff_god_bolt": {
+  "folder": "gods",
+  "recipe": "988a1080d31743aba53c73c7666fa543e700521c|225x328|q0.88|lanczos3",
+  "w": 225,
+  "h": 328,
+  "webp": 41888,
+  "png": 148252,
+  "original": 2199406
+ },
+ "staff_god_havoc": {
+  "folder": "gods",
+  "recipe": "c7afc8130bd319ac925c2d155cb07ff43eee69f5|940x1629|q0.88|lanczos3",
+  "w": 940,
+  "h": 1629,
+  "webp": 441352,
+  "png": 2006879,
+  "original": 2006879
+ },
+ "staff_god_jinx": {
+  "folder": "gods",
+  "recipe": "84d92698213b11102f60ed033231874b2a3a9ed9|930x1532|q0.88|lanczos3",
+  "w": 930,
+  "h": 1532,
+  "webp": 347918,
+  "png": 2192726,
+  "original": 2192726
+ },
+ "staff_god_kaching": {
+  "folder": "gods",
+  "recipe": "4c0525b4639247acedbf627b3b6906bdc8b2d975|1024x1278|q0.88|lanczos3",
+  "w": 1024,
+  "h": 1278,
+  "webp": 308132,
+  "png": 2122684,
+  "original": 2122684
+ },
+ "staff_god_zip": {
+  "folder": "gods",
+  "recipe": "698373630716a437d21472f8ee7070f08c846c45|1024x1505|q0.88|lanczos3",
+  "w": 1024,
+  "h": 1505,
+  "webp": 324718,
+  "png": 2179157,
+  "original": 2179157
+ },
+ "guest_gt01": {
+  "folder": "guests",
+  "recipe": "d80bcad5c901acdcf84116beb21bcf2905f89dd4|215x328|q0.88|lanczos3",
+  "w": 215,
+  "h": 328,
+  "webp": 36496,
+  "png": 132905,
+  "original": 396778
+ },
+ "guest_gt02": {
+  "folder": "guests",
+  "recipe": "50742fbdda8f526a27e71104518f6ac83e5bd9d0|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 101004,
+  "png": 437758,
+  "original": 437758
+ },
+ "guest_gt03": {
+  "folder": "guests",
+  "recipe": "3dfea3a03233a882684e09d46d88ae9892ee6d2e|133x192|q0.88|lanczos3",
+  "w": 133,
+  "h": 192,
+  "webp": 11524,
+  "png": 35720,
+  "original": 291919
+ },
+ "guest_gt04": {
+  "folder": "guests",
+  "recipe": "a70f614d5b20339b34bef943ca53f2af2bd487c6|134x192|q0.88|lanczos3",
+  "w": 134,
+  "h": 192,
+  "webp": 15740,
+  "png": 52359,
+  "original": 406825
+ },
+ "guest_gt05": {
+  "folder": "guests",
+  "recipe": "7f34b2a42908453fef6540b6be7197249eb1a72c|418x608|q0.88|lanczos3",
+  "w": 418,
+  "h": 608,
+  "webp": 85146,
+  "png": 359649,
+  "original": 359649
+ },
+ "guest_gt06": {
+  "folder": "guests",
+  "recipe": "ea62067968ce8607f8da168d8b6b06a8c28cec6d|418x598|q0.88|lanczos3",
+  "w": 418,
+  "h": 598,
+  "webp": 95654,
+  "png": 436549,
+  "original": 436549
+ },
+ "guest_gt07": {
+  "folder": "guests",
+  "recipe": "90f3b4abb81a268d755e2589a9b926c371109120|400x585|q0.88|lanczos3",
+  "w": 400,
+  "h": 585,
+  "webp": 49138,
+  "png": 213151,
+  "original": 213151
+ },
+ "guest_gt08": {
+  "folder": "guests",
+  "recipe": "a5d79d416d8b4167ae3eee02ddeea85117d90c78|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 95370,
+  "png": 403808,
+  "original": 403808
+ },
+ "guest_gt09": {
+  "folder": "guests",
+  "recipe": "fc2f4f881e4537d03f901c8fb84cb7004277a85d|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 100088,
+  "png": 435599,
+  "original": 435599
+ },
+ "guest_gt10": {
+  "folder": "guests",
+  "recipe": "e535e05cc48eb66338da0069f1773b59db6f07c0|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 90694,
+  "png": 407037,
+  "original": 407037
+ },
+ "guest_gt11": {
+  "folder": "guests",
+  "recipe": "5fdea5249caafd699d5b8330d468088547c741c6|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 104226,
+  "png": 454253,
+  "original": 454253
+ },
+ "guest_gt12": {
+  "folder": "guests",
+  "recipe": "1fcc76cf943aa5a051c573bfde79bbdc2a6b2f3c|482x530|q0.88|lanczos3",
+  "w": 482,
+  "h": 530,
+  "webp": 69192,
+  "png": 261381,
+  "original": 261381
+ },
+ "guest_gt13": {
+  "folder": "guests",
+  "recipe": "6afc1882306ff1fef552bfd0b76c26eb8cf2f365|475x543|q0.88|lanczos3",
+  "w": 475,
+  "h": 543,
+  "webp": 70762,
+  "png": 284747,
+  "original": 284747
+ },
+ "guest_gt14": {
+  "folder": "guests",
+  "recipe": "98835cc0dedc5f71feb04bf19d42931c24f013cc|376x497|q0.88|lanczos3",
+  "w": 376,
+  "h": 497,
+  "webp": 81120,
+  "png": 332395,
+  "original": 332395
+ },
+ "guest_gt15": {
+  "folder": "guests",
+  "recipe": "a2809856ac206a0fb2d5ee022668712eb896b2ef|472x533|q0.88|lanczos3",
+  "w": 472,
+  "h": 533,
+  "webp": 95672,
+  "png": 416555,
+  "original": 416555
+ },
+ "guest_gt16": {
+  "folder": "guests",
+  "recipe": "0e1889587dbd3d46442ecc3f5317d65fa8d8c639|482x534|q0.88|lanczos3",
+  "w": 482,
+  "h": 534,
+  "webp": 81376,
+  "png": 372822,
+  "original": 372822
+ },
+ "guest_gt17": {
+  "folder": "guests",
+  "recipe": "fca0015770b8ed9a4895e29d477a302cc724b880|470x532|q0.88|lanczos3",
+  "w": 470,
+  "h": 532,
+  "webp": 105712,
+  "png": 447013,
+  "original": 447013
+ },
+ "guest_gt18": {
+  "folder": "guests",
+  "recipe": "c29c617819340c788557727479ac8064aaa8fdb3|483x531|q0.88|lanczos3",
+  "w": 483,
+  "h": 531,
+  "webp": 68854,
+  "png": 321182,
+  "original": 321182
+ },
+ "guest_gt19": {
+  "folder": "guests",
+  "recipe": "af74e01116f0f8ad260f044cddde1c8260e4559d|482x531|q0.88|lanczos3",
+  "w": 482,
+  "h": 531,
+  "webp": 56538,
+  "png": 238701,
+  "original": 238701
+ },
+ "guest_gt20": {
+  "folder": "guests",
+  "recipe": "bc38338f9438bb70bbc864882d2599da3888b76f|425x534|q0.88|lanczos3",
+  "w": 425,
+  "h": 534,
+  "webp": 50624,
+  "png": 205156,
+  "original": 205156
+ },
+ "guest_gt21": {
+  "folder": "guests",
+  "recipe": "d88c8ff07cf068fb5840eaf1105557bc8c79ae25|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 80170,
+  "png": 312225,
+  "original": 312225
+ },
+ "guest_gt22": {
+  "folder": "guests",
+  "recipe": "b50d709d8654862f41e408f7841df6ed32dd48ff|481x543|q0.88|lanczos3",
+  "w": 481,
+  "h": 543,
+  "webp": 78826,
+  "png": 296744,
+  "original": 296744
+ },
+ "guest_gt23": {
+  "folder": "guests",
+  "recipe": "03b46c752124e614c37a26ff97b014d5cfa3cd9f|473x543|q0.88|lanczos3",
+  "w": 473,
+  "h": 543,
+  "webp": 57656,
+  "png": 251360,
+  "original": 251360
+ },
+ "guest_gt24": {
+  "folder": "guests",
+  "recipe": "6ffc669d50e4eeac09762340234e721b4e53582e|338x526|q0.88|lanczos3",
+  "w": 338,
+  "h": 526,
+  "webp": 64116,
+  "png": 291802,
+  "original": 291802
+ },
+ "package_pk01": {
+  "folder": "packages",
+  "recipe": "83260792a8fc20e056093f8068b6fd7f2476243b|192x186|q0.88|lanczos3",
+  "w": 192,
+  "h": 186,
+  "webp": 18570,
+  "png": 64622,
+  "original": 327224
+ },
+ "package_pk02": {
+  "folder": "packages",
+  "recipe": "c4ad262397250e0fd9b449b7c6653ab83aa5b64c|192x191|q0.88|lanczos3",
+  "w": 192,
+  "h": 191,
+  "webp": 20448,
+  "png": 74093,
+  "original": 345984
+ },
+ "package_pk03": {
+  "folder": "packages",
+  "recipe": "dc6668c18cb4c05a0a9a6698d9131d9ae81be058|169x192|q0.88|lanczos3",
+  "w": 169,
+  "h": 192,
+  "webp": 20982,
+  "png": 71710,
+  "original": 415390
+ },
+ "package_pk04": {
+  "folder": "packages",
+  "recipe": "452159fa47d58d2c570668ed0f37901dd10be2b8|192x190|q0.88|lanczos3",
+  "w": 192,
+  "h": 190,
+  "webp": 19184,
+  "png": 70727,
+  "original": 359814
+ },
+ "package_pk05": {
+  "folder": "packages",
+  "recipe": "3b48383050d77aa86eab2edf41c305d47eae656d|181x192|q0.88|lanczos3",
+  "w": 181,
+  "h": 192,
+  "webp": 18858,
+  "png": 69997,
+  "original": 378337
+ },
+ "package_pk06": {
+  "folder": "packages",
+  "recipe": "ae19a93634a29696b7410dfc8fbaba161ef05473|171x192|q0.88|lanczos3",
+  "w": 171,
+  "h": 192,
+  "webp": 21424,
+  "png": 70262,
+  "original": 462609
+ },
+ "package_pk07": {
+  "folder": "packages",
+  "recipe": "f1ca49265062303d7b68103f0f470b12a8457fcd|174x192|q0.88|lanczos3",
+  "w": 174,
+  "h": 192,
+  "webp": 22654,
+  "png": 73318,
+  "original": 466184
+ },
+ "package_pk08": {
+  "folder": "packages",
+  "recipe": "9b35bd08d642e9fd4f05478bb390141beffdb257|172x192|q0.88|lanczos3",
+  "w": 172,
+  "h": 192,
+  "webp": 20746,
+  "png": 69093,
+  "original": 446981
+ },
+ "package_pk09": {
+  "folder": "packages",
+  "recipe": "43f79e5e4c29185303f7850d764a654822138d26|171x192|q0.88|lanczos3",
+  "w": 171,
+  "h": 192,
+  "webp": 22340,
+  "png": 73607,
+  "original": 480551
+ },
+ "package_pk10": {
+  "folder": "packages",
+  "recipe": "6e8f682adc82b937bf890890fd607cf0e1199ca7|170x192|q0.88|lanczos3",
+  "w": 170,
+  "h": 192,
+  "webp": 23830,
+  "png": 76934,
+  "original": 505755
+ },
+ "partner_p01": {
+  "folder": "partners",
+  "recipe": "f4b75f8791ce1856d6a4d5991e118958231f9a48|475x472|q0.88|lanczos3",
+  "w": 475,
+  "h": 472,
+  "webp": 54374,
+  "png": 285392,
+  "original": 285392
+ },
+ "partner_p02": {
+  "folder": "partners",
+  "recipe": "c039898896d9df1f507baa90c4f8d41db262e3eb|467x479|q0.88|lanczos3",
+  "w": 467,
+  "h": 479,
+  "webp": 76478,
+  "png": 360116,
+  "original": 360116
+ },
+ "partner_p03": {
+  "folder": "partners",
+  "recipe": "be2b190568fa12f9b232e70ba1fc4ea643c2d4e3|483x478|q0.88|lanczos3",
+  "w": 483,
+  "h": 478,
+  "webp": 61486,
+  "png": 319996,
+  "original": 319996
+ },
+ "partner_p04": {
+  "folder": "partners",
+  "recipe": "e0f8acceb9810eb8da14b1a9a600517e1b4e603f|482x463|q0.88|lanczos3",
+  "w": 482,
+  "h": 463,
+  "webp": 65924,
+  "png": 332975,
+  "original": 332975
+ },
+ "partner_p05": {
+  "folder": "partners",
+  "recipe": "7dc9d1ac0fe458ef754267d45ad86fd61acb490e|465x449|q0.88|lanczos3",
+  "w": 465,
+  "h": 449,
+  "webp": 60110,
+  "png": 299897,
+  "original": 299897
+ },
+ "partner_p06": {
+  "folder": "partners",
+  "recipe": "7d22a5649e8b043c76a41ba0696ca4947652d55b|473x505|q0.88|lanczos3",
+  "w": 473,
+  "h": 505,
+  "webp": 70466,
+  "png": 357765,
+  "original": 357765
+ },
+ "partner_p07": {
+  "folder": "partners",
+  "recipe": "be326b209f6c7e54277c984437d987a2e980f0ee|482x497|q0.88|lanczos3",
+  "w": 482,
+  "h": 497,
+  "webp": 55958,
+  "png": 284318,
+  "original": 284318
+ },
+ "partner_p08": {
+  "folder": "partners",
+  "recipe": "45ecbe52aacebed69d2624bbc0fdbb53a293b2de|474x464|q0.88|lanczos3",
+  "w": 474,
+  "h": 464,
+  "webp": 55620,
+  "png": 301710,
+  "original": 301710
+ },
+ "partner_p09": {
+  "folder": "partners",
+  "recipe": "9fe78e8d2edc6b18856c1014b609979daa02918f|459x498|q0.88|lanczos3",
+  "w": 459,
+  "h": 498,
+  "webp": 61274,
+  "png": 312893,
+  "original": 312893
+ },
+ "partner_p10": {
+  "folder": "partners",
+  "recipe": "a904101cfad34c8b4bf7662133ac5c6563536b76|482x475|q0.88|lanczos3",
+  "w": 482,
+  "h": 475,
+  "webp": 54722,
+  "png": 287526,
+  "original": 287526
+ },
+ "research_r01": {
+  "folder": "research",
+  "recipe": "fa88cef4614f7b71bd3d783b6a061e9391ed909e|483x524|q0.88|lanczos3",
+  "w": 483,
+  "h": 524,
+  "webp": 83430,
+  "png": 374514,
+  "original": 374514
+ },
+ "research_r02": {
+  "folder": "research",
+  "recipe": "cc5c7f3ad9e14861d3b74703536c1c4d85534760|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 66814,
+  "png": 307325,
+  "original": 307325
+ },
+ "research_r03": {
+  "folder": "research",
+  "recipe": "0b853c057fd3e118b08509a0327063498026d830|482x531|q0.88|lanczos3",
+  "w": 482,
+  "h": 531,
+  "webp": 75150,
+  "png": 337639,
+  "original": 337639
+ },
+ "research_r04": {
+  "folder": "research",
+  "recipe": "3e881416835e24480b4df784cb7e6a5199e81d66|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 88130,
+  "png": 384772,
+  "original": 384772
+ },
+ "research_r05": {
+  "folder": "research",
+  "recipe": "c2ff31e886fd61b15980dcf375a486543bbc519a|483x523|q0.88|lanczos3",
+  "w": 483,
+  "h": 523,
+  "webp": 102256,
+  "png": 410403,
+  "original": 410403
+ },
+ "research_r06": {
+  "folder": "research",
+  "recipe": "1115fbeee421969a4e7c082b45a005650456ac3b|181x192|q0.88|lanczos3",
+  "w": 181,
+  "h": 192,
+  "webp": 19960,
+  "png": 67075,
+  "original": 394144
+ },
+ "research_r07": {
+  "folder": "research",
+  "recipe": "89eced84c93c277a7106221a4be5c45391ba0f4a|298x328|q0.88|lanczos3",
+  "w": 298,
+  "h": 328,
+  "webp": 38684,
+  "png": 162266,
+  "original": 360113
+ },
+ "research_r08": {
+  "folder": "research",
+  "recipe": "8832cf26139d294979b2a4af69c43734d1a82794|166x192|q0.88|lanczos3",
+  "w": 166,
+  "h": 192,
+  "webp": 16134,
+  "png": 54868,
+  "original": 349302
+ },
+ "research_r09": {
+  "folder": "research",
+  "recipe": "b98109b7468cefe5cc2e06faff67554655a217e6|183x192|q0.88|lanczos3",
+  "w": 183,
+  "h": 192,
+  "webp": 19774,
+  "png": 67783,
+  "original": 386319
+ },
+ "research_r10": {
+  "folder": "research",
+  "recipe": "c9e4076d76835ffd2b4a77dc990587b2f941bf1e|177x192|q0.88|lanczos3",
+  "w": 177,
+  "h": 192,
+  "webp": 19552,
+  "png": 65471,
+  "original": 390474
+ },
+ "research_r11": {
+  "folder": "research",
+  "recipe": "7353b28e242be607990fe3edcc386b9f2c3a3237|176x192|q0.88|lanczos3",
+  "w": 176,
+  "h": 192,
+  "webp": 20240,
+  "png": 69318,
+  "original": 420425
+ },
+ "research_r12": {
+  "folder": "research",
+  "recipe": "7806c850dec1ef704ddb614a50ecc5445669d9ed|174x192|q0.88|lanczos3",
+  "w": 174,
+  "h": 192,
+  "webp": 15848,
+  "png": 56641,
+  "original": 339682
+ },
+ "research_r13": {
+  "folder": "research",
+  "recipe": "9b3491ecc7dc7f7ddf5ed8819a3cfe8c154caf5b|174x192|q0.88|lanczos3",
+  "w": 174,
+  "h": 192,
+  "webp": 17194,
+  "png": 61617,
+  "original": 371674
+ },
+ "research_r14": {
+  "folder": "research",
+  "recipe": "c884849f9d0ebfb0759f84267ddf93ef26d237b6|178x192|q0.88|lanczos3",
+  "w": 178,
+  "h": 192,
+  "webp": 19186,
+  "png": 71110,
+  "original": 411507
+ },
+ "research_r15": {
+  "folder": "research",
+  "recipe": "93ba4fec883f6e297409be0f91f7809d488131e8|179x192|q0.88|lanczos3",
+  "w": 179,
+  "h": 192,
+  "webp": 20478,
+  "png": 69900,
+  "original": 402743
+ },
+ "research_r16": {
+  "folder": "research",
+  "recipe": "4b42e73744365168b861e8ec529d59585b0989f3|173x192|q0.88|lanczos3",
+  "w": 173,
+  "h": 192,
+  "webp": 17460,
+  "png": 58774,
+  "original": 335665
+ },
+ "research_r17": {
+  "folder": "research",
+  "recipe": "d3140170bdc97a6bbf783bb156978ea3896ff61f|172x192|q0.88|lanczos3",
+  "w": 172,
+  "h": 192,
+  "webp": 16162,
+  "png": 53856,
+  "original": 343963
+ },
+ "research_r18": {
+  "folder": "research",
+  "recipe": "e1140e75341f5b5acc03f144d4b9185f7da5a25b|179x192|q0.88|lanczos3",
+  "w": 179,
+  "h": 192,
+  "webp": 15760,
+  "png": 56808,
+  "original": 333143
+ },
+ "research_r19": {
+  "folder": "research",
+  "recipe": "c7032f63c089ad7fa1ad40f5b663ddbd1d188abe|168x192|q0.88|lanczos3",
+  "w": 168,
+  "h": 192,
+  "webp": 17802,
+  "png": 57522,
+  "original": 374619
+ },
+ "research_r20": {
+  "folder": "research",
+  "recipe": "85124d3520641a51df12aaf78133f5f6a6f4981b|171x192|q0.88|lanczos3",
+  "w": 171,
+  "h": 192,
+  "webp": 16846,
+  "png": 53426,
+  "original": 339401
+ },
+ "research_r21": {
+  "folder": "research",
+  "recipe": "78fa47079d13828b0dd2830546f3baf31ab0087c|175x192|q0.88|lanczos3",
+  "w": 175,
+  "h": 192,
+  "webp": 16908,
+  "png": 57386,
+  "original": 349584
+ },
+ "research_r22": {
+  "folder": "research",
+  "recipe": "243f6c1130cfe8a8a99f773bd5608ea1f979f68b|167x192|q0.88|lanczos3",
+  "w": 167,
+  "h": 192,
+  "webp": 17284,
+  "png": 57823,
+  "original": 376750
+ },
+ "research_r23": {
+  "folder": "research",
+  "recipe": "04e78a4e2cc8203c92a8806013091b337733d07b|171x192|q0.88|lanczos3",
+  "w": 171,
+  "h": 192,
+  "webp": 21442,
+  "png": 70716,
+  "original": 469456
+ },
+ "research_r24": {
+  "folder": "research",
+  "recipe": "d5e40e5af4d3fbdfa896c7d7f6a06e26c0cb068e|172x192|q0.88|lanczos3",
+  "w": 172,
+  "h": 192,
+  "webp": 21142,
+  "png": 66431,
+  "original": 430791
+ },
+ "research_r25": {
+  "folder": "research",
+  "recipe": "fac504678cb0e201dca141560c3580f25f124670|177x192|q0.88|lanczos3",
+  "w": 177,
+  "h": 192,
+  "webp": 20762,
+  "png": 70776,
+  "original": 440210
+ },
+ "research_r26": {
+  "folder": "research",
+  "recipe": "eb4d5a84c0d5a1bc006dbe0eac6e495d30d3051f|171x192|q0.88|lanczos3",
+  "w": 171,
+  "h": 192,
+  "webp": 20446,
+  "png": 67761,
+  "original": 446858
+ },
+ "research_r27": {
+  "folder": "research",
+  "recipe": "65d05b789d6b0ba0347ac6398deb1c0a49bb8982|170x192|q0.88|lanczos3",
+  "w": 170,
+  "h": 192,
+  "webp": 21448,
+  "png": 65737,
+  "original": 434952
+ },
+ "research_r28": {
+  "folder": "research",
+  "recipe": "9d02000d96286d3b9f726e1acfa668bb2ea1ca0a|171x192|q0.88|lanczos3",
+  "w": 171,
+  "h": 192,
+  "webp": 22650,
+  "png": 75378,
+  "original": 499882
+ },
+ "research_r29": {
+  "folder": "research",
+  "recipe": "fbe3e1d1379c348482b84557d606b8005a8e4da3|180x192|q0.88|lanczos3",
+  "w": 180,
+  "h": 192,
+  "webp": 22914,
+  "png": 76948,
+  "original": 447742
+ },
+ "research_r30": {
+  "folder": "research",
+  "recipe": "e45791156dbe84d731c187f9c62bf1471b7bfb0c|183x192|q0.88|lanczos3",
+  "w": 183,
+  "h": 192,
+  "webp": 23754,
+  "png": 78637,
+  "original": 441672
+ },
+ "research_r31": {
+  "folder": "research",
+  "recipe": "d742dda87f951d10fc090bdd408280d370816946|172x192|q0.88|lanczos3",
+  "w": 172,
+  "h": 192,
+  "webp": 19972,
+  "png": 65031,
+  "original": 405160
+ },
+ "research_r32": {
+  "folder": "research",
+  "recipe": "77cd07592b31d24703608d05d46272c559754969|171x192|q0.88|lanczos3",
+  "w": 171,
+  "h": 192,
+  "webp": 21448,
+  "png": 68230,
+  "original": 434639
+ },
+ "research_r33": {
+  "folder": "research",
+  "recipe": "1e1517f751a3376b9e78fe5aea17e8fd55ec12e3|178x192|q0.88|lanczos3",
+  "w": 178,
+  "h": 192,
+  "webp": 22606,
+  "png": 76127,
+  "original": 444711
+ },
+ "research_r34": {
+  "folder": "research",
+  "recipe": "d22b6ec07ac03e7d9e5de4242323e1c65d62ca2b|182x192|q0.88|lanczos3",
+  "w": 182,
+  "h": 192,
+  "webp": 21522,
+  "png": 71344,
+  "original": 400577
+ },
+ "research_r35": {
+  "folder": "research",
+  "recipe": "551803e4ed1bd1c0cf3e56f0656bab983a833b39|171x192|q0.88|lanczos3",
+  "w": 171,
+  "h": 192,
+  "webp": 20360,
+  "png": 66020,
+  "original": 429032
+ },
+ "research_r36": {
+  "folder": "research",
+  "recipe": "e995078702e9a6f0c4e47a517544de510105ed41|181x192|q0.88|lanczos3",
+  "w": 181,
+  "h": 192,
+  "webp": 22442,
+  "png": 74258,
+  "original": 424787
+ },
+ "rival_rv01": {
+  "folder": "rivals",
+  "recipe": "b3869472141b8fa778f6698a4fcbfff82fbdad24|465x479|q0.88|lanczos3",
+  "w": 465,
+  "h": 479,
+  "webp": 48392,
+  "png": 252840,
+  "original": 252840
+ },
+ "rival_rv02": {
+  "folder": "rivals",
+  "recipe": "47a45f91243d0db4032d66d2681d39e1f24db18e|456x473|q0.88|lanczos3",
+  "w": 456,
+  "h": 473,
+  "webp": 64602,
+  "png": 324919,
+  "original": 324919
+ },
+ "rival_rv03": {
+  "folder": "rivals",
+  "recipe": "cd546fe76e46725c4646cc510a311a40f01cba6e|475x461|q0.88|lanczos3",
+  "w": 475,
+  "h": 461,
+  "webp": 56574,
+  "png": 296740,
+  "original": 296740
+ },
+ "rival_rv04": {
+  "folder": "rivals",
+  "recipe": "308e6a7a2fea942620ee0e42129ee3e8052e7833|462x447|q0.88|lanczos3",
+  "w": 462,
+  "h": 447,
+  "webp": 60416,
+  "png": 300721,
+  "original": 300721
+ },
+ "rival_rv05": {
+  "folder": "rivals",
+  "recipe": "b5551b71ca2be2a855893e6144c8d9dde9bec19d|483x449|q0.88|lanczos3",
+  "w": 483,
+  "h": 449,
+  "webp": 69898,
+  "png": 350803,
+  "original": 350803
+ },
+ "rival_rv06": {
+  "folder": "rivals",
+  "recipe": "ec64bd94976558aa453b0d90211bd8f8a906fac5|482x491|q0.88|lanczos3",
+  "w": 482,
+  "h": 491,
+  "webp": 72492,
+  "png": 345354,
+  "original": 345354
+ },
+ "rival_rv07": {
+  "folder": "rivals",
+  "recipe": "b6f53902394bfc88b8f2cf8482195c159b7171df|464x490|q0.88|lanczos3",
+  "w": 464,
+  "h": 490,
+  "webp": 75676,
+  "png": 350372,
+  "original": 350372
+ },
+ "rival_rv08": {
+  "folder": "rivals",
+  "recipe": "bf6f7a9a93e7b081a2b821dba334c59c110a9bc4|448x526|q0.88|lanczos3",
+  "w": 448,
+  "h": 526,
+  "webp": 74120,
+  "png": 347231,
+  "original": 347231
+ },
+ "room_rm01": {
+  "folder": "rooms",
+  "recipe": "2be4859183b62783f7ad6462344e3ccb7cb97c87|482x543|q0.88|lanczos3",
+  "w": 482,
+  "h": 543,
+  "webp": 63620,
+  "png": 325382,
+  "original": 325382
+ },
+ "room_rm02": {
+  "folder": "rooms",
+  "recipe": "3fb2f8f5c257d4efbd517cbc76bee0ca4a696b0d|479x476|q0.88|lanczos3",
+  "w": 479,
+  "h": 476,
+  "webp": 76314,
+  "png": 398082,
+  "original": 398082
+ },
+ "room_rm03": {
+  "folder": "rooms",
+  "recipe": "936c76d7f585444fc0909e810e6b7eb634e79cf8|482x523|q0.88|lanczos3",
+  "w": 482,
+  "h": 523,
+  "webp": 77270,
+  "png": 377715,
+  "original": 377715
+ },
+ "room_rm04": {
+  "folder": "rooms",
+  "recipe": "15405d0177d8e7ab3ccdce8b2868499ec5b9b481|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 91592,
+  "png": 427649,
+  "original": 427649
+ },
+ "room_rm05": {
+  "folder": "rooms",
+  "recipe": "3bae5ad250d59cc445ce4baccdb74419781cd3cc|483x528|q0.88|lanczos3",
+  "w": 483,
+  "h": 528,
+  "webp": 90944,
+  "png": 412360,
+  "original": 412360
+ },
+ "room_rm06": {
+  "folder": "rooms",
+  "recipe": "ac644f3a0cf6e9001d18773ec0bbf41ce3dac624|482x510|q0.88|lanczos3",
+  "w": 482,
+  "h": 510,
+  "webp": 79200,
+  "png": 365903,
+  "original": 365903
+ },
+ "room_rm07": {
+  "folder": "rooms",
+  "recipe": "67855e8be336016825df8aa831ec263cd1afdec2|483x522|q0.88|lanczos3",
+  "w": 483,
+  "h": 522,
+  "webp": 92910,
+  "png": 427990,
+  "original": 427990
+ },
+ "room_rm08": {
+  "folder": "rooms",
+  "recipe": "d4c1902c435ce8e3f0be9fe42f9c6d1707dd63fc|483x533|q0.88|lanczos3",
+  "w": 483,
+  "h": 533,
+  "webp": 97068,
+  "png": 436872,
+  "original": 436872
+ },
+ "room_rm09": {
+  "folder": "rooms",
+  "recipe": "24d002b23144042beeb16fea91302cbe0ed6ca07|482x534|q0.88|lanczos3",
+  "w": 482,
+  "h": 534,
+  "webp": 86854,
+  "png": 398395,
+  "original": 398395
+ },
+ "room_rm10": {
+  "folder": "rooms",
+  "recipe": "5e071e9789048868a81bd68750e2552623a524b5|483x519|q0.88|lanczos3",
+  "w": 483,
+  "h": 519,
+  "webp": 109056,
+  "png": 462139,
+  "original": 462139
+ },
+ "room_rm11": {
+  "folder": "rooms",
+  "recipe": "c5e7ffb760ae8c3d7d7785d62343aefdae11f784|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 120466,
+  "png": 465995,
+  "original": 465995
+ },
+ "room_rm12": {
+  "folder": "rooms",
+  "recipe": "c8965e0765ccccf9da6b21108e9027f93f3c04bd|482x543|q0.88|lanczos3",
+  "w": 482,
+  "h": 543,
+  "webp": 135708,
+  "png": 525582,
+  "original": 525582
+ },
+ "staff_legend_aaron": {
+  "folder": "staff",
+  "recipe": "53c39345d3d2499167c594c36c9aabb73c3c3d6b|178x328|q0.88|lanczos3",
+  "w": 178,
+  "h": 328,
+  "webp": 20590,
+  "png": 93688,
+  "original": 494891
+ },
+ "staff_s01": {
+  "folder": "staff",
+  "recipe": "7e8989aedd03983c40308c25b1885b13fcde4c9a|359x616|q0.88|lanczos3",
+  "w": 359,
+  "h": 616,
+  "webp": 57240,
+  "png": 213667,
+  "original": 213667
+ },
+ "staff_s02": {
+  "folder": "staff",
+  "recipe": "e5677bd10bd03466beaadd07729c05f8e09b2335|127x192|q0.88|lanczos3",
+  "w": 127,
+  "h": 192,
+  "webp": 9540,
+  "png": 27548,
+  "original": 218964
+ },
+ "staff_s03": {
+  "folder": "staff",
+  "recipe": "bb59b00e3c4c9925ea6f5a6cf80c7f826064debb|342x599|q0.88|lanczos3",
+  "w": 342,
+  "h": 599,
+  "webp": 45418,
+  "png": 186909,
+  "original": 186909
+ },
+ "staff_s04": {
+  "folder": "staff",
+  "recipe": "c311123bf0f046eefdd5b4208dfb4585965d5769|418x615|q0.88|lanczos3",
+  "w": 418,
+  "h": 615,
+  "webp": 55864,
+  "png": 234280,
+  "original": 234280
+ },
+ "staff_s05": {
+  "folder": "staff",
+  "recipe": "6d6ffe7318358c81062abd65956ad1b6e8e3ed57|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 53996,
+  "png": 203006,
+  "original": 203006
+ },
+ "staff_s06": {
+  "folder": "staff",
+  "recipe": "abfd05676de4ab3833eac7d0454289177f18352b|391x614|q0.88|lanczos3",
+  "w": 391,
+  "h": 614,
+  "webp": 69116,
+  "png": 261557,
+  "original": 261557
+ },
+ "staff_s07": {
+  "folder": "staff",
+  "recipe": "467a01cf1c3d9ea466a9e8026e464987a0354fda|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 52598,
+  "png": 202864,
+  "original": 202864
+ },
+ "staff_s08": {
+  "folder": "staff",
+  "recipe": "cece12f4d311ba3ae0ef8ad977719ddfc7ef048a|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 52602,
+  "png": 208489,
+  "original": 208489
+ },
+ "staff_s09": {
+  "folder": "staff",
+  "recipe": "366be2771e6ea3c2377bf22728388aeb978ad801|390x627|q0.88|lanczos3",
+  "w": 390,
+  "h": 627,
+  "webp": 50820,
+  "png": 198999,
+  "original": 198999
+ },
+ "staff_s10": {
+  "folder": "staff",
+  "recipe": "8763d7c7a83de14867a25e2ea05e69dd4c8f1203|400x627|q0.88|lanczos3",
+  "w": 400,
+  "h": 627,
+  "webp": 47084,
+  "png": 194196,
+  "original": 194196
+ },
+ "staff_s11": {
+  "folder": "staff",
+  "recipe": "621a12ce8e648f56302bed08aaeaf552fd45442d|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 55424,
+  "png": 231196,
+  "original": 231196
+ },
+ "staff_s12": {
+  "folder": "staff",
+  "recipe": "f56f10c4ae3140323f4abd8d9bdcba9fa11edf9f|124x192|q0.88|lanczos3",
+  "w": 124,
+  "h": 192,
+  "webp": 11648,
+  "png": 32353,
+  "original": 251772
+ },
+ "staff_s13": {
+  "folder": "staff",
+  "recipe": "a71861d37dd7be7f4e6cd78c96912fc636ce8c51|367x620|q0.88|lanczos3",
+  "w": 367,
+  "h": 620,
+  "webp": 56180,
+  "png": 240234,
+  "original": 240234
+ },
+ "staff_s14": {
+  "folder": "staff",
+  "recipe": "103d0501cb90b6434e616b56f88f5b518a6dab2f|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 60462,
+  "png": 270078,
+  "original": 270078
+ },
+ "staff_s15": {
+  "folder": "staff",
+  "recipe": "0dbd677f9288bf9d4f676cc55e09cdc448efccb1|392x626|q0.88|lanczos3",
+  "w": 392,
+  "h": 626,
+  "webp": 63718,
+  "png": 251612,
+  "original": 251612
+ },
+ "staff_s16": {
+  "folder": "staff",
+  "recipe": "f2e9448498b62a0cb1079fd2e3ad4905cc210b51|383x617|q0.88|lanczos3",
+  "w": 383,
+  "h": 617,
+  "webp": 62618,
+  "png": 254627,
+  "original": 254627
+ },
+ "staff_s17": {
+  "folder": "staff",
+  "recipe": "edf2de4ab0285cddf5f30a3d987a69886431f41b|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 65640,
+  "png": 262751,
+  "original": 262751
+ },
+ "staff_s18": {
+  "folder": "staff",
+  "recipe": "d16f282283f9f115306d586a61ddf4d8230ace79|393x627|q0.88|lanczos3",
+  "w": 393,
+  "h": 627,
+  "webp": 65310,
+  "png": 277420,
+  "original": 277420
+ },
+ "staff_s19": {
+  "folder": "staff",
+  "recipe": "1317889ca02c6c466b8f723aef214c06fa8ba159|411x623|q0.88|lanczos3",
+  "w": 411,
+  "h": 623,
+  "webp": 59616,
+  "png": 248054,
+  "original": 248054
+ },
+ "staff_s20": {
+  "folder": "staff",
+  "recipe": "e5b8560f65f558b1eb8522821af6fc7937f00007|407x617|q0.88|lanczos3",
+  "w": 407,
+  "h": 617,
+  "webp": 63690,
+  "png": 251252,
+  "original": 251252
+ },
+ "staff_s21": {
+  "folder": "staff",
+  "recipe": "d003a50e135fd6e41b5b73f5d313e7d305500227|377x627|q0.88|lanczos3",
+  "w": 377,
+  "h": 627,
+  "webp": 54306,
+  "png": 237080,
+  "original": 237080
+ },
+ "staff_s22": {
+  "folder": "staff",
+  "recipe": "dc4ad285f22d97d2f7a14db592fb8ceb25473003|128x192|q0.88|lanczos3",
+  "w": 128,
+  "h": 192,
+  "webp": 11000,
+  "png": 32236,
+  "original": 258559
+ },
+ "staff_s23": {
+  "folder": "staff",
+  "recipe": "0b0184994c7d2bde8c7f0d668afb3f762ef8e99f|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 53048,
+  "png": 223892,
+  "original": 223892
+ },
+ "staff_s24": {
+  "folder": "staff",
+  "recipe": "b6b70e1be3dffe2a697f8ecf40d87f5030ab4426|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 61660,
+  "png": 248433,
+  "original": 248433
+ },
+ "staff_s25": {
+  "folder": "staff",
+  "recipe": "1908ef5ca11031fd3cc1b65de00666ee84fe7a71|387x627|q0.88|lanczos3",
+  "w": 387,
+  "h": 627,
+  "webp": 68324,
+  "png": 274417,
+  "original": 274417
+ },
+ "staff_s26": {
+  "folder": "staff",
+  "recipe": "7086691205d9fd1788a8f60186156f0d23fb92d8|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 65432,
+  "png": 248228,
+  "original": 248228
+ },
+ "staff_s27": {
+  "folder": "staff",
+  "recipe": "c685f3413f960efad94d8fbd24fd58b259971328|415x627|q0.88|lanczos3",
+  "w": 415,
+  "h": 627,
+  "webp": 78682,
+  "png": 308165,
+  "original": 308165
+ },
+ "staff_s28": {
+  "folder": "staff",
+  "recipe": "8e1cb92a8f1b96c6a38ea88b02362e7ce0439bb6|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 78834,
+  "png": 305951,
+  "original": 305951
+ },
+ "staff_s29": {
+  "folder": "staff",
+  "recipe": "9a261c35d8c7ec6b4b32d4f0f91db0f3c704e5f6|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 71442,
+  "png": 294284,
+  "original": 294284
+ },
+ "staff_s30": {
+  "folder": "staff",
+  "recipe": "626b8d60ae93675ec49629dcac8eb6b43772b4b6|400x627|q0.88|lanczos3",
+  "w": 400,
+  "h": 627,
+  "webp": 64732,
+  "png": 306402,
+  "original": 306402
+ },
+ "staff_s31": {
+  "folder": "staff",
+  "recipe": "3b5bb418405fbcc23df39df958b6ff1f44f9db64|330x627|q0.88|lanczos3",
+  "w": 330,
+  "h": 627,
+  "webp": 62488,
+  "png": 247836,
+  "original": 247836
+ },
+ "staff_s32": {
+  "folder": "staff",
+  "recipe": "49b970574cf5c958fd1326b963dd283607228555|114x192|q0.88|lanczos3",
+  "w": 114,
+  "h": 192,
+  "webp": 10500,
+  "png": 29225,
+  "original": 237688
+ },
+ "staff_s33": {
+  "folder": "staff",
+  "recipe": "d561b7845443320937494e146307c39a7ba2922a|404x599|q0.88|lanczos3",
+  "w": 404,
+  "h": 599,
+  "webp": 68264,
+  "png": 270480,
+  "original": 270480
+ },
+ "staff_s34": {
+  "folder": "staff",
+  "recipe": "6160fdd806040146e664fc8abcb0b9dbaf1eb2c7|374x627|q0.88|lanczos3",
+  "w": 374,
+  "h": 627,
+  "webp": 66428,
+  "png": 261419,
+  "original": 261419
+ },
+ "staff_s35": {
+  "folder": "staff",
+  "recipe": "f5bd26643b08b744d66f1978daf457aa00ba9cd5|418x622|q0.88|lanczos3",
+  "w": 418,
+  "h": 622,
+  "webp": 67834,
+  "png": 257002,
+  "original": 257002
+ },
+ "staff_s36": {
+  "folder": "staff",
+  "recipe": "42964f9bf5439b479404eb87597bcb2ace1bee58|378x620|q0.88|lanczos3",
+  "w": 378,
+  "h": 620,
+  "webp": 61684,
+  "png": 263481,
+  "original": 263481
+ },
+ "staff_s37": {
+  "folder": "staff",
+  "recipe": "2208bba905df47a199e8851114f0bd40ccb9c97a|375x627|q0.88|lanczos3",
+  "w": 375,
+  "h": 627,
+  "webp": 76044,
+  "png": 276416,
+  "original": 276416
+ },
+ "staff_s38": {
+  "folder": "staff",
+  "recipe": "2207c12063b273f019e4e11830b185859cc948b7|397x627|q0.88|lanczos3",
+  "w": 397,
+  "h": 627,
+  "webp": 71770,
+  "png": 285196,
+  "original": 285196
+ },
+ "staff_s39": {
+  "folder": "staff",
+  "recipe": "5bb10b88599ddd8cc2e52918d8cb9ce28a59b6eb|385x627|q0.88|lanczos3",
+  "w": 385,
+  "h": 627,
+  "webp": 82124,
+  "png": 312834,
+  "original": 312834
+ },
+ "staff_s40": {
+  "folder": "staff",
+  "recipe": "0e3eb178fb3f050ada389267011d92058bb78a6f|418x619|q0.88|lanczos3",
+  "w": 418,
+  "h": 619,
+  "webp": 76244,
+  "png": 272201,
+  "original": 272201
+ },
+ "staff_s41": {
+  "folder": "staff",
+  "recipe": "e6fd0533fe834c8b8a57eab5a44c61aa4a7d719c|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 68980,
+  "png": 318239,
+  "original": 318239
+ },
+ "staff_s42": {
+  "folder": "staff",
+  "recipe": "ee2dbdf392aa17dfa958269e37a2d794b81dd2c5|126x192|q0.88|lanczos3",
+  "w": 126,
+  "h": 192,
+  "webp": 12414,
+  "png": 37146,
+  "original": 300052
+ },
+ "staff_s43": {
+  "folder": "staff",
+  "recipe": "07dd093e64b372a9b01d00e02e889a50d2b54bc2|405x627|q0.88|lanczos3",
+  "w": 405,
+  "h": 627,
+  "webp": 82056,
+  "png": 303465,
+  "original": 303465
+ },
+ "staff_s44": {
+  "folder": "staff",
+  "recipe": "219a379f5c1a240da65de2b7c37c72776ca28791|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 71516,
+  "png": 340485,
+  "original": 340485
+ },
+ "staff_s45": {
+  "folder": "staff",
+  "recipe": "8ce5f2ae82ebc22844d4dad5422846ffe67b66b5|418x627|q0.88|lanczos3",
+  "w": 418,
+  "h": 627,
+  "webp": 76240,
+  "png": 334943,
+  "original": 334943
+ },
+ "staff_s46": {
+  "folder": "staff",
+  "recipe": "1513615405d23e92422d0ba2c00e09c0bb73097f|397x627|q0.88|lanczos3",
+  "w": 397,
+  "h": 627,
+  "webp": 79896,
+  "png": 328496,
+  "original": 328496
+ },
+ "staff_s47": {
+  "folder": "staff",
+  "recipe": "f131057fdb393b81b49fd0ff61ed8219695f7f58|412x627|q0.88|lanczos3",
+  "w": 412,
+  "h": 627,
+  "webp": 74534,
+  "png": 330389,
+  "original": 330389
+ },
+ "staff_s48": {
+  "folder": "staff",
+  "recipe": "520a37ff1205968c3afc47a7f0782fe643ca4b67|383x621|q0.88|lanczos3",
+  "w": 383,
+  "h": 621,
+  "webp": 80652,
+  "png": 327273,
+  "original": 327273
+ },
+ "staff_s49": {
+  "folder": "staff",
+  "recipe": "1965c9f8d8eccb3b05667373e1d95997927fa15f|418x608|q0.88|lanczos3",
+  "w": 418,
+  "h": 608,
+  "webp": 69262,
+  "png": 317747,
+  "original": 317747
+ },
+ "staff_s50": {
+  "folder": "staff",
+  "recipe": "ba882476cf5393724b18af3ccb4733d07cbbcbc9|418x595|q0.88|lanczos3",
+  "w": 418,
+  "h": 595,
+  "webp": 74292,
+  "png": 283928,
+  "original": 283928
+ },
+ "theme_th01": {
+  "folder": "themes",
+  "recipe": "7af7d4df23e894dd19fafa99950edee4930c649a|293x328|q0.88|lanczos3",
+  "w": 293,
+  "h": 328,
+  "webp": 49948,
+  "png": 187950,
+  "original": 456669
+ },
+ "theme_th02": {
+  "folder": "themes",
+  "recipe": "c948e52cf413d42140178ad8136e764bc4f66b21|190x192|q0.88|lanczos3",
+  "w": 190,
+  "h": 192,
+  "webp": 25234,
+  "png": 77465,
+  "original": 422142
+ },
+ "theme_th03": {
+  "folder": "themes",
+  "recipe": "e2a0fcafc1e70fecead5767d3670a94a4cd6c32e|173x192|q0.88|lanczos3",
+  "w": 173,
+  "h": 192,
+  "webp": 20248,
+  "png": 64770,
+  "original": 404972
+ },
+ "theme_th04": {
+  "folder": "themes",
+  "recipe": "3ceee8663833835562b0a7d410aa5b33f4426081|183x192|q0.88|lanczos3",
+  "w": 183,
+  "h": 192,
+  "webp": 23478,
+  "png": 75591,
+  "original": 429995
+ },
+ "theme_th05": {
+  "folder": "themes",
+  "recipe": "bafa6ce9ba03114ad79f2ff3d8efeed63241f23a|183x192|q0.88|lanczos3",
+  "w": 183,
+  "h": 192,
+  "webp": 25254,
+  "png": 77290,
+  "original": 456366
+ },
+ "theme_th06": {
+  "folder": "themes",
+  "recipe": "0ae4d47dc383c7bdaa2d80a16801a39fe2230af7|180x192|q0.88|lanczos3",
+  "w": 180,
+  "h": 192,
+  "webp": 21284,
+  "png": 70586,
+  "original": 426431
+ },
+ "theme_th07": {
+  "folder": "themes",
+  "recipe": "54f624deddfeb2714be1eb0cd8e49ff390a9b588|168x192|q0.88|lanczos3",
+  "w": 168,
+  "h": 192,
+  "webp": 20752,
+  "png": 66010,
+  "original": 446729
+ },
+ "theme_th08": {
+  "folder": "themes",
+  "recipe": "9ca38d0027fa79fe09aff33fa96a94368bcdaa57|171x192|q0.88|lanczos3",
+  "w": 171,
+  "h": 192,
+  "webp": 16976,
+  "png": 59463,
+  "original": 371943
+ },
+ "theme_th09": {
+  "folder": "themes",
+  "recipe": "be69ac76e7f87d6121858d5de6832c548c70f89f|176x192|q0.88|lanczos3",
+  "w": 176,
+  "h": 192,
+  "webp": 15816,
+  "png": 49951,
+  "original": 299910
+ },
+ "ui_01": {
+  "folder": "ui",
+  "recipe": "4aa2218f79b5342dc25e2b84cf11e4708b1b4551|483x504|q0.88|lanczos3",
+  "w": 483,
+  "h": 504,
+  "webp": 101306,
+  "png": 448941,
+  "original": 448941
+ },
+ "ui_02": {
+  "folder": "ui",
+  "recipe": "b8a315a279977e762d16f3eb7b5445c5b7c32973|185x192|q0.88|lanczos3",
+  "w": 185,
+  "h": 192,
+  "webp": 24568,
+  "png": 82368,
+  "original": 461882
+ },
+ "ui_03": {
+  "folder": "ui",
+  "recipe": "9b30e1f6bc4e30161ef967f9b898f885684cc58d|482x505|q0.88|lanczos3",
+  "w": 482,
+  "h": 505,
+  "webp": 89702,
+  "png": 399046,
+  "original": 399046
+ },
+ "ui_04": {
+  "folder": "ui",
+  "recipe": "1319331807d7a9c07f6f7189b6d4b2e7e4dfe616|483x539|q0.88|lanczos3",
+  "w": 483,
+  "h": 539,
+  "webp": 107544,
+  "png": 469655,
+  "original": 469655
+ },
+ "ui_05": {
+  "folder": "ui",
+  "recipe": "72b98956c8ea06b22dabeae8cd1eada494b9ea3f|317x328|q0.88|lanczos3",
+  "w": 317,
+  "h": 328,
+  "webp": 53658,
+  "png": 199187,
+  "original": 416561
+ },
+ "ui_06": {
+  "folder": "ui",
+  "recipe": "4aefa7ad9a550b2b522ea1e94043d2774ea13b10|179x192|q0.88|lanczos3",
+  "w": 179,
+  "h": 192,
+  "webp": 17132,
+  "png": 60700,
+  "original": 333658
+ },
+ "ui_07": {
+  "folder": "ui",
+  "recipe": "28cd679e1af6a1dc40dc25ec8cdbb612081216ae|465x528|q0.88|lanczos3",
+  "w": 465,
+  "h": 528,
+  "webp": 73454,
+  "png": 330885,
+  "original": 330885
+ },
+ "ui_08": {
+  "folder": "ui",
+  "recipe": "361d474c10c5515f8fcf635bda089f4cb8bfd25f|180x192|q0.88|lanczos3",
+  "w": 180,
+  "h": 192,
+  "webp": 17476,
+  "png": 64734,
+  "original": 365219
+ },
+ "ui_09": {
+  "folder": "ui",
+  "recipe": "de1fbdeffdfd1f81aa58381f037465435f54c41f|472x543|q0.88|lanczos3",
+  "w": 472,
+  "h": 543,
+  "webp": 73636,
+  "png": 335270,
+  "original": 335270
+ },
+ "ui_10": {
+  "folder": "ui",
+  "recipe": "a080a16133ee7a377c2e3799840d042a22f4bf5b|474x509|q0.88|lanczos3",
+  "w": 474,
+  "h": 509,
+  "webp": 72686,
+  "png": 349132,
+  "original": 349132
+ },
+ "ui_11": {
+  "folder": "ui",
+  "recipe": "b38b4ced9d786471cd51e35c01927ebcb7c77122|483x518|q0.88|lanczos3",
+  "w": 483,
+  "h": 518,
+  "webp": 99244,
+  "png": 429584,
+  "original": 429584
+ },
+ "ui_12": {
+  "folder": "ui",
+  "recipe": "46bdd3240b7b7f3cf65a547702e92064d2791ffe|482x542|q0.88|lanczos3",
+  "w": 482,
+  "h": 542,
+  "webp": 103012,
+  "png": 451085,
+  "original": 451085
+ },
+ "ui_13": {
+  "folder": "ui",
+  "recipe": "85ad48cd254d436abe432cef8b27561d5af300c7|295x328|q0.88|lanczos3",
+  "w": 295,
+  "h": 328,
+  "webp": 53022,
+  "png": 201210,
+  "original": 466152
+ },
+ "ui_14": {
+  "folder": "ui",
+  "recipe": "adc9efdadf2e71d6a81fa4518750fd4f62010793|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 115338,
+  "png": 489770,
+  "original": 489770
+ },
+ "ui_15": {
+  "folder": "ui",
+  "recipe": "6da679f675c4330e0b8e469b06bb767cacf4932f|482x539|q0.88|lanczos3",
+  "w": 482,
+  "h": 539,
+  "webp": 106234,
+  "png": 463861,
+  "original": 463861
+ },
+ "ui_16": {
+  "folder": "ui",
+  "recipe": "490073bf2b40aeac93a45634e7a86fa499a10d4a|473x527|q0.88|lanczos3",
+  "w": 473,
+  "h": 527,
+  "webp": 117794,
+  "png": 505495,
+  "original": 505495
+ },
+ "ui_17": {
+  "folder": "ui",
+  "recipe": "1bbc637d4edfc3872ec29bce6abdf4ad5475c38e|483x525|q0.88|lanczos3",
+  "w": 483,
+  "h": 525,
+  "webp": 65186,
+  "png": 303109,
+  "original": 303109
+ },
+ "ui_18": {
+  "folder": "ui",
+  "recipe": "bdb5306cf97502eb3033b60d97afbc793cf23a33|482x534|q0.88|lanczos3",
+  "w": 482,
+  "h": 534,
+  "webp": 57602,
+  "png": 261270,
+  "original": 261270
+ },
+ "ui_19": {
+  "folder": "ui",
+  "recipe": "60d9bb59d3daa7b79e0cf45512e14fa142282b6f|287x328|q0.88|lanczos3",
+  "w": 287,
+  "h": 328,
+  "webp": 29628,
+  "png": 111614,
+  "original": 261842
+ },
+ "ui_20": {
+  "folder": "ui",
+  "recipe": "139eb4b64e0e8a727f714e627bccd67841107665|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 80188,
+  "png": 343830,
+  "original": 343830
+ },
+ "ui_21": {
+  "folder": "ui",
+  "recipe": "2ab5f077c4b7e9a06e4e69f0a0a2bf6e902bdbaa|291x328|q0.88|lanczos3",
+  "w": 291,
+  "h": 328,
+  "webp": 32774,
+  "png": 130033,
+  "original": 313174
+ },
+ "ui_22": {
+  "folder": "ui",
+  "recipe": "d8e9c986aa0e82e2015257b9b0178f239cf24c33|285x328|q0.88|lanczos3",
+  "w": 285,
+  "h": 328,
+  "webp": 35044,
+  "png": 136480,
+  "original": 328131
+ },
+ "ui_23": {
+  "folder": "ui",
+  "recipe": "12f3ecd7ad052d3f5be865285bf2d5c438ac4a02|291x328|q0.88|lanczos3",
+  "w": 291,
+  "h": 328,
+  "webp": 30898,
+  "png": 118983,
+  "original": 271463
+ },
+ "ui_24": {
+  "folder": "ui",
+  "recipe": "de4381c37609b086134a53c437afbbed09025cbe|482x531|q0.88|lanczos3",
+  "w": 482,
+  "h": 531,
+  "webp": 67722,
+  "png": 333788,
+  "original": 333788
+ },
+ "ui_25": {
+  "folder": "ui",
+  "recipe": "c12afa2ce9d0d0a8063cb3cc82d79aa4bdcd0140|173x192|q0.88|lanczos3",
+  "w": 173,
+  "h": 192,
+  "webp": 14718,
+  "png": 47655,
+  "original": 272332
+ },
+ "ui_26": {
+  "folder": "ui",
+  "recipe": "a80b8a1c7ce079b25f54ef712243683106491b3f|299x328|q0.88|lanczos3",
+  "w": 299,
+  "h": 328,
+  "webp": 36200,
+  "png": 149790,
+  "original": 344950
+ },
+ "ui_27": {
+  "folder": "ui",
+  "recipe": "a7ef3ff6faea2ae4ebd080e9afdc85ae46274123|174x192|q0.88|lanczos3",
+  "w": 174,
+  "h": 192,
+  "webp": 15838,
+  "png": 56911,
+  "original": 343318
+ },
+ "ui_28": {
+  "folder": "ui",
+  "recipe": "156f44d21fddd4a5f40d45db1e032f97ec154246|305x328|q0.88|lanczos3",
+  "w": 305,
+  "h": 328,
+  "webp": 34220,
+  "png": 137223,
+  "original": 295849
+ },
+ "ui_29": {
+  "folder": "ui",
+  "recipe": "b5656157e782853b983b91774ee2d0c6978efe1e|297x328|q0.88|lanczos3",
+  "w": 297,
+  "h": 328,
+  "webp": 35500,
+  "png": 144745,
+  "original": 324088
+ },
+ "ui_30": {
+  "folder": "ui",
+  "recipe": "89351d27a93d0e1294e587c4c439f53105f83ebf|180x192|q0.88|lanczos3",
+  "w": 180,
+  "h": 192,
+  "webp": 17066,
+  "png": 57648,
+  "original": 320334
+ },
+ "ui_31": {
+  "folder": "ui",
+  "recipe": "dfa8d361221cf0a6e2c60cffef5fa7f972d06a86|293x328|q0.88|lanczos3",
+  "w": 293,
+  "h": 328,
+  "webp": 34704,
+  "png": 139677,
+  "original": 317248
+ },
+ "ui_32": {
+  "folder": "ui",
+  "recipe": "ec2da45e0ab85271a77d0dfbcd8708da06f1b1de|483x474|q0.88|lanczos3",
+  "w": 483,
+  "h": 474,
+  "webp": 73934,
+  "png": 346881,
+  "original": 346881
+ },
+ "ui_33": {
+  "folder": "ui",
+  "recipe": "9cbcace14d46f7b9b133a2b00d7300dc3c446092|314x328|q0.88|lanczos3",
+  "w": 314,
+  "h": 328,
+  "webp": 35416,
+  "png": 148364,
+  "original": 306539
+ },
+ "ui_34": {
+  "folder": "ui",
+  "recipe": "f2c5495892e1fbabf77f6850af74f618c4603603|471x513|q0.88|lanczos3",
+  "w": 471,
+  "h": 513,
+  "webp": 70370,
+  "png": 337634,
+  "original": 337634
+ },
+ "world_checkin_action": {
+  "folder": "world",
+  "recipe": "de6fd757f5248728f4ee2bb0ebda6242dc9dee15|483x543|q0.88|lanczos3",
+  "w": 483,
+  "h": 543,
+  "webp": 69690,
+  "png": 309655,
+  "original": 309655
+ },
+ "world_cleaning_action": {
+  "folder": "world",
+  "recipe": "f6d291c0e10fd570c807cced98d3da00706eca0d|483x532|q0.88|lanczos3",
+  "w": 483,
+  "h": 532,
+  "webp": 56032,
+  "png": 219270,
+  "original": 219270
+ },
+ "world_event_crowd_proxy": {
+  "folder": "world",
+  "recipe": "258344ca7734a85bc02d143d4cf3bba5ed16ffe1|477x530|q0.88|lanczos3",
+  "w": 477,
+  "h": 530,
+  "webp": 99596,
+  "png": 412508,
+  "original": 412508
+ },
+ "world_guest_adult_a": {
+  "folder": "world",
+  "recipe": "0865cd84e3320a838aaa0edd39c07544f7e5d900|430x532|q0.88|lanczos3",
+  "w": 430,
+  "h": 532,
+  "webp": 52590,
+  "png": 241841,
+  "original": 241841
+ },
+ "world_guest_adult_b": {
+  "folder": "world",
+  "recipe": "2c358357866529aac2a381d90a15b0bbdfbdfbf1|407x532|q0.88|lanczos3",
+  "w": 407,
+  "h": 532,
+  "webp": 63270,
+  "png": 307632,
+  "original": 307632
+ },
+ "world_guest_child": {
+  "folder": "world",
+  "recipe": "33fa310d255c3db47c095366b5a19533da2b7695|408x489|q0.88|lanczos3",
+  "w": 408,
+  "h": 489,
+  "webp": 42978,
+  "png": 189757,
+  "original": 189757
+ },
+ "world_guest_elder": {
+  "folder": "world",
+  "recipe": "f2af7af84d33f431bb5bed5e72d59abbe73d573b|467x543|q0.88|lanczos3",
+  "w": 467,
+  "h": 543,
+  "webp": 49082,
+  "png": 214688,
+  "original": 214688
+ },
+ "world_guest_group_proxy": {
+  "folder": "world",
+  "recipe": "d8759a53706c6eef471eb02ea949369884996b3f|469x533|q0.88|lanczos3",
+  "w": 469,
+  "h": 533,
+  "webp": 76100,
+  "png": 351330,
+  "original": 351330
+ },
+ "world_guest_vip": {
+  "folder": "world",
+  "recipe": "0708ded629df2f0b1c14b0101ab9fabb1a3e84af|477x534|q0.88|lanczos3",
+  "w": 477,
+  "h": 534,
+  "webp": 59524,
+  "png": 245010,
+  "original": 245010
+ },
+ "world_pool_action": {
+  "folder": "world",
+  "recipe": "c69692bbf3a972a2fcc59d939d0183d42b40ed90|482x543|q0.88|lanczos3",
+  "w": 482,
+  "h": 543,
+  "webp": 81294,
+  "png": 331920,
+  "original": 331920
+ },
+ "world_repair_action": {
+  "folder": "world",
+  "recipe": "99007c33d451841d56b7b3544304ec43564778b8|462x498|q0.88|lanczos3",
+  "w": 462,
+  "h": 498,
+  "webp": 74748,
+  "png": 309219,
+  "original": 309219
+ },
+ "world_serving_action": {
+  "folder": "world",
+  "recipe": "a6221fbbb9f4a5ebe81e2be286288359086296ab|482x531|q0.88|lanczos3",
+  "w": 482,
+  "h": 531,
+  "webp": 64888,
+  "png": 247299,
+  "original": 247299
+ },
+ "world_staff_activities_base": {
+  "folder": "world",
+  "recipe": "afea7f38f4b2e2f592f3d1c1abacbdfed804989a|482x535|q0.88|lanczos3",
+  "w": 482,
+  "h": 535,
+  "webp": 58734,
+  "png": 231184,
+  "original": 231184
+ },
+ "world_staff_frontoffice_base": {
+  "folder": "world",
+  "recipe": "9cb8d79b070c19dbb69c2ef1180fa0369f2344de|454x537|q0.88|lanczos3",
+  "w": 454,
+  "h": 537,
+  "webp": 49532,
+  "png": 201657,
+  "original": 201657
+ },
+ "world_staff_hospitality_base": {
+  "folder": "world",
+  "recipe": "072e4f40ac922eeec7d7f4b7a9908fcb65bb5793|448x537|q0.88|lanczos3",
+  "w": 448,
+  "h": 537,
+  "webp": 65882,
+  "png": 260616,
+  "original": 260616
+ },
+ "world_staff_housekeeping_base": {
+  "folder": "world",
+  "recipe": "6b42e3c5fa738f737c7119e1bcff2beb90ab46ec|450x539|q0.88|lanczos3",
+  "w": 450,
+  "h": 539,
+  "webp": 51464,
+  "png": 242946,
+  "original": 242946
+ },
+ "world_staff_maintenance_base": {
+  "folder": "world",
+  "recipe": "f4c03e995a25a1c6bf587b591c8252a5c4863759|453x535|q0.88|lanczos3",
+  "w": 453,
+  "h": 535,
+  "webp": 57576,
+  "png": 248610,
+  "original": 248610
+ },
+ "chibi_71_aaron_banx_games_founder_sheet@half": {
+  "folder": "cast",
+  "recipe": "0d530243dc31da277bf6e087fd6c20c6afcc384b|1024x1024|q0.88|lanczos3",
+  "w": 1024,
+  "h": 1024,
+  "webp": 191576,
+  "png": 0,
+  "original": 1333209
+ },
+ "god_bolt_sheet@half": {
+  "folder": "gods",
+  "recipe": "8a8ffdf3845821a79340ed9f2efdae54fc5674ed|1024x1024|q0.88|lanczos3",
+  "w": 1024,
+  "h": 1024,
+  "webp": 188670,
+  "png": 0,
+  "original": 1313517
+ },
+ "god_jinx_sheet@half": {
+  "folder": "gods",
+  "recipe": "b15bd9f519c7f735667342af38db2e0bafb5d779|1024x1024|q0.88|lanczos3",
+  "w": 1024,
+  "h": 1024,
+  "webp": 236990,
+  "png": 0,
+  "original": 1704908
+ },
+ "god_zip_sheet@half": {
+  "folder": "gods",
+  "recipe": "346fbd73a4ecd7cc348fa47e8aba5adefec22051|1024x1024|q0.88|lanczos3",
+  "w": 1024,
+  "h": 1024,
+  "webp": 222536,
+  "png": 0,
+  "original": 1444883
+ },
+ "god_kaching_sheet@half": {
+  "folder": "gods",
+  "recipe": "5030beaa09ff66a321b39efa4c864a0a9a30bd8d|1024x1024|q0.88|lanczos3",
+  "w": 1024,
+  "h": 1024,
+  "webp": 208688,
+  "png": 0,
+  "original": 1428859
+ },
+ "god_havoc_sheet@half": {
+  "folder": "gods",
+  "recipe": "0e8769682c163e3b9bd0f42e34ff1c1d35c313db|1024x1024|q0.88|lanczos3",
+  "w": 1024,
+  "h": 1024,
+  "webp": 266410,
+  "png": 0,
+  "original": 1732505
+ }
+}
